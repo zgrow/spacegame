@@ -1,0 +1,6 @@
+/target
+Cargo.lock
+/resources
+savegame.json
+logfile
+doc
