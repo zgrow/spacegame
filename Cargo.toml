@@ -9,8 +9,8 @@ crossterm = "0.25.0"
 tui = "0.19.0"
 #bracket-lib = "0.8.7"
 bracket-rex = { version = "0.8.7", default-features = false } # REXPaint tools
-#bracket-algorithm-traits = { version = "0.8.7", default-features = false } # required for other bracket-lib crates
-#bracket-geometry = { version = "0.8.7", default-features = false } # provides a few geometric primitives and helpers, required for others
+bracket-algorithm-traits = { version = "0.8.7", default-features = false } # required for other bracket-lib crates
+bracket-geometry = { version = "0.8.7", default-features = false } # provides a few geometric primitives and helpers, required for others
 #bracket-random = { version = "0.8.7", default-features = false }
 #bracket-noise = {} # noise generation tools
 #bracket-pathfinding = { version = "0.8.7", default-features = false } # high-perf A* pathfinding and Djikstra maps
@@ -21,5 +21,5 @@ bracket-embedding = { version = "0.8.7", default-features = false } # resource e
 #cursive = { version = "0.16.3" }
 #serde = { version = "1.0.93", features = ["derive"] }
 #serde_json = "1.0.39"
-#specs = { version = "0.16.1", features = ["serde"] }
-#specs-derive = "0.4.1"
+specs = { version = "0.16.1", features = ["serde"] }
+specs-derive = "0.4.1"

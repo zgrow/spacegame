@@ -7,5 +7,8 @@ pub mod gui;
 
 // REXPaint tools, including loader
 mod rex_assets;
-use rex_assets::RexAssets;
+
+// My custom map object
+pub mod map;
+
 // EOF
