@@ -1,4 +1,6 @@
-use super::{App, AppResult};
+// app/tui.rs
+
+use crate::app::{AppResult, GameEngine};
 use super::event::EventHandler;
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
@@ -17,7 +19,6 @@ pub struct Tui<B: Backend> {
     /// Terminal event handler.
     pub events: EventHandler,
 }
-
 impl<B: Backend> Tui<B> {
     /// Constructs a new instance of [`Tui`].
     pub fn new(terminal: Terminal<B>, events: EventHandler) -> Self {
@@ -38,8 +39,8 @@ impl<B: Backend> Tui<B> {
     /// [`Draw`] the terminal interface by [`rendering`] the widgets.
     ///
     /// [`Draw`]: tui::Terminal::draw
-    /// [`rendering`]: crate::app::App::render
-    pub fn draw(&mut self, app: &mut App) -> AppResult<()> {
+    /// [`rendering`]: crate::app::GameEngine::render
+    pub fn draw(&mut self, app: &mut GameEngine) -> AppResult<()> {
         self.terminal.draw(|frame| app.render(frame))?;
         Ok(())
     }
@@ -54,3 +55,5 @@ impl<B: Backend> Tui<B> {
         Ok(())
     }
 }
+
+// EOF

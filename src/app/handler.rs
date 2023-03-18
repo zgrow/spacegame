@@ -1,11 +1,11 @@
-// gui/handler.rs
+// app/handler.rs
 // generated from orhun/rust-tui-template via cargo-generate
 // Mar 15 2023
-use super::{App, AppResult};
+use crate::app::{AppResult, GameEngine};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-/// Handles the key events and updates the state of [`App`].
-pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
+/// Handles the key events and updates the state of [`GameEngine`].
+pub fn handle_key_events(key_event: KeyEvent, app: &mut GameEngine) -> AppResult<()> {
     match key_event.code {
         // Exit application on `ESC` or `q`
         KeyCode::Esc | KeyCode::Char('q') => {

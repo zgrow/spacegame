@@ -1,24 +1,20 @@
 // map.rs
 use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
 use bracket_geometry::prelude::*;
-//use specs::prelude::*;
-//use specs_derive::*;
-//use super::*;
+use bevy::prelude::*;
 
 pub const MAPWIDTH: i32 = 80;
 pub const MAPHEIGHT: i32 = 60;
 pub const MAPSIZE: i32 = MAPWIDTH * MAPHEIGHT;
 
-pub fn xy_to_index(x: i32, y: i32, width: i32) -> usize {
-	(y as usize * width as usize) + x as usize
-}
 #[derive(PartialEq, Copy, Clone, Debug, Default)]
 pub enum TileType {
 	#[default]
 	Floor,
 	Wall,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Resource)]
+///Represents a single layer of physical space in the game world
 pub struct Map {
 	pub tilemap: Vec<TileType>,
 	pub width: i32,
@@ -35,9 +31,14 @@ impl Map {
 			height: new_height,
 			//size: new_width * new_height,
 			tilemap: vec![TileType::Floor; (new_width * new_height) as usize],
-			revealed_tiles: vec![false; (new_width * new_height) as usize],
-			visible_tiles: vec![false; (new_width * new_height) as usize],
+			//:FIXME: set these back to false when ready to implement these features!
+			revealed_tiles: vec![true; (new_width * new_height) as usize],
+			visible_tiles: vec![true; (new_width * new_height) as usize],
 		}
+	}
+	/// Converts an x, y pair into a tilemap index
+	pub fn xy_to_index(&self, x: i32, y: i32) -> usize {
+		(y as usize * self.width as usize) + x as usize
 	}
 }
 // NOTE: the Algorithm2D, BaseMap, and Point objects all come out of bracket-lib

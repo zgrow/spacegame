@@ -1,7 +1,7 @@
-// gui/event.rs
+// app/event.rs
 // generated from orhun/rust-tui-template via cargo-generate
 // Mar 15 2023
-use super::AppResult;
+use crate::app::AppResult;
 use crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
 use std::sync::mpsc;
 use std::thread;

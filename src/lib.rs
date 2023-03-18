@@ -3,12 +3,18 @@
 // Mar 15 2023
 
 // tui-rs and related methods
-pub mod gui;
+pub mod app;
 
 // REXPaint tools, including loader
-mod rex_assets;
+pub mod rex_assets;
 
 // My custom map object
 pub mod map;
+
+// The set of ECS components
+pub mod components;
+
+// The map builder and its components
+pub mod map_builders;
 
 // EOF
