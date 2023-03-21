@@ -1,7 +1,6 @@
 // app/mod.rs
 // generated as app.rs using orhun/rust-tui-template via cargo-generate
 // Mar 15 2023
-// Here, ::tui refers to tui-rs, while the 'pub mod tui' below is located at app/tui.rs
 use std::error;
 use bevy::app::App;
 use ratatui::backend::Backend;
@@ -9,7 +8,6 @@ use ratatui::layout::{Alignment, Rect, Layout, Direction, Constraint};
 use ratatui::style::{Color, Style};
 use ratatui::terminal::Frame;
 use ratatui::widgets::{Block, BorderType, Borders};
-//use bevy::prelude::*;
 pub mod handler;
 pub mod event;
 pub mod viewport;
@@ -18,6 +16,7 @@ use viewport::Viewport;
 
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
+/// Contains all of the coordination and driver logic for the game itself
 #[derive(Debug)]
 pub struct GameEngine {
 	/// Is the application running?
@@ -33,7 +32,7 @@ impl GameEngine {
 			running: true,
 			app: App::new(),
 			recalculate_layout: true,
-			ui_grid: layout,
+			ui_grid: layout, // Can't be a Bevy Resource because tui::Rect is ineligible
 		}
 	}
 	/// Recalculates the UI layout based on the widget sizes
@@ -55,14 +54,8 @@ impl GameEngine {
 	}
 	/// Renders the user interface widgets.
 	pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
-		// This is where you add new widgets.
-		// See the following resources:
-		// - https://docs.rs/tui/latest/tui/widgets/index.html
-		// - https://github.com/fdehau/tui-rs/tree/master/examples
 		// METHOD
 		// - if the layout is 'dirty', recalculate it
-		// ERROR: This method needs to access a resource in the ECS!
-		// > rewrite to remove self.ui_grid, insert it in main() and retrieve it here
 		if self.recalculate_layout {
 			// FIXME: this logic is duplicated in main()! if this is changed, change there also
 			let mut first_split = Layout::default()
@@ -83,7 +76,7 @@ impl GameEngine {
 		// - might consider nesting the calls:
 		//   draw_thing<Backend>(f: &mut Frame<Backend>, app: &mut App, area: Rect)
 		// FIXME: one day i'll have the time to make this dynamic/rearrangable...
-		// right now we're just going to use a hardcoded set and order
+		//        right now we're just going to use a hardcoded set and order
 		// MAIN LAYOUT
 		// +----+-+
 		// | 1  | |

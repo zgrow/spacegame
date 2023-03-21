@@ -1,4 +1,5 @@
 // components.rs
+// Contains the definitions for assorted small ECS component structs
 
 use crate::map::*;
 use bevy::prelude::*;

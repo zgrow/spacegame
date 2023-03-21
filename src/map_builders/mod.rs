@@ -1,4 +1,5 @@
 // mod.rs
+// Provides the heavy lifting for building maps without cluttering up main()
 
 use crate::map::*;
 mod rexpaint_map;
@@ -11,7 +12,6 @@ pub trait MapBuilder {
 }
 
 pub fn random_builder(_new_depth: i32) -> Box<dyn MapBuilder>{
-	//Box::new(SimpleMapBuilder::new())
 	Box::new(RexMapBuilder::new())
 }
 

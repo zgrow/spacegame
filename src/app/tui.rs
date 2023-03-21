@@ -1,4 +1,5 @@
 // app/tui.rs
+// generated using orhun/rust-tui-template via cargo-generate
 
 use crate::app::{AppResult, GameEngine};
 use super::event::EventHandler;

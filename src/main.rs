@@ -14,7 +14,7 @@
 use std::io;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
-use ratatui::layout::{Layout, Constraint, Direction, Rect};
+use ratatui::layout::{Layout, Constraint, Direction};
 use bevy::prelude::*;
 use bevy::app::ScheduleRunnerSettings;
 
@@ -31,19 +31,18 @@ use spacegame::camera_system::camera_update_sys;
 // **MAIN
 fn main() -> AppResult<()> {
 	std::env::set_var("RUST_BACKTRACE", "1"); //:DEBUG: enables backtrace on program crash
-	// Create an application.
-	// Initialize the terminal user interface.
+	// Set up ratatui
 	let backend = CrosstermBackend::new(io::stdout());
 	let terminal = Terminal::new(backend)?;
 	// Now that we have a terminal, check the size to make sure we can continue
 	let tsize = terminal.size().unwrap();
-	//eprintln!("{} {}", tsize.width, tsize.height);//:DEBUG:
 	if tsize.width < 80 || tsize.height < 60 {
-		// throw a bigtime error and bailout
+		// throw a bigtime error and bailout if the terminal is too small
 		return Err("ERROR: Terminal size is too small (must be 80x60 minimum)".into());
 	}
 	// Precompute the sizes of the layout elements in the UI
-	// main_grid[index]: 0 = CameraView, 1 = MessageLog, 2 = MonitorRack
+	// FIXME: This logic is duplicated in app/mod.rs! Changes here need to be there too
+	// REFER: main_grid[index]: 0 = CameraView, 1 = MessageLog, 2 = MonitorRack
 	// Calculate the left-right split
 	let mut big_split = Layout::default()
 		.direction(Direction::Horizontal)
@@ -56,33 +55,30 @@ fn main() -> AppResult<()> {
 		.split(big_split[0]).to_vec();
 	// Attach the splits in order (see above)
 	main_grid.push(big_split.pop().unwrap());
-	// NOTE: the layout grid can't go into the ECS because tui::Rect does not have Resource
 	let main_camera = CameraView::new(main_grid[0].width as i32, main_grid[0].height as i32);//:FIXME: magic nums
 	// Finish setup of ratatui
 	let events = EventHandler::new(250);
 	let mut tui = Tui::new(terminal, events);
 	tui.init()?;
-	// Build up the Bevy instance
-	let mut eng = GameEngine::new(main_grid);
-	eng.app
-		.insert_resource(ScheduleRunnerSettings::run_once())    // the minimal scheduler
-		.insert_resource(RexAssets::new())          // REXPaint assets
-		.add_plugins(MinimalPlugins)                            // see note above for list
-		.add_system(camera_update_sys);
-	// Register our various resources and other assets
-	eng.app.insert_resource(main_camera);
-	// Start the map builder and get the starting map
+	// Build the game world
 	let mut builder = random_builder(1);
 	builder.build_map();
 	let worldmap = builder.get_map();
-	eng.app.insert_resource(worldmap);
-	//eprintln!("- worldmap inserted");//:DEBUG:
 	// Spawn the player
 	let player_spawn = Position{x: 41, y: 25};
-	eng.app.insert_resource(player_spawn);
-	// ...
-
-	eng.app.update(); // DO LAST: Let Bevy run a processing cycle to get things started
+	// FIXME: this is where creation of the player entity will go
+	// Build up the Bevy instance
+	let mut eng = GameEngine::new(main_grid);
+	eng.app
+		.insert_resource(ScheduleRunnerSettings::run_once())
+		.insert_resource(RexAssets::new())
+		.insert_resource(main_camera)
+		.insert_resource(worldmap)
+		.insert_resource(player_spawn)
+		.add_plugins(MinimalPlugins) // see above for list of what this includes
+		.add_system(camera_update_sys)
+		// First Bevy cycle should fire all of the startup systems, so make sure this iš LAST
+		.update();
 	// Start the main loop.
 	while eng.running {
 		// Render the user interface.
@@ -96,7 +92,6 @@ fn main() -> AppResult<()> {
 		}
 		eng.app.update();
 	}
-
 	// Exit the user interface.
 	tui.exit()?;
 	Ok(())

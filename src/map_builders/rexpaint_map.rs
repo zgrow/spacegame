@@ -1,11 +1,10 @@
 // rexpaint_map.rs
+// Loads a Rexpaint file into a Map object
 
-//use crate::map::*;
 use crate::map_builders::{
 	*,
 	image_loader::load_rex_map,
 };
-//use bracket_random::prelude::*;
 use bracket_rex::prelude::*;
 
 pub struct RexMapBuilder {
@@ -31,3 +30,5 @@ impl RexMapBuilder {
 		self.map = load_rex_map(1, &XpFile::from_resource("../resources/test_ship.xp").unwrap());
 	}
 }
+
+// EOF

@@ -1,4 +1,5 @@
 // map.rs
+// Defines the gameworld's terrain and interlocks with some bracket-lib logic
 use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
 use bracket_geometry::prelude::*;
 use ratatui::style::Color;
@@ -8,12 +9,14 @@ pub const MAPWIDTH: i32 = 80;
 pub const MAPHEIGHT: i32 = 60;
 pub const MAPSIZE: i32 = MAPWIDTH * MAPHEIGHT;
 
+///Decides whether the Tile is open terrain, a wall, et cetera
 #[derive(PartialEq, Copy, Clone, Debug, Default)]
 pub enum TileType {
 	#[default]
 	Floor,
 	Wall,
 }
+///Represents a single position within the game world
 #[derive(PartialEq, Clone, Debug)]
 pub struct Tile {
 	pub ttype: TileType,
@@ -22,13 +25,12 @@ pub struct Tile {
 	pub bg: Color,
 	pub mods: String,
 }
-#[derive(Clone, Debug, Resource)]
 ///Represents a single layer of physical space in the game world
+#[derive(Clone, Debug, Resource)]
 pub struct Map {
 	pub tilemap: Vec<TileType>,
 	pub width: i32,
 	pub height: i32,
-	//pub size: i32,
 	pub revealed_tiles: Vec<bool>,
 	pub visible_tiles: Vec<bool>,
 }
@@ -38,7 +40,6 @@ impl Map {
 		Map {
 			width: new_width,
 			height: new_height,
-			//size: new_width * new_height,
 			tilemap: vec![TileType::Floor; (new_width * new_height) as usize],
 			//:FIXME: set these back to false when ready to implement these features!
 			revealed_tiles: vec![true; (new_width * new_height) as usize],

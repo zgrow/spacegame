@@ -7,11 +7,12 @@ use bevy::ecs::system::*;
 use bevy::ecs::query::*;
 use ratatui::style::*;
 
-//pub struct CameraView {
-//	pub map: Vec<Tile>,
-//	pub width: i32,
-//	pub height: i32,
-//}
+/** The CameraView struct defn:
+ *  pub struct CameraView
+ *      pub map: Vec<Tile>,
+ *      pub width: i32,
+ *      pub height: i32,
+ */
 ///Provides an abstraction to the Viewport widget with hooks into Bevy's systems for updates
 impl CameraView {
 	pub fn new(new_width: i32, new_height: i32) -> Self {
@@ -22,16 +23,10 @@ impl CameraView {
 		}
 	}
 	pub fn resize(&mut self, _new_width: i32, _new_height: i32) {
-		eprintln!("CameraView::resize() called");//:DEBUG:
+		eprintln!("UNIMPLEMENTED: CameraView::resize() called");//:DEBUG:
 		// NOTE: include a sanity check here that actually examines the dims prior to resize
 		// if the resize is required, then probably safest to wipe the whole thing...
 		// either way, make sure that the CameraView gets an update before next render call
-	}
-	pub fn set_width(&mut self, new_val: i32) {
-		self.width = new_val;
-	}
-	pub fn set_height(&mut self, new_val: i32) {
-		self.height = new_val;
 	}
 }
 ///Provides the update system for Bevy
@@ -39,10 +34,6 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 						 _query: Query<&Position, With<Renderable>>,
 						 map: Res<Map>,
 						 ppos: Res<Position>,
-						 // plus optional new width/height values in case of resize
-						 // consider swapping these out for a pair of builder methods?
-						 //_new_width: Option<i32>,
-						 //_new_height: Option<i32>
 						 )
 {
 	/* UPDATE STRATEGY

@@ -8,11 +8,10 @@ use ratatui::{
 	buffer::Buffer,
 	widgets::{Widget, Block},
 	layout::{Alignment, Rect},
-	style::{Style},
+	style::Style,
 };
 
 pub struct Viewport<'a> {
-	//map: &'a str,
 	ecs: &'a App,
 	// these are the tui-rs attributes
 	block: Option<Block<'a>>,
@@ -48,64 +47,6 @@ impl<'a> Widget for Viewport<'a> {
 		}
 	}
 }
-/*		// get a ref to the player's location
-		let ppos = self.ecs.world.resource::<Position>(); // only the player's posn is a resource
-		// get the size of the viewport
-		// > equal to area.width, area.height, etc as calculated from above
-		// calc the centerpoint of the viewport
-		let centerpoint = ((area.width / 2) as i32, (area.height / 2) as i32);
-		// calc the min/max x,y of the map to obtain using:
-		//      (player_x - center_x, player_y - center_y)
-		let minimum = (ppos.x - centerpoint.0, ppos.y - centerpoint.1);
-		let maximum = (minimum.0 + area.width as i32, minimum.1 + area.height as i32);
-		// begin drawing the map:
-		let mut screen_y = 1;
-		for target_y in minimum.1..maximum.1 {
-			let mut screen_x = 1;
-			for target_x in minimum.0..maximum.0 {
-				let glyph = "░";
-				if target_x >= 0
-				&& target_y >= 0
-				&& target_x < view.width
-				&& target_y < view.height {
-					let index = xy_to_index(target_x, target_y, view.width);
-					buf.set_string(screen_x, screen_y, &view.map[index].glyph, Style::default().fg(view.map[index].fg).bg(view.map[index].bg));
-					screen_x += 1;
-				} else {
-					// use the background tile above
-					buf.set_string(screen_x, screen_y, glyph, Style::default().fg(Color::DarkGray).bg(Color::Black));
-					screen_x += 1;
-				}
-				screen_y += 1;
-			}
-		}
-*/
-/*		let mut screen_y = 1;
-		for target_y in minimum.1..maximum.1 {
-			let mut screen_x = 1;
-			for target_x in minimum.0..maximum.0 {
-				let mut glyph = "░";
-				if target_x >= 0
-				&& target_y >= 0
-				&& target_x < map.width
-				&& target_y < map.height {
-					let index = Map::xy_to_index(map.tilemap, target_x, target_y);
-					if map.revealed_tiles[index] {
-						glyph = match map.tilemap[index] {
-							TileType::Floor => ".",
-							TileType::Wall => "+",
-						};
-					} else {
-						glyph = "_";
-					}
-				}
-				buf.set_string(screen_x, screen_y, glyph, Style::default());
-				screen_x += 1;
-			}
-			screen_y += 1;
-		}
-*/
-
 impl <'a> Viewport<'a> {
 	pub fn new(newworld: &'a App) -> Viewport<'a> {
 		Viewport {
