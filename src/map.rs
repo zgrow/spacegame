@@ -1,6 +1,7 @@
 // map.rs
 use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
 use bracket_geometry::prelude::*;
+use ratatui::style::Color;
 use bevy::prelude::*;
 
 pub const MAPWIDTH: i32 = 80;
@@ -12,6 +13,14 @@ pub enum TileType {
 	#[default]
 	Floor,
 	Wall,
+}
+#[derive(PartialEq, Clone, Debug)]
+pub struct Tile {
+	pub ttype: TileType,
+	pub glyph: String,
+	pub fg: Color,
+	pub bg: Color,
+	pub mods: String,
 }
 #[derive(Clone, Debug, Resource)]
 ///Represents a single layer of physical space in the game world
@@ -36,10 +45,14 @@ impl Map {
 			visible_tiles: vec![true; (new_width * new_height) as usize],
 		}
 	}
-	/// Converts an x, y pair into a tilemap index
-	pub fn xy_to_index(&self, x: i32, y: i32) -> usize {
+	/// Converts an x, y pair into a tilemap index using the given map's width
+	pub fn to_index(&self, x: i32, y: i32) -> usize {
 		(y as usize * self.width as usize) + x as usize
 	}
+}
+/// Reference method that allows calculation from an arbitrary width
+pub fn xy_to_index(x: i32, y: i32, w: i32) -> usize {
+	(y as usize * w as usize) + x as usize
 }
 // NOTE: the Algorithm2D, BaseMap, and Point objects all come out of bracket-lib
 impl Algorithm2D for Map {

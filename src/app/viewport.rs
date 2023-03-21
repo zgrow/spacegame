@@ -1,15 +1,14 @@
 // viewport.rs
 // Provides a viewport onto a (larger) tilemap, such as in a roguelike
 
-use super::Map;
-use super::super::map::TileType;
-use super::super::components::Position;
+use crate::map::xy_to_index;
+use crate::components::*;
 use bevy::app::App;
-use ::tui::{
+use ratatui::{
 	buffer::Buffer,
 	widgets::{Widget, Block},
 	layout::{Alignment, Rect},
-	style::Style,
+	style::{Style},
 };
 
 pub struct Viewport<'a> {
@@ -22,6 +21,9 @@ pub struct Viewport<'a> {
 }
 impl<'a> Widget for Viewport<'a> {
 	fn render(mut self, area: Rect, buf: &mut Buffer) {
+		// Ensure that the CameraView we're about to write into has the right size
+		let view = self.ecs.world.get_resource::<CameraView>().unwrap();
+		assert_eq!((area.width as i32, area.height as i32), (view.width, view.height), "CameraView and Widget::Viewport have mismatched size!");
 		// Draw the border, if it exists
 		let area = match self.block.take() {
 			Some(b) => {
@@ -35,13 +37,19 @@ impl<'a> Widget for Viewport<'a> {
 		if area.width < 1 || area.height < 1 {
 			return;
 		}
-		// We are certain of a valid drawing area, so let's get started
-		// METHOD
-		// get a ref to the map
-		//let target = self.app.world.resource::<Map>();
-		let map = self.ecs.world.resource::<Map>();
-		// get a ref to the player's location
-		let ppos = self.ecs.world.resource::<Position>();
+		// We are certain of a valid drawing area, so let's gooooo
+		let buf_y = 0;
+		for map_y in 0..view.height {
+			let buf_x = 0;
+			for map_x in 0..view.width {
+				let index = xy_to_index(map_x, map_y, view.width);
+				buf.set_string(buf_x, buf_y, &view.map[index].glyph, self.style);
+			}
+		}
+	}
+}
+/*		// get a ref to the player's location
+		let ppos = self.ecs.world.resource::<Position>(); // only the player's posn is a resource
 		// get the size of the viewport
 		// > equal to area.width, area.height, etc as calculated from above
 		// calc the centerpoint of the viewport
@@ -55,12 +63,33 @@ impl<'a> Widget for Viewport<'a> {
 		for target_y in minimum.1..maximum.1 {
 			let mut screen_x = 1;
 			for target_x in minimum.0..maximum.0 {
+				let glyph = "░";
+				if target_x >= 0
+				&& target_y >= 0
+				&& target_x < view.width
+				&& target_y < view.height {
+					let index = xy_to_index(target_x, target_y, view.width);
+					buf.set_string(screen_x, screen_y, &view.map[index].glyph, Style::default().fg(view.map[index].fg).bg(view.map[index].bg));
+					screen_x += 1;
+				} else {
+					// use the background tile above
+					buf.set_string(screen_x, screen_y, glyph, Style::default().fg(Color::DarkGray).bg(Color::Black));
+					screen_x += 1;
+				}
+				screen_y += 1;
+			}
+		}
+*/
+/*		let mut screen_y = 1;
+		for target_y in minimum.1..maximum.1 {
+			let mut screen_x = 1;
+			for target_x in minimum.0..maximum.0 {
 				let mut glyph = "░";
-				if target_x > 0
-				&& target_y > 0
+				if target_x >= 0
+				&& target_y >= 0
 				&& target_x < map.width
 				&& target_y < map.height {
-					let index = map.xy_to_index(target_x, target_y);
+					let index = Map::xy_to_index(map.tilemap, target_x, target_y);
 					if map.revealed_tiles[index] {
 						glyph = match map.tilemap[index] {
 							TileType::Floor => ".",
@@ -75,14 +104,9 @@ impl<'a> Widget for Viewport<'a> {
 			}
 			screen_y += 1;
 		}
-		// draw the renderables, etc
-	}
-}
+*/
+
 impl <'a> Viewport<'a> {
-	pub fn view(mut self, newworld: &'a App) -> Viewport<'a> {
-		self.ecs = newworld;
-		self
-	}
 	pub fn new(newworld: &'a App) -> Viewport<'a> {
 		Viewport {
 			ecs: newworld,
@@ -90,6 +114,11 @@ impl <'a> Viewport<'a> {
 			style: Default::default(),
 			align: Alignment::Left,
 		}
+	}
+	// These are all chain methods to interconnect with tui-rs
+	pub fn view(mut self, newworld: &'a App) -> Viewport<'a> {
+		self.ecs = newworld;
+		self
 	}
 	pub fn block(mut self, block: Block<'a>) -> Viewport<'a> {
 		self.block = Some(block);

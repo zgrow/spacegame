@@ -6,7 +6,8 @@ authors = ["Zach Grow"]
 
 [dependencies]
 crossterm = "0.25.0"
-tui = "0.19.0"
+#tui = "0.19.0"
+ratatui = "0.20.0"
 #bracket-lib = "0.8.7"
 bracket-rex = { version = "0.8.7", default-features = false } # REXPaint tools
 bracket-algorithm-traits = { version = "0.8.7", default-features = false } # required for other bracket-lib crates

@@ -18,12 +18,12 @@ pub fn load_rex_map(new_depth: i32, xp_file: &XpFile) -> Map {
 	for layer in &xp_file.layers {
 		eprintln!("- Loading map from rexfile"); //:DEBUG:
 		assert!(map.width == layer.width as i32 && map.height == layer.height as i32, "REXfile dims mismatch");
-		assert!(map.xy_to_index(map.width, map.height) == map.xy_to_index(layer.width as i32, layer.height as i32));
+		assert!(map.to_index(map.width, map.height) == map.to_index(layer.width as i32, layer.height as i32));
 		for y in 0..layer.height {
 			for x in 0..layer.width {
 				let cell = layer.get(x, y).unwrap();
 				if x < map.width as usize && y < map.height as usize {
-					let index = map.xy_to_index(x as i32, y as i32);
+					let index = map.to_index(x as i32, y as i32);
 					match cell.ch {
 						32 => map.tilemap[index] = TileType::Floor, // whitespace
 						35 => map.tilemap[index] = TileType::Wall, // #

@@ -17,4 +17,7 @@ pub mod components;
 // The map builder and its components
 pub mod map_builders;
 
+// The camera view and related tools
+pub mod camera_system;
+
 // EOF
