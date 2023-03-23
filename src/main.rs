@@ -27,6 +27,7 @@ use spacegame::components::*;
 use spacegame::rex_assets::RexAssets;
 use spacegame::map_builders::random_builder;
 use spacegame::camera_system::camera_update_sys;
+use spacegame::sys::*;
 
 // **MAIN
 fn main() -> AppResult<()> {
@@ -36,9 +37,10 @@ fn main() -> AppResult<()> {
 	let terminal = Terminal::new(backend)?;
 	// Now that we have a terminal, check the size to make sure we can continue
 	let tsize = terminal.size().unwrap();
-	if tsize.width < 80 || tsize.height < 60 {
+	if tsize.width < 80 || tsize.height < 40 {
 		// throw a bigtime error and bailout if the terminal is too small
-		return Err("ERROR: Terminal size is too small (must be 80x60 minimum)".into());
+		eprintln!("Terminal size: {}, {}", tsize.width, tsize.height);
+		return Err("Terminal size is too small (must be 80x40 minimum)".into());
 	}
 	// Precompute the sizes of the layout elements in the UI
 	// FIXME: This logic is duplicated in app/mod.rs! Changes here need to be there too
@@ -60,12 +62,8 @@ fn main() -> AppResult<()> {
 	let events = EventHandler::new(250);
 	let mut tui = Tui::new(terminal, events);
 	tui.init()?;
-	// Build the game world
-	let mut builder = random_builder(1);
-	builder.build_map();
-	let worldmap = builder.get_map();
 	// Spawn the player
-	let player_spawn = Position{x: 41, y: 25};
+	let player_spawn = Position{x: 35, y: 20};
 	// FIXME: this is where creation of the player entity will go
 	// Build up the Bevy instance
 	let mut eng = GameEngine::new(main_grid);
@@ -73,12 +71,19 @@ fn main() -> AppResult<()> {
 		.insert_resource(ScheduleRunnerSettings::run_once())
 		.insert_resource(RexAssets::new())
 		.insert_resource(main_camera)
-		.insert_resource(worldmap)
+		//.insert_resource(worldmap)
 		.insert_resource(player_spawn)
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
-		.add_system(camera_update_sys)
+		.add_startup_system(new_player_system)
+		.add_system(camera_update_sys);
 		// First Bevy cycle should fire all of the startup systems, so make sure this iš LAST
-		.update();
+		//.update();
+	// Build the game world - i thought this was loading via bracket-rex but it has to go after the insert_resource via Bevy??? need to reexamine later
+	let mut builder = random_builder(1);
+	builder.build_map();
+	let worldmap = builder.get_map();
+	eng.app.insert_resource(worldmap);
+	eng.app.update();//:DEBUG:
 	// Start the main loop.
 	while eng.running {
 		// Render the user interface.

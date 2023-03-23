@@ -20,4 +20,6 @@ pub mod map_builders;
 // The camera view and related tools
 pub mod camera_system;
 
+// The set of subsystem packages to execute on the GameEngine
+pub mod sys;
 // EOF

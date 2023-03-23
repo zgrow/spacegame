@@ -25,15 +25,16 @@ pub fn load_rex_map(new_depth: i32, xp_file: &XpFile) -> Map {
 				if x < map.width as usize && y < map.height as usize {
 					let index = map.to_index(x as i32, y as i32);
 					match cell.ch {
-						32 => map.tilemap[index] = TileType::Floor, // whitespace
-						35 => map.tilemap[index] = TileType::Wall, // #
-						_ => {}
+						// As per the REXPaint .xp file standard, these are ASCII decimals
+						32 => map.tiles[index] = Tile::new_floor(), // whitespace
+						35 => map.tiles[index] = Tile::new_wall(),  // #
+						_ => {
+							eprintln!("Unrecognized REXtile encountered: {} @{},{}", cell.ch, x, y);
+						}
 					}
 				}
 			}
 		}
-		//map.width = layer.width as i32;
-		//map.height = layer.height as i32;
 	}
 	//map.revealed_tiles = vec![false; (map.width * map.height) as usize];
 	//map.visible_tiles = vec![false; (map.width * map.height) as usize];

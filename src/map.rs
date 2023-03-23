@@ -13,6 +13,7 @@ pub const MAPSIZE: i32 = MAPWIDTH * MAPHEIGHT;
 #[derive(PartialEq, Copy, Clone, Debug, Default)]
 pub enum TileType {
 	#[default]
+	Vacuum,
 	Floor,
 	Wall,
 }
@@ -25,10 +26,54 @@ pub struct Tile {
 	pub bg: Color,
 	pub mods: String,
 }
+impl Default for Tile {
+	fn default() -> Tile {
+		Tile {
+			ttype: TileType::Vacuum,
+			glyph: "❏".to_string(),
+			fg: Color::Gray,
+			bg: Color::Black,
+			mods: "".to_string(),
+		}
+	}
+}
+impl Tile {
+	///Produces an 'empty space' tile
+	pub fn new_vacuum() -> Tile {
+		Tile {
+			ttype: TileType::Vacuum,
+			glyph: "★".to_string(),
+			fg: Color::DarkGray,
+			bg: Color::Black,
+			mods: "".to_string(),
+		}
+	}
+	///Produces a default 'floor' tile
+	pub fn new_floor() -> Tile {
+		Tile {
+			ttype: TileType::Floor,
+			glyph: ".".to_string(),
+			fg: Color::DarkGray,
+			bg: Color::Black,
+			mods: "".to_string(),
+		}
+	}
+	///Produces a default 'wall' tile
+	pub fn new_wall() -> Tile {
+		Tile {
+			ttype: TileType::Wall,
+			glyph: "+".to_string(),
+			fg: Color::Blue,
+			bg: Color::Black,
+			mods: "".to_string(),
+		}
+	}
+}
 ///Represents a single layer of physical space in the game world
 #[derive(Clone, Debug, Resource)]
 pub struct Map {
-	pub tilemap: Vec<TileType>,
+//	pub tilemap: Vec<TileType>,
+	pub tiles: Vec<Tile>,
 	pub width: i32,
 	pub height: i32,
 	pub revealed_tiles: Vec<bool>,
@@ -37,18 +82,21 @@ pub struct Map {
 impl Map {
 	/// Generates a map from the default settings
 	pub fn new(_new_depth: i32, new_width: i32, new_height: i32) -> Map {
+		let map_size: usize = (new_width * new_height) as usize;
 		Map {
+//			tilemap: vec![TileType::Floor; map_size],
+			tiles: vec![Tile::default(); map_size],
 			width: new_width,
 			height: new_height,
-			tilemap: vec![TileType::Floor; (new_width * new_height) as usize],
 			//:FIXME: set these back to false when ready to implement these features!
-			revealed_tiles: vec![true; (new_width * new_height) as usize],
-			visible_tiles: vec![true; (new_width * new_height) as usize],
+			revealed_tiles: vec![true; map_size],
+			visible_tiles: vec![true; map_size],
 		}
 	}
 	/// Converts an x, y pair into a tilemap index using the given map's width
 	pub fn to_index(&self, x: i32, y: i32) -> usize {
-		(y as usize * self.width as usize) + x as usize
+		// fun fact: Rust will barf and crash on an overflow error if usizes are used here
+		((y * self.width) + x) as usize
 	}
 }
 /// Reference method that allows calculation from an arbitrary width
@@ -69,7 +117,7 @@ impl Algorithm2D for Map {
 // bracket-lib uses the BaseMap trait to do FOV calculation and pathfinding
 impl BaseMap for Map {
 	fn is_opaque(&self, index: usize) -> bool {
-		self.tilemap[index] == TileType::Wall
+		self.tiles[index].ttype == TileType::Wall
 	}
 }
 

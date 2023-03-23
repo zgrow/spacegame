@@ -1,5 +1,5 @@
 // viewport.rs
-// Provides a viewport onto a (larger) tilemap, such as in a roguelike
+// Defines the Viewport object, which provides a roguelike-style grid-based Widget to ratatui
 
 use crate::map::xy_to_index;
 use crate::components::*;
@@ -37,12 +37,12 @@ impl<'a> Widget for Viewport<'a> {
 			return;
 		}
 		// We are certain of a valid drawing area, so let's gooooo
-		let buf_y = 0;
-		for map_y in 0..view.height {
-			let buf_x = 0;
-			for map_x in 0..view.width {
-				let index = xy_to_index(map_x, map_y, view.width);
-				buf.set_string(buf_x, buf_y, &view.map[index].glyph, self.style);
+		for map_y in area.top()..area.bottom() {        // Hooray
+			for map_x in area.left()..area.right() {    // for 1:1 mapping!
+				let index = xy_to_index(map_x.into(), map_y.into(), view.width);
+				// FIXME: this doesn't include the modifiers
+				let tilestyle = Style::default().fg(view.map[index].fg).bg(view.map[index].bg);
+				buf.set_string(map_x, map_y, &view.map[index].glyph, tilestyle);
 			}
 		}
 	}
@@ -52,7 +52,7 @@ impl <'a> Viewport<'a> {
 		Viewport {
 			ecs: newworld,
 			block: None,
-			style: Default::default(),
+			style: Style::default(),
 			align: Alignment::Left,
 		}
 	}

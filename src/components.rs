@@ -5,10 +5,12 @@ use crate::map::*;
 use bevy::prelude::*;
 use ratatui::style::{Color, Modifier};
 
+///Effectively a unique ID for an entity
+#[derive(Component)]
+pub struct Name { pub name: String }
 ///Represents a point on a 2d grid as an xy pair
 #[derive(Component, Resource)]
 pub struct Position { pub x: i32, pub y: i32 }
-
 ///Makes the entity available to be rendered on the viewport
 #[derive(Component)]
 pub struct Renderable {

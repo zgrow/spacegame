@@ -69,29 +69,34 @@ impl GameEngine {
 			self.ui_grid.push(first_split.pop().unwrap());
 			self.recalculate_layout = false;
 		}
-		// Use the layout to build up the UI and its contents
-		// - iterate through the layout stack
-		// - if the object indexed to the layout Rect is active, then draw it
-		// frame.render_widget(self, Widget, area: Rect)
-		// - might consider nesting the calls:
-		//   draw_thing<Backend>(f: &mut Frame<Backend>, app: &mut App, area: Rect)
-		// FIXME: one day i'll have the time to make this dynamic/rearrangable...
-		//        right now we're just going to use a hardcoded set and order
-		// MAIN LAYOUT
-		// +----+-+
-		// | 1  | |
-		// |    |3|
-		// +----+ |
-		// | 2  | |
-		// +----+-+
-		// block 1 is the overworld camera
-		//  - dims: min: w30, h30, max: fill
-		// block 2 is the PLANQ output and message log
-		//  - dims: min: w(B1), h5+1, max: fill
-		// block 3 is the status output stack
-		//  - layout within block 3 is handled by its internal logic
-		//  - dims: min: w10, h(S), max: w20, h(S)
-		// Cogmind uses a minimum 'grid' size of 80 wide by 60 high, seems legit
+		/* Use the layout to build up the UI and its contents
+		 * - iterate through the layout stack
+		 * - if the object indexed to the layout Rect is active, then draw it
+		 * frame.render_widget(self, Widget, area: Rect)
+		 * - might consider nesting the calls:
+		 *   draw_thing<Backend>(f: &mut Frame<Backend>, app: &mut App, area: Rect)
+		 * FIXME: one day i'll have the time to make this dynamic/rearrangable...
+		 *        right now we're just going to use a hardcoded set and order
+		 * MAIN LAYOUT
+		 * +----+-+
+		 * | 1  | |
+		 * |    |3|
+		 * +----+ |
+		 * | 2  | |
+		 * +----+-+
+		 * block 1 is the overworld camera
+		 *  - dims: min: w30, h30, max: fill
+		 * block 2 is the PLANQ output and message log
+		 *  - dims: min: w(B1), h5+1, max: fill
+		 * block 3 is the status output stack
+		 *  - layout within block 3 is handled by its internal logic
+		 *  - dims: min: w10, h(S), max: w20, h(S)
+		 * Cogmind uses a minimum 'grid' size of 80 wide by 60 high, seems legit
+		 */
+		// ui_grid index list:
+		// 0: Viewport -> CameraView_main
+		// 1: (Planq output)
+		// 2: (Status bars)
 		frame.render_widget(
 			Viewport::new(&self.app)
 			.block(
@@ -101,9 +106,7 @@ impl GameEngine {
 					.borders(Borders::ALL)
 					.border_type(BorderType::Double)
 					.border_style(Style::default().fg(Color::White)),
-			)
-			.style(Style::default().fg(Color::Cyan).bg(Color::White))
-			.alignment(Alignment::Center),
+			),
 			self.ui_grid[0],
 		);
 	}
