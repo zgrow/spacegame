@@ -10,6 +10,7 @@
  *  This is the set of required plugins for a *headless* Bevy setup, and includes an internal
  *  ScheduleRunner that would otherwise be driven by the window system's event feedback
  */
+// NOTE: checkout github/zkat/big-brain for a Bevy-based AI model !!! - thanx Bevy dev
 // **EXTERNAL LIBS
 use std::io;
 use ratatui::backend::CrosstermBackend;
@@ -21,7 +22,7 @@ use bevy::app::ScheduleRunnerSettings;
 // **INTERNAL LIBS
 use spacegame::app::*;
 use spacegame::app::tui::Tui;
-use spacegame::app::handler::handle_key_events;
+use spacegame::app::handler::key_parser;
 use spacegame::app::event::{Event, EventHandler};
 use spacegame::components::*;
 use spacegame::rex_assets::RexAssets;
@@ -62,6 +63,8 @@ fn main() -> AppResult<()> {
 	let events = EventHandler::new(250);
 	let mut tui = Tui::new(terminal, events);
 	tui.init()?;
+	// Set up the Bevy event handler for inter-system comms
+	let tui_events = Events::<TuiEvent>::default();
 	// Spawn the player
 	let player_spawn = Position{x: 35, y: 20};
 	// FIXME: this is where creation of the player entity will go
@@ -73,8 +76,11 @@ fn main() -> AppResult<()> {
 		.insert_resource(main_camera)
 		//.insert_resource(worldmap)
 		.insert_resource(player_spawn)
+		.insert_resource(tui_events)
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
-		.add_startup_system(new_player_system)
+		.add_event::<crossterm::event::KeyEvent>()
+		.add_startup_system(new_player_system) // depends on having player_spawn inserted prior
+		.add_system(movement_system)
 		.add_system(camera_update_sys);
 		// First Bevy cycle should fire all of the startup systems, so make sure this iš LAST
 		//.update();
@@ -83,18 +89,22 @@ fn main() -> AppResult<()> {
 	builder.build_map();
 	let worldmap = builder.get_map();
 	eng.app.insert_resource(worldmap);
-	eng.app.update();//:DEBUG:
+	eng.app.update();//:DEBUG: must be last before starting game
 	// Start the main loop.
 	while eng.running {
 		// Render the user interface.
 		tui.draw(&mut eng)?; // see tui::terminal::draw(); single cycle of tui-rs loop
-		// Handle events.
+		// Handle input events.
 		match tui.events.next()? {
 			Event::Tick => eng.tick(), // ie run an update cycle of the game state
-			Event::Key(key_event) => handle_key_events(key_event, &mut eng)?, // app::handle_key_events()
+			//Event::Key(key_event) => handle_key_events(key_event, &mut eng, &mut events)?, // app::handle_key_events()
+			Event::Key(key_event) => key_parser(key_event, &mut eng)?,
 			Event::Mouse(_) => {} //:FIXME:
 			Event::Resize(_, _) => {} //:FIXME:
 		}
+		// Handle game events
+		//events.update();
+		// Update the game world
 		eng.app.update();
 	}
 	// Exit the user interface.

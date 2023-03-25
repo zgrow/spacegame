@@ -26,10 +26,16 @@ pub fn load_rex_map(new_depth: i32, xp_file: &XpFile) -> Map {
 					let index = map.to_index(x as i32, y as i32);
 					match cell.ch {
 						// As per the REXPaint .xp file standard, these are ASCII decimals
-						32 => map.tiles[index] = Tile::new_floor(), // whitespace
-						35 => map.tiles[index] = Tile::new_wall(),  // #
+						// # = wall, . = floor, - = maintenance, " " = vacuum, "=" = door
+						32 => map.tiles[index] = Tile::new_vacuum(),//' '   Vacuum
+						35 => map.tiles[index] = Tile::new_wall(),  // #    Wall
+						45 => map.tiles[index] = Tile::new_floor(), // -    Maintenance
+						46 => map.tiles[index] = Tile::new_floor(), // .    Floor
+						60 => map.tiles[index] = Tile::new_floor(), // <    (Upward)
+						61 => map.tiles[index] = Tile::new_floor(), // =    Door
+						62 => map.tiles[index] = Tile::new_floor(), // >    (Downward)
 						_ => {
-							eprintln!("Unrecognized REXtile encountered: {} @{},{}", cell.ch, x, y);
+							//eprintln!("Unrecognized REXtile encountered: {} @{},{}", cell.ch, x, y);
 						}
 					}
 				}

@@ -31,7 +31,7 @@ impl Default for Tile {
 		Tile {
 			ttype: TileType::Vacuum,
 			glyph: "❏".to_string(),
-			fg: Color::Gray,
+			fg: Color::Magenta,
 			bg: Color::Black,
 			mods: "".to_string(),
 		}

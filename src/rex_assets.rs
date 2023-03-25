@@ -4,7 +4,7 @@ use bracket_embedding::prelude::*;
 use bevy::ecs::prelude::*;
 
 // add embedded_resource!s here
-embedded_resource!(TEST_SHIP, "../resources/test_ship.xp");
+embedded_resource!(TEST_SHIP, "../resources/test_ship_v2.xp");
 #[derive(Resource)]
 pub struct RexAssets {
 	pub menu: XpFile

@@ -13,6 +13,7 @@ pub mod event;
 pub mod viewport;
 pub mod tui;
 use viewport::Viewport;
+use crate::components::Player;
 
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
@@ -24,6 +25,7 @@ pub struct GameEngine {
 	pub app: App, // bevy::app::App, contains all of the ECS bits
 	pub recalculate_layout: bool,
 	pub ui_grid: Vec<Rect>,
+	pub player: Player,
 }
 impl GameEngine {
 	/// Constructs a new instance of [`GameEngine`].
@@ -33,6 +35,7 @@ impl GameEngine {
 			app: App::new(),
 			recalculate_layout: true,
 			ui_grid: layout, // Can't be a Bevy Resource because tui::Rect is ineligible
+			player: Player::default(),
 		}
 	}
 	/// Recalculates the UI layout based on the widget sizes
