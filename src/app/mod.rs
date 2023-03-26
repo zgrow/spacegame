@@ -13,7 +13,8 @@ pub mod event;
 pub mod viewport;
 pub mod tui;
 use viewport::Viewport;
-use crate::components::Player;
+use crate::components::{Position, Player};
+use crate::map::Map;
 
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
@@ -112,6 +113,15 @@ impl GameEngine {
 			),
 			self.ui_grid[0],
 		);
+	}
+	/// Returns true if the specified Position is occupied by a piece of furniture, an entity, etc
+	pub fn is_occupied(&self, target: Position) -> bool {
+		// Is there an entity at this spot?
+		// for all entities with a Position,
+		//  return true if enty.posn matches target
+		// Is there a wall at this spot?
+		let map = self.app.world.get_resource::<Map>().unwrap();
+		return map.is_occupied(target);
 	}
 }
 

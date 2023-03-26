@@ -4,6 +4,7 @@ use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
 use bracket_geometry::prelude::*;
 use ratatui::style::Color;
 use bevy::prelude::*;
+use crate::components::*;
 
 pub const MAPWIDTH: i32 = 80;
 pub const MAPHEIGHT: i32 = 60;
@@ -97,6 +98,12 @@ impl Map {
 	pub fn to_index(&self, x: i32, y: i32) -> usize {
 		// fun fact: Rust will barf and crash on an overflow error if usizes are used here
 		((y * self.width) + x) as usize
+	}
+	/// Returns true if the tiletype is Wall
+	pub fn is_occupied(&self, target: Position) -> bool {
+		let index = self.to_index(target.x, target.y);
+		if self.tiles[index].ttype == TileType::Wall { return true }
+	false
 	}
 }
 /// Reference method that allows calculation from an arbitrary width
