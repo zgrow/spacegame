@@ -85,13 +85,11 @@ impl Map {
 	pub fn new(_new_depth: i32, new_width: i32, new_height: i32) -> Map {
 		let map_size: usize = (new_width * new_height) as usize;
 		Map {
-//			tilemap: vec![TileType::Floor; map_size],
 			tiles: vec![Tile::default(); map_size],
 			width: new_width,
 			height: new_height,
-			//:FIXME: set these back to false when ready to implement these features!
-			revealed_tiles: vec![true; map_size],
-			visible_tiles: vec![true; map_size],
+			revealed_tiles: vec![false; map_size],
+			visible_tiles: vec![false; map_size],
 		}
 	}
 	/// Converts an x, y pair into a tilemap index using the given map's width

@@ -66,7 +66,7 @@ fn main() -> AppResult<()> {
 	// Set up the Bevy event handler for inter-system comms
 	let tui_events = Events::<TuiEvent>::default();
 	// Spawn the player
-	let player_spawn = Position{x: 35, y: 20};
+	let player_position = Position{x: 35, y: 20};
 	// FIXME: this is where creation of the player entity will go
 	// Build up the Bevy instance
 	let mut eng = GameEngine::new(main_grid);
@@ -75,12 +75,13 @@ fn main() -> AppResult<()> {
 		.insert_resource(RexAssets::new())
 		.insert_resource(main_camera)
 		//.insert_resource(worldmap)
-		.insert_resource(player_spawn)
+		.insert_resource(player_position)
 		.insert_resource(tui_events)
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
 		.add_event::<crossterm::event::KeyEvent>()
 		.add_startup_system(new_player_system) // depends on having player_spawn inserted prior
 		.add_system(movement_system)
+		.add_system(visibility_system)
 		.add_system(camera_update_sys);
 		// First Bevy cycle should fire all of the startup systems, so make sure this iš LAST
 		//.update();

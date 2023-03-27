@@ -1,10 +1,11 @@
-// camera_system.rs
-// Provides implementation for the CameraView component, including refresh/update logic
+/// camera_system.rs
+/// Provides implementation for the CameraView component, including refresh/update logic
 
 use crate::components::*;
 use crate::map::*;
 use bevy::ecs::system::*;
 use ratatui::style::*;
+use bracket_geometry::prelude::*;
 
 /** The CameraView struct defn:
  *  pub struct CameraView
@@ -12,7 +13,7 @@ use ratatui::style::*;
  *      pub width: i32,
  *      pub height: i32,
  */
-///Provides an abstraction to the Viewport widget with hooks into Bevy's systems for updates
+/// Provides an abstraction to the Viewport widget with hooks into Bevy's systems for updates
 impl CameraView {
 	pub fn new(new_width: i32, new_height: i32) -> Self {
 		Self {
@@ -28,11 +29,12 @@ impl CameraView {
 		// either way, make sure that the CameraView gets an update before next render call
 	}
 }
-///Provides the update system for Bevy
+/// Provides the update system for Bevy
 pub fn camera_update_sys(mut camera: ResMut<CameraView>,
-						 query: Query<(&Position, &Renderable)>,
+						 renderables: Query<(&Position, &Renderable)>,
 						 map: Res<Map>,
 						 ppos: Res<Position>,
+						 mut pview_query: Query<(&Viewshed, &Player)>,
 						 )
 {
 	/* UPDATE STRATEGY
@@ -69,7 +71,7 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 	 *          let screen_x = 1                    //starting at first screen col...
 	 *          for target_x in min.x to max.x {    //iter on all map cols...
 	 *              if target_x and target_y are within the map bounds: [ie 0 <= n < max_dim]
-	 *                  cameraview[index].tile = [layer query as above]
+	 *                  cameraview[index].tile = [layer renderables as above]
 	 *              else
 	 *                  cameraview[index].tile = [fallback tile, ie blank/spacefield]
 	 *              screen_x++                      //move to next col
@@ -93,24 +95,34 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 			let buf_index = xy_to_index(screen_x, screen_y, camera.width);
 			let mut new_tile = default_tile();
 			// Check for an existing tile in the map
-			// Don't use map_index to perform the check: it'll map to ANY valid index, too many false positives
-			if target_x >= 0
-			&& target_y >= 0
-			&& target_x < map.width
-			&& target_y < map.height { // IF the target_x/y produces a valid map coordinate...
+			// Don't use map_index to perform the bounds check:
+			// it'll map to ANY valid index, too many false positives
+			// IF the target_x/y produces a valid map coordinate...
+			if target_x >= 0 && target_x < map.width
+			&& target_y >= 0 && target_y < map.height
+			&& map.revealed_tiles[map_index] { // and if the tile's been seen before...
 				// ... THEN put together the displayed tile from various input sources
 				new_tile = map.tiles[map_index].clone(); // First, obtain the background
-				// Consult the list of renderables for any matches
-				for (posn, rendee) in &query {
-					if (posn.x, posn.y) == (target_x, target_y) {
-						new_tile.glyph = rendee.glyph.clone();
-						new_tile.fg = rendee.fg;
-						new_tile.bg = rendee.bg;
-						new_tile.mods = "".to_string();
+				let pview = pview_query.get_single_mut().unwrap();
+				if pview.0.visible_tiles.contains(&Point::new(target_x, target_y)) {
+					// Consult the list of renderables for any matches
+					if !&renderables.is_empty() {
+						for (posn, rendee) in &renderables {
+							if (posn.x, posn.y) == (target_x, target_y) {
+								new_tile.glyph = rendee.glyph.clone();
+								new_tile.fg = rendee.fg;
+								new_tile.bg = rendee.bg;
+								new_tile.mods = "".to_string();
+							}
+						}
 					}
+					// TODO: check for a scenery effect
+					// TODO: check for an animation effect
+				} else {
+					new_tile.fg = Color::DarkGray;
+					new_tile.bg = Color::Black;
+					new_tile.mods = "".to_string();
 				}
-				// TODO: check for a scenery effect
-				// TODO: check for an animation effect
 			} else {
 				// ... ELSE just make it a background tile (ie starfield)
 				new_tile.glyph = "░".to_string();
@@ -121,65 +133,6 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 		screen_y += 1;
 	}
 }
-/*
-			if target_x >= 0
-			&& target_y >= 0
-			&& target_x < map.width
-			&& target_y < map.height { // The target_x/y produces a valid map coordinate
-				// METHOD
-				// FIXME: does not recolor based on vis
-				// FIXME: does not take FOV into account!
-				// Move down through each drawing layer
-				// If we find a tile that contains data, paint it into the camera
-				// If no matches occur, then the map.tilemap of TileTypes is a fallback
-				let mut match_found = false;
-				// TODO: Is there an animation effect (ie explosion) on this tile? draw -> ret
-				//if match_found { break }
-				// TODO: Else, is there a scenery effect (ie bloodstain) on this tile? draw -> ret
-				//if match_found { break }
-				// Else, consult renderables list
-				// FIXME: would rather ask about specific posn than iterate thru the list
-				//      ie "if posn.isOccupied: camera.map[index] = occupier.tile"
-				for (posn, rendee) in &query {
-					if posn.x == target_x && posn.y == target_y {
-						camera.map[buf_index] = Tile { // FIXME: need a method to update in-place
-							ttype: TileType::Floor,
-							glyph: rendee.glyph.clone(),
-							fg: rendee.fg,
-							bg: rendee.bg,
-							mods: "".to_string()
-						};
-						match_found = true;
-					}
-					if match_found { break }
-				};
-				if match_found { break }
-				// Else, draw based on the background tilemap
-				camera.map[buf_index] = match map.tilemap[map_index] {
-					TileType::Floor => {
-						Tile {
-							ttype: TileType::Floor,
-							glyph: ".".to_string(),
-							fg: Color::Gray,
-							bg: Color::Black,
-							mods: "".to_string()
-						}
-					}
-					TileType::Wall => {
-						Tile {
-							ttype: TileType::Wall,
-							glyph: "+".to_string(),
-							fg: Color::Blue,
-							bg: Color::Black,
-							mods: "".to_string()
-						}
-					}
-				}
-			} else { // The target_x/y is outside the map's bounds
-				let buf_index = xy_to_index(screen_x, screen_y, camera.width);
-				camera.map[buf_index] = default_tile(); //:FIXME: replace with 'background' draw
-			}
-*/
 /// Prototype that returns a 'blank' kind of tile. Planned to be replaced with logic that draw a
 /// starfield background, when there is time to implement such.
 fn default_tile() -> Tile {

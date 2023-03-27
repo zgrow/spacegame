@@ -4,6 +4,7 @@
 use crate::map::*;
 use bevy::prelude::*;
 use ratatui::style::{Color, Modifier};
+use bracket_pathfinding::prelude::*;
 
 ///Provides a "tag" component for the Player entity, easy retrieval
 #[derive(Debug, Component, Default, Clone, Copy)]
@@ -55,6 +56,13 @@ pub struct TuiEvent {
 ///Provides the descriptors for TUIEvent
 pub enum GameEvent {
 	PlayerMove(Direction),
+}
+///Provides an object abstraction for the sensory range of a given entity
+#[derive(Component)]
+pub struct Viewshed {
+	pub visible_tiles: Vec<Point>, //bracket_lib::pathfinding::field_of_view
+	pub range: i32,
+	pub dirty: bool, // indicates whether this viewshed needs to be updated from world data
 }
 
 

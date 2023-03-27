@@ -14,7 +14,7 @@ bracket-algorithm-traits = { version = "0.8.7", default-features = false } # req
 bracket-geometry = { version = "0.8.7", default-features = false } # provides a few geometric primitives and helpers, required for others
 bracket-random = { version = "0.8.7", default-features = false }
 #bracket-noise = {} # noise generation tools
-#bracket-pathfinding = { version = "0.8.7", default-features = false } # high-perf A* pathfinding and Djikstra maps
+bracket-pathfinding = { version = "0.8.7", default-features = false } # high-perf A* pathfinding and Djikstra maps
 #bracket-random = {} # RNG and dice string parsing
 #bracket-rex = { version = "0.8.7", default-features = false } # REXPaint tools
 bracket-embedding = { version = "0.8.7", default-features = false } # resource embedding tools for WebGL apps
