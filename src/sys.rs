@@ -7,6 +7,7 @@ use crate::components::*;
 use crate::map::*;
 use crate::components::{Name, Position, Renderable, Player, Mobile};
 use crate::sys::GameEvent::PlayerMove;
+use crate::app::messagelog::MessageLog;
 use ratatui::style::{Modifier, Color};
 use bevy::ecs::system::{Commands, Res, Query, ResMut};
 use bevy::ecs::event::EventReader;
@@ -15,7 +16,10 @@ use bracket_pathfinding::prelude::*;
 
 // STARTUP SYSTEMS (run once)
 ///Spawns a new player, including their subsystems and default values
-pub fn new_player_system(mut commands: Commands, spawnpoint: Res<Position>) {
+pub fn new_player_system(mut commands: Commands,
+	                     spawnpoint: Res<Position>,
+	                     mut msglog: ResMut<MessageLog>,
+) {
 	commands.spawn((
 		// this is the player's collection of components and their initial values
 		Player      { },
@@ -23,6 +27,17 @@ pub fn new_player_system(mut commands: Commands, spawnpoint: Res<Position>) {
 		Position    {x: spawnpoint.x, y: spawnpoint.y},
 		Renderable  {glyph: "@".to_string(), fg: Color::Green, bg: Color::Black, mods: Modifier::empty()},
 		Viewshed    {visible_tiles: Vec::new(), range: 8, dirty: true},
+		Mobile      { },
+	));
+	msglog.add("WELCOME TO SPACEGAME".to_string(), "world".to_string(), 1, 1);
+}
+///Spawns a new LMR at the specified Position, using default values
+pub fn new_lmr_system(mut commands: Commands) {
+	commands.spawn((
+		Name        {name: "LMR".to_string()},
+		Position    {x: 12, y: 12}, // FIXME: magic numbers
+		Renderable  {glyph: "l".to_string(), fg: Color::LightBlue, bg: Color::Black, mods: Modifier::empty()},
+		Viewshed    {visible_tiles: Vec::new(), range: 5, dirty: true},
 		Mobile      { },
 	));
 }
@@ -54,7 +69,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 					Direction::NE => { xdiff += 1; ydiff -= 1 }
 				}
 				let target = Position{x: p_pos.x + xdiff, y: p_pos.y + ydiff};
-				if map.is_occupied(target) {
+				if map.is_occupied(target) { // FIXME: does not check entity collision!
 					return;
 				}
 				p_pos.x = target.x;

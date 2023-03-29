@@ -7,12 +7,14 @@ use ratatui::backend::Backend;
 use ratatui::layout::{Alignment, Rect, Layout, Direction, Constraint};
 use ratatui::style::{Color, Style};
 use ratatui::terminal::Frame;
-use ratatui::widgets::{Block, BorderType, Borders};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 pub mod handler;
 pub mod event;
 pub mod viewport;
 pub mod tui;
+pub mod messagelog;
 use viewport::Viewport;
+use crate::app::messagelog::MessageLog;
 use crate::components::{Position, Player};
 use crate::map::Map;
 
@@ -64,11 +66,11 @@ impl GameEngine {
 			// FIXME: this logic is duplicated in main()! if this is changed, change there also
 			let mut first_split = Layout::default()
 				.direction(Direction::Horizontal)
-				.constraints([Constraint::Min(30), Constraint::Length(20)].as_ref())
+				.constraints([Constraint::Min(30), Constraint::Length(30)].as_ref())
 				.split(frame.size()).to_vec();
 			self.ui_grid = Layout::default()
 				.direction(Direction::Vertical)
-				.constraints([Constraint::Min(30), Constraint::Length(20)].as_ref())
+				.constraints([Constraint::Min(30), Constraint::Length(12)].as_ref())
 				.split(first_split[0]).to_vec();
 			self.ui_grid.push(first_split.pop().unwrap());
 			self.recalculate_layout = false;
@@ -105,14 +107,30 @@ impl GameEngine {
 			Viewport::new(&self.app)
 			.block(
 				Block::default()
-					.title("test")
-					.title_alignment(Alignment::Left)
 					.borders(Borders::ALL)
 					.border_type(BorderType::Double)
 					.border_style(Style::default().fg(Color::White)),
 			),
 			self.ui_grid[0],
 		);
+		// Obtain a slice of the message log here and feed to the next widget
+		let msglog_ref = self.app.world.get_resource::<MessageLog>();
+		if msglog_ref.is_some() {
+			let msglog = msglog_ref.unwrap();
+			let worldmsg = msglog.get_log("world".to_string());
+			frame.render_widget(
+				Paragraph::new(worldmsg[0].clone()) // requires a Vec<Spans<'a>> for group insert on creation
+				.block(
+					Block::default()
+						.title("PLANQ: -offline-")
+						.title_alignment(Alignment::Left)
+						.borders(Borders::ALL)
+						.border_type(BorderType::Thick)
+						.border_style(Style::default().fg(Color::White)),
+				),
+				self.ui_grid[1],
+			);
+		}
 	}
 	/// Returns true if the specified Position is occupied by a piece of furniture, an entity, etc
 	pub fn is_occupied(&self, target: Position) -> bool {

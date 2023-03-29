@@ -24,6 +24,7 @@ use spacegame::app::*;
 use spacegame::app::tui::Tui;
 use spacegame::app::handler::key_parser;
 use spacegame::app::event::{Event, EventHandler};
+use spacegame::app::messagelog::MessageLog;
 use spacegame::components::*;
 use spacegame::rex_assets::RexAssets;
 use spacegame::map_builders::random_builder;
@@ -49,12 +50,12 @@ fn main() -> AppResult<()> {
 	// Calculate the left-right split
 	let mut big_split = Layout::default()
 		.direction(Direction::Horizontal)
-		.constraints([Constraint::Min(30), Constraint::Length(20)].as_ref())
+		.constraints([Constraint::Min(30), Constraint::Length(30)].as_ref())
 		.split(tsize).to_vec();
 	// Calculate the camera/message split
 	let mut main_grid = Layout::default()
 		.direction(Direction::Vertical)
-		.constraints([Constraint::Min(30), Constraint::Length(20)].as_ref())
+		.constraints([Constraint::Min(30), Constraint::Length(12)].as_ref())
 		.split(big_split[0]).to_vec();
 	// Attach the splits in order (see above)
 	main_grid.push(big_split.pop().unwrap());
@@ -70,6 +71,7 @@ fn main() -> AppResult<()> {
 	// FIXME: this is where creation of the player entity will go
 	// Build up the Bevy instance
 	let mut eng = GameEngine::new(main_grid);
+	let chanlist = vec!["world".to_string(), "planq".to_string(), "debug".to_string()];
 	eng.app
 		.insert_resource(ScheduleRunnerSettings::run_once())
 		.insert_resource(RexAssets::new())
@@ -77,9 +79,11 @@ fn main() -> AppResult<()> {
 		//.insert_resource(worldmap)
 		.insert_resource(player_position)
 		.insert_resource(tui_events)
+		.insert_resource(MessageLog::new(chanlist))
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
 		.add_event::<crossterm::event::KeyEvent>()
 		.add_startup_system(new_player_system) // depends on having player_spawn inserted prior
+		.add_startup_system(new_lmr_system)
 		.add_system(movement_system)
 		.add_system(visibility_system)
 		.add_system(camera_update_sys);
