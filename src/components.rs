@@ -14,7 +14,7 @@ pub struct Player { }
 #[derive(Component)]
 pub struct Name { pub name: String }
 ///Represents a point on a 2d grid as an xy pair
-#[derive(Component, Resource, Copy, Clone)]
+#[derive(Component, Resource, Copy, Clone, Eq, PartialEq)]
 pub struct Position { pub x: i32, pub y: i32 }
 ///Makes the entity available to be rendered on the viewport
 #[derive(Component)]
@@ -36,8 +36,11 @@ pub struct CameraView {
 ///Describes an entity that can move around
 #[derive(Component)]
 pub struct Mobile { }
-#[derive(Copy, Clone, Eq, PartialEq)]
+///Describes an entity that obstructs movement by other entities
+#[derive(Component)]
+pub struct Blocking { }
 ///The compass rose - note this is not a component...
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Direction {
 	N,
 	NW,

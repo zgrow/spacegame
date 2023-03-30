@@ -11,7 +11,7 @@ use crate::app::messagelog::MessageLog;
 use ratatui::style::{Modifier, Color};
 use bevy::ecs::system::{Commands, Res, Query, ResMut};
 use bevy::ecs::event::EventReader;
-use bevy::ecs::query::Without;
+use bevy::ecs::query::{With, Without};
 use bracket_pathfinding::prelude::*;
 
 //  UTILITIES
@@ -32,6 +32,7 @@ pub fn new_player_system(mut commands: Commands,
 		Renderable  {glyph: "@".to_string(), fg: Color::Green, bg: Color::Black, mods: Modifier::empty()},
 		Viewshed    {visible_tiles: Vec::new(), range: 8, dirty: true},
 		Mobile      { },
+		Blocking    { },
 	));
 	msglog.add("WELCOME TO SPACEGAME".to_string(), "world".to_string(), 1, 1);
 }
@@ -43,6 +44,7 @@ pub fn new_lmr_system(mut commands: Commands) {
 		Renderable  {glyph: "l".to_string(), fg: Color::LightBlue, bg: Color::Black, mods: Modifier::empty()},
 		Viewshed    {visible_tiles: Vec::new(), range: 5, dirty: true},
 		Mobile      { },
+		Blocking    { },
 	));
 }
 
@@ -50,15 +52,16 @@ pub fn new_lmr_system(mut commands: Commands) {
 /// Handles entities that can move around the map
 pub fn movement_system(mut ereader: EventReader<TuiEvent>,
                        map: Res<Map>,
-                       mut player_query: Query<(&mut Position, &Player, &mut Viewshed)>,
-                       mut _npc_query: Query<((&Position, &Mobile, Option<&mut Viewshed>), Without<Player>)>
+                       mut player_query: Query<(&mut Position, &mut Viewshed), With<Player>>,
+                       npc_query: Query<((&Position, Option<&mut Viewshed>), (Without<Player>, With<Mobile>))>,
+                       blocker_query: Query<&Position, (With<Blocking>, Without<Player>, Without<Mobile>)>,
 ) {
 	// Note that these Events are custom jobbers, see the GameEvent enum in the components
 	for event in ereader.iter() {
 		eprintln!("player attempting to move");
 		match event.etype {
 			PlayerMove(dir) => {
-				let (mut p_pos, _player, mut pview) = player_query.single_mut();
+				let (mut p_pos, mut pview) = player_query.single_mut();
 				let mut xdiff = 0;
 				let mut ydiff = 0;
 				match dir {
@@ -72,11 +75,16 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 					Direction::NE => { xdiff += 1; ydiff -= 1 }
 				}
 				let target = Position{x: p_pos.x + xdiff, y: p_pos.y + ydiff};
-				if map.is_occupied(target) { // FIXME: does not check entity collision!
-					return;
-				}
+				// Check for NPC collisions
+				for guy in npc_query.iter() { if *guy.0.0 == target { return; } }
+				// Check for immobile entity collisions
+				for blocker in blocker_query.iter() { if *blocker == target { return; } }
+				// Check for map collisions
+				if map.is_occupied(target) { return; }
+				// If we arrived here, there's nothing in that space blocking the movement
 				p_pos.x = target.x;
 				p_pos.y = target.y;
+				// Make sure the player's viewshed will be updated on the next pass
 				pview.dirty = true;
 			}
 			// TODO: this is where we'd handle an NPCMove action
