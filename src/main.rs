@@ -87,7 +87,7 @@ fn main() -> AppResult<()> {
 		.add_system(movement_system)
 		.add_system(visibility_system)
 		.add_system(camera_update_sys);
-		// First Bevy cycle should fire all of the startup systems, so make sure this iš LAST
+		// First Bevy cycle should fire all of the startup systems, so make sure this is LAST
 		//.update();
 	// Build the game world - i thought this was loading via bracket-rex but it has to go after the insert_resource via Bevy??? need to reexamine later
 	let mut builder = random_builder(1);

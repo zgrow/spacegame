@@ -7,7 +7,7 @@ use ratatui::backend::Backend;
 use ratatui::layout::{Alignment, Rect, Layout, Direction, Constraint};
 use ratatui::style::{Color, Style};
 use ratatui::terminal::Frame;
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Clear};
 pub mod handler;
 pub mod event;
 pub mod viewport;
@@ -29,6 +29,7 @@ pub struct GameEngine {
 	pub recalculate_layout: bool,
 	pub ui_grid: Vec<Rect>,
 	pub player: Player,
+	pub show_main_menu: bool,
 }
 impl GameEngine {
 	/// Constructs a new instance of [`GameEngine`].
@@ -39,6 +40,7 @@ impl GameEngine {
 			recalculate_layout: true,
 			ui_grid: layout, // Can't be a Bevy Resource because tui::Rect is ineligible
 			player: Player::default(),
+			show_main_menu: false,
 		}
 	}
 	/// Recalculates the UI layout based on the widget sizes
@@ -117,9 +119,11 @@ impl GameEngine {
 		let msglog_ref = self.app.world.get_resource::<MessageLog>();
 		if msglog_ref.is_some() {
 			let msglog = msglog_ref.unwrap();
-			let worldmsg = msglog.get_log("world".to_string());
+			let worldmsg = msglog.get_log("world-X".to_string());
+			let mut log_text = "--no logs found--".to_string();
+			if !worldmsg.is_empty() { log_text = worldmsg[0].clone(); }
 			frame.render_widget(
-				Paragraph::new(worldmsg[0].clone()) // requires a Vec<Spans<'a>> for group insert on creation
+				Paragraph::new(log_text) // requires a Vec<Spans<'a>> for group insert on creation
 				.block(
 					Block::default()
 						.title("PLANQ: -offline-")
@@ -131,6 +135,12 @@ impl GameEngine {
 				self.ui_grid[1],
 			);
 		}
+		if self.show_main_menu {
+			let block = Block::default().title("Test Menu").borders(Borders::ALL);
+			let area = Rect::new(10, 10, 10, 10); // FIXME: magic numbers
+			frame.render_widget(Clear, area);
+			frame.render_widget(block, area);
+		}
 	}
 	/// Returns true if the specified Position is occupied by a piece of furniture, an entity, etc
 	pub fn is_occupied(&self, target: Position) -> bool {
@@ -140,6 +150,12 @@ impl GameEngine {
 		// Is there a wall at this spot?
 		let map = self.app.world.get_resource::<Map>().unwrap();
 		return map.is_occupied(target);
+	}
+	/// Toggles the main menu's visibility each time it is called
+	pub fn main_menu_toggle(&mut self) {
+		// sets the visibility state of the main menu popup
+		if self.show_main_menu == false { self.show_main_menu = true; }
+		else { self.show_main_menu = false; }
 	}
 }
 

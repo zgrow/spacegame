@@ -66,9 +66,10 @@ impl MessageLog {
 		self.logs.push(new_channel);
 	}
 	/// Retrieves the set of log messages from a specified channel
-	/// FIXME: this crashes if the specified channel doesn't exist!
+	/// If the given channel does not exist, an empty vector will be returned
 	pub fn get_log(&self, req_channel: String) -> Vec<String> {
 		let mut backlog = Vec::new();
+		if self.logs.is_empty() { return backlog; }
 		for channel in &self.logs {
 			if channel.name == req_channel {
 				for msg in &channel.contents {
