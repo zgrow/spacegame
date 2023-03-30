@@ -14,8 +14,12 @@ use bevy::ecs::event::EventReader;
 use bevy::ecs::query::Without;
 use bracket_pathfinding::prelude::*;
 
-// STARTUP SYSTEMS (run once)
-///Spawns a new player, including their subsystems and default values
+//  UTILITIES
+/// Converts a spacegame::Position into a bracket_pathfinding::Point
+pub fn posn_to_point(input: &Position) -> Point { Point { x: input.x, y: input.y } }
+
+//  STARTUP SYSTEMS (run once)
+/// Spawns a new player, including their subsystems and default values
 pub fn new_player_system(mut commands: Commands,
 	                     spawnpoint: Res<Position>,
 	                     mut msglog: ResMut<MessageLog>,
@@ -31,26 +35,25 @@ pub fn new_player_system(mut commands: Commands,
 	));
 	msglog.add("WELCOME TO SPACEGAME".to_string(), "world".to_string(), 1, 1);
 }
-///Spawns a new LMR at the specified Position, using default values
+/// Spawns a new LMR at the specified Position, using default values
 pub fn new_lmr_system(mut commands: Commands) {
 	commands.spawn((
 		Name        {name: "LMR".to_string()},
-		Position    {x: 12, y: 12}, // FIXME: magic numbers
+		Position    {x: 12, y: 12}, // TODO: remove magic numbers
 		Renderable  {glyph: "l".to_string(), fg: Color::LightBlue, bg: Color::Black, mods: Modifier::empty()},
 		Viewshed    {visible_tiles: Vec::new(), range: 5, dirty: true},
 		Mobile      { },
 	));
 }
 
-// CONTINUOUS SYSTEMS (run frequently)
+//  CONTINUOUS SYSTEMS (run frequently)
 /// Handles entities that can move around the map
 pub fn movement_system(mut ereader: EventReader<TuiEvent>,
                        map: Res<Map>,
                        mut player_query: Query<(&mut Position, &Player, &mut Viewshed)>,
                        mut _npc_query: Query<((&Position, &Mobile, Option<&mut Viewshed>), Without<Player>)>
 ) {
-	//typical bevy-based method just goes through the stack of inputs and matches them up
-	//would rather have something input-indepdendent here, so that the LMR can be run as well
+	// Note that these Events are custom jobbers, see the GameEvent enum in the components
 	for event in ereader.iter() {
 		eprintln!("player attempting to move");
 		match event.etype {
@@ -76,7 +79,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 				p_pos.y = target.y;
 				pview.dirty = true;
 			}
-			//this is where we'd handle an NPCMove action
+			// TODO: this is where we'd handle an NPCMove action
 		}
 	}
 }
@@ -102,10 +105,14 @@ pub fn visibility_system(mut map: ResMut<Map>,
 		}
 	}
 }
-// TODO: revealed_system: if the layer were painted with the list of renderables before any of the
-// rooms were deformed by way of 'finishing' level generation touches, it would provide a 'prior'
-// memory of the room layouts - consider allowing updated memory of certain objects?
-/// Converts a spacegame::Position into a bracket_pathfinding::Point
-pub fn posn_to_point(input: &Position) -> Point { Point { x: input.x, y: input.y } }
+
+/* TODO: "memory_system":
+ * Maintains an enhanced Map of Tiles where the Tile glyphs are painted to include the locations of
+ * existing Renderables in addition to the terrain
+ * When this system is initialized (after the initial level setup, before the disaster design
+ * phase), it provides a 'prior memory' of the ship layout
+ * When this system is updated, it provides the player with a visual mapping of where to find
+ * complex machines and other gameplay objectives
+ */
 
 // EOF

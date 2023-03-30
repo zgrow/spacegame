@@ -10,7 +10,7 @@
  *  This is the set of required plugins for a *headless* Bevy setup, and includes an internal
  *  ScheduleRunner that would otherwise be driven by the window system's event feedback
  */
-// NOTE: checkout github/zkat/big-brain for a Bevy-based AI model !!! - thanx Bevy dev
+// TODO: checkout github/zkat/big-brain for a Bevy-based AI model !!! - thanx Bevy dev
 // **EXTERNAL LIBS
 use std::io;
 use ratatui::backend::CrosstermBackend;
@@ -59,16 +59,15 @@ fn main() -> AppResult<()> {
 		.split(big_split[0]).to_vec();
 	// Attach the splits in order (see above)
 	main_grid.push(big_split.pop().unwrap());
-	let main_camera = CameraView::new(main_grid[0].width as i32, main_grid[0].height as i32);//:FIXME: magic nums
+	let main_camera = CameraView::new(main_grid[0].width as i32, main_grid[0].height as i32);
 	// Finish setup of ratatui
 	let events = EventHandler::new(250);
 	let mut tui = Tui::new(terminal, events);
 	tui.init()?;
 	// Set up the Bevy event handler for inter-system comms
 	let tui_events = Events::<TuiEvent>::default();
-	// Spawn the player
+	// Choose the player's spawn point
 	let player_position = Position{x: 35, y: 20};
-	// FIXME: this is where creation of the player entity will go
 	// Build up the Bevy instance
 	let mut eng = GameEngine::new(main_grid);
 	let chanlist = vec!["world".to_string(), "planq".to_string(), "debug".to_string()];
@@ -94,7 +93,7 @@ fn main() -> AppResult<()> {
 	builder.build_map();
 	let worldmap = builder.get_map();
 	eng.app.insert_resource(worldmap);
-	eng.app.update();//:DEBUG: must be last before starting game
+	eng.app.update();// DEBUG: must be last before starting game
 	// Start the main loop.
 	while eng.running {
 		// Render the user interface.
@@ -104,8 +103,8 @@ fn main() -> AppResult<()> {
 			Event::Tick => eng.tick(), // ie run an update cycle of the game state
 			//Event::Key(key_event) => handle_key_events(key_event, &mut eng, &mut events)?, // app::handle_key_events()
 			Event::Key(key_event) => key_parser(key_event, &mut eng)?,
-			Event::Mouse(_) => {} //:FIXME:
-			Event::Resize(_, _) => {} //:FIXME:
+			Event::Mouse(_) => {} // TODO: no mouse support yet
+			Event::Resize(_, _) => {} // TODO: no resize support yet
 		}
 		// Handle game events
 		//events.update();

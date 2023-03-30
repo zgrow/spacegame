@@ -83,7 +83,7 @@ impl GameEngine {
 		 * frame.render_widget(self, Widget, area: Rect)
 		 * - might consider nesting the calls:
 		 *   draw_thing<Backend>(f: &mut Frame<Backend>, app: &mut App, area: Rect)
-		 * FIXME: one day i'll have the time to make this dynamic/rearrangable...
+		 * TODO: one day i'll have the time to make this dynamic/rearrangable...
 		 *        right now we're just going to use a hardcoded set and order
 		 * MAIN LAYOUT
 		 * +----+-+
@@ -137,7 +137,7 @@ impl GameEngine {
 		}
 		if self.show_main_menu {
 			let block = Block::default().title("Test Menu").borders(Borders::ALL);
-			let area = Rect::new(10, 10, 10, 10); // FIXME: magic numbers
+			let area = Rect::new(10, 10, 10, 10); // NOTE: magic numbers
 			frame.render_widget(Clear, area);
 			frame.render_widget(block, area);
 		}

@@ -41,7 +41,7 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 	 * Each layer in the list gets applied in the order it appears: this 'flattens' the
 	 * abstraction into a single 2D plane that can be rendered on the Viewport
 	 * The Tile abstraction is setup to convert almost directly into tui-rs::buffer::Cells
-	 * (in fact i probably just need a simple type conversion method? FIXME:)
+	 * though be aware that the Tiles retain more data than the Cells do
 	 * This is the priority stack that determines which layers are drawn over others:
 	 * Structuring like this allows us to prevent redrawing a Tile many times
 	 * 1 Animation FX   (not impl)

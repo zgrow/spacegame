@@ -40,7 +40,7 @@ impl<'a> Widget for Viewport<'a> {
 		for map_y in area.top()..area.bottom() {        // Hooray
 			for map_x in area.left()..area.right() {    // for 1:1 mapping!
 				let index = xy_to_index(map_x.into(), map_y.into(), view.width);
-				// FIXME: this doesn't include the modifiers
+				// TODO: this doesn't include the style modifiers
 				let tilestyle = Style::default().fg(view.map[index].fg).bg(view.map[index].bg);
 				buf.set_string(map_x, map_y, &view.map[index].glyph, tilestyle);
 			}
