@@ -15,7 +15,7 @@ pub mod tui;
 pub mod messagelog;
 use viewport::Viewport;
 use crate::app::messagelog::MessageLog;
-use crate::components::{Position, Player};
+use crate::components::{Position, Player, CameraView};
 use crate::map::Map;
 
 /// Application result type.
@@ -33,28 +33,18 @@ pub struct GameEngine {
 }
 impl GameEngine {
 	/// Constructs a new instance of [`GameEngine`].
-	pub fn new(layout: Vec<Rect>) -> Self {
-		Self {
+	//pub fn new(layout: Vec<Rect>) -> Self {
+	pub fn new(max_area: Rect) -> Self {
+		let mut new_eng = Self {
 			running: true,
 			app: App::new(),
-			recalculate_layout: true,
-			ui_grid: layout, // Can't be a Bevy Resource because tui::Rect is ineligible
+			recalculate_layout: false,
+			ui_grid: Vec::new(), // Can't be a Bevy Resource because tui::Rect is ineligible
 			player: Player::default(),
 			show_main_menu: false,
-		}
-	}
-	/// Recalculates the UI layout based on the widget sizes
-	pub fn calc_layout(&self, new_width: i32, new_height: i32) -> Vec<Rect> {
-		Layout::default()
-			.direction(Direction::Horizontal)
-			.constraints([Constraint::Min(30)].as_ref())
-			.split(Rect {
-				x: 0,
-				y: 0,
-				width: new_width as u16,
-				height: new_height as u16,
-			})
-			.to_vec()
+		};
+		new_eng.calc_layout(max_area);
+		return new_eng;
 	}
 	/// Runs a single update cycle of the game state
 	pub fn tick(&self) {
@@ -65,16 +55,7 @@ impl GameEngine {
 		// METHOD
 		// - if the layout is 'dirty', recalculate it
 		if self.recalculate_layout {
-			// FIXME: this logic is duplicated in main()! if this is changed, change there also
-			let mut first_split = Layout::default()
-				.direction(Direction::Horizontal)
-				.constraints([Constraint::Min(30), Constraint::Length(30)].as_ref())
-				.split(frame.size()).to_vec();
-			self.ui_grid = Layout::default()
-				.direction(Direction::Vertical)
-				.constraints([Constraint::Min(30), Constraint::Length(12)].as_ref())
-				.split(first_split[0]).to_vec();
-			self.ui_grid.push(first_split.pop().unwrap());
+			self.calc_layout(frame.size());
 			self.recalculate_layout = false;
 		}
 		/* Use the layout to build up the UI and its contents
@@ -119,14 +100,14 @@ impl GameEngine {
 		let msglog_ref = self.app.world.get_resource::<MessageLog>();
 		if msglog_ref.is_some() {
 			let msglog = msglog_ref.unwrap();
-			let worldmsg = msglog.get_log("world-X".to_string());
+			let worldmsg = msglog.get_log("world".to_string());
 			let mut log_text = "--no logs found--".to_string();
 			if !worldmsg.is_empty() { log_text = worldmsg[0].clone(); }
 			frame.render_widget(
 				Paragraph::new(log_text) // requires a Vec<Spans<'a>> for group insert on creation
 				.block(
 					Block::default()
-						.title("PLANQ: -offline-")
+						.title("PLANQ: -offline- ")
 						.title_alignment(Alignment::Left)
 						.borders(Borders::ALL)
 						.border_type(BorderType::Thick)
@@ -156,6 +137,25 @@ impl GameEngine {
 		// sets the visibility state of the main menu popup
 		if self.show_main_menu == false { self.show_main_menu = true; }
 		else { self.show_main_menu = false; }
+	}
+	/// Recalculates the GameEngine.ui_grid object based on the given area
+	pub fn calc_layout(&mut self, area: Rect) {
+		//eprintln!("calc_layout() called"); // DEBUG:
+		let mut first_split = Layout::default()
+			.direction(Direction::Horizontal)
+			.constraints([Constraint::Min(30), Constraint::Length(30)].as_ref())
+			.split(area).to_vec();
+		self.ui_grid = Layout::default()
+			.direction(Direction::Vertical)
+			.constraints([Constraint::Min(30), Constraint::Length(12)].as_ref())
+			.split(first_split[0]).to_vec();
+		self.ui_grid.push(first_split.pop().unwrap());
+		let camera_ref = self.app.world.get_resource_mut::<CameraView>();
+		if camera_ref.is_some() {
+			eprintln!("- resizing cameraview during call to calc_layout()");// DEBUG:
+			let mut camera = camera_ref.unwrap();
+			camera.set_dims(self.ui_grid[0].width as i32, self.ui_grid[0].height as i32);
+		}
 	}
 }
 

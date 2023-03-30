@@ -22,11 +22,16 @@ impl CameraView {
 			height: new_height
 		}
 	}
-	pub fn resize(&mut self, _new_width: i32, _new_height: i32) {
-		eprintln!("UNIMPLEMENTED: CameraView::resize() called");//:DEBUG:
+	pub fn set_dims(&mut self, new_width: i32, new_height: i32) {
 		// NOTE: include a sanity check here that actually examines the dims prior to resize
 		// if the resize is required, then probably safest to wipe the whole thing...
 		// either way, make sure that the CameraView gets an update before next render call
+		self.width = new_width;
+		self.height = new_height;
+		let new_size = (self.width * self.height) as usize;
+		if self.map.len() != new_size {
+			self.map = vec![default_tile(); new_size];
+		}
 	}
 }
 /// Provides the update system for Bevy

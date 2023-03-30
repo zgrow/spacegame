@@ -15,7 +15,6 @@
 use std::io;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
-use ratatui::layout::{Layout, Constraint, Direction};
 use bevy::prelude::*;
 use bevy::app::ScheduleRunnerSettings;
 
@@ -44,40 +43,21 @@ fn main() -> AppResult<()> {
 		eprintln!("Terminal size: {}, {}", tsize.width, tsize.height);
 		return Err("Terminal size is too small (must be 80x40 minimum)".into());
 	}
-	// Precompute the sizes of the layout elements in the UI
-	// FIXME: This logic is duplicated in app/mod.rs! Changes here need to be there too
-	// REFER: main_grid[index]: 0 = CameraView, 1 = MessageLog, 2 = MonitorRack
-	// Calculate the left-right split
-	let mut big_split = Layout::default()
-		.direction(Direction::Horizontal)
-		.constraints([Constraint::Min(30), Constraint::Length(30)].as_ref())
-		.split(tsize).to_vec();
-	// Calculate the camera/message split
-	let mut main_grid = Layout::default()
-		.direction(Direction::Vertical)
-		.constraints([Constraint::Min(30), Constraint::Length(12)].as_ref())
-		.split(big_split[0]).to_vec();
-	// Attach the splits in order (see above)
-	main_grid.push(big_split.pop().unwrap());
-	let main_camera = CameraView::new(main_grid[0].width as i32, main_grid[0].height as i32);
 	// Finish setup of ratatui
 	let events = EventHandler::new(250);
 	let mut tui = Tui::new(terminal, events);
 	tui.init()?;
-	// Set up the Bevy event handler for inter-system comms
-	let tui_events = Events::<TuiEvent>::default();
-	// Choose the player's spawn point
-	let player_position = Position{x: 35, y: 20};
+	// Set the initial list of comms channels
+	let chanlist = vec!["world".to_string(),
+	                    "planq".to_string(),
+	                    "debug".to_string()];
 	// Build up the Bevy instance
-	let mut eng = GameEngine::new(main_grid);
-	let chanlist = vec!["world".to_string(), "planq".to_string(), "debug".to_string()];
+	let mut eng = GameEngine::new(tsize);
 	eng.app
 		.insert_resource(ScheduleRunnerSettings::run_once())
 		.insert_resource(RexAssets::new())
-		.insert_resource(main_camera)
-		//.insert_resource(worldmap)
-		.insert_resource(player_position)
-		.insert_resource(tui_events)
+		.insert_resource(Position{x: 35, y: 20}) // The player's position/starting spawn point
+		.insert_resource(Events::<TuiEvent>::default()) // The Bevy handler for inter-system comms
 		.insert_resource(MessageLog::new(chanlist))
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
 		.add_event::<crossterm::event::KeyEvent>()
@@ -86,14 +66,19 @@ fn main() -> AppResult<()> {
 		.add_system(movement_system)
 		.add_system(visibility_system)
 		.add_system(camera_update_sys);
-		// First Bevy cycle should fire all of the startup systems, so make sure this is LAST
-		//.update();
-	// Build the game world - i thought this was loading via bracket-rex but it has to go after the insert_resource via Bevy??? need to reexamine later
+	// Build the game world
+	// TODO: i thought this was loading via bracket-rex but it has to go after the insert_resource
+	// via Bevy??? need to reexamine later
 	let mut builder = random_builder(1);
 	builder.build_map();
 	let worldmap = builder.get_map();
 	eng.app.insert_resource(worldmap);
-	eng.app.update();// DEBUG: must be last before starting game
+	// Build the main camera view
+	eng.calc_layout(tsize);
+	let main_camera = CameraView::new(eng.ui_grid[0].width as i32, eng.ui_grid[0].height as i32);
+	eng.app.insert_resource(main_camera);
+	// Run an initial cycle of Bevy; triggers all of the startup systems; should be last setup oper
+	eng.app.update();
 	// Start the main loop.
 	while eng.running {
 		// Render the user interface.
@@ -101,13 +86,10 @@ fn main() -> AppResult<()> {
 		// Handle input events.
 		match tui.events.next()? {
 			Event::Tick => eng.tick(), // ie run an update cycle of the game state
-			//Event::Key(key_event) => handle_key_events(key_event, &mut eng, &mut events)?, // app::handle_key_events()
 			Event::Key(key_event) => key_parser(key_event, &mut eng)?,
 			Event::Mouse(_) => {} // TODO: no mouse support yet
 			Event::Resize(_, _) => {} // TODO: no resize support yet
 		}
-		// Handle game events
-		//events.update();
 		// Update the game world
 		eng.app.update();
 	}

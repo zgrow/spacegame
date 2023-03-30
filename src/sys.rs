@@ -19,6 +19,14 @@ use bracket_pathfinding::prelude::*;
 pub fn posn_to_point(input: &Position) -> Point { Point { x: input.x, y: input.y } }
 
 //  STARTUP SYSTEMS (run once)
+/// Spawns a new CameraView on the game world (ie the default/main view)
+pub fn new_camera_system(mut commands: Commands) {
+	commands.insert_resource(CameraView {
+		map: Vec::new(),
+		width: 0,
+		height: 0,
+	});
+}
 /// Spawns a new player, including their subsystems and default values
 pub fn new_player_system(mut commands: Commands,
 	                     spawnpoint: Res<Position>,

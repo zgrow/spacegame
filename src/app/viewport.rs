@@ -22,7 +22,8 @@ impl<'a> Widget for Viewport<'a> {
 	fn render(mut self, area: Rect, buf: &mut Buffer) {
 		// Ensure that the CameraView we're about to write into has the right size
 		let view = self.ecs.world.get_resource::<CameraView>().unwrap();
-		assert_eq!((area.width as i32, area.height as i32), (view.width, view.height), "CameraView and Widget::Viewport have mismatched size!");
+		assert_eq!((view.width, view.height), (area.width as i32, area.height as i32),
+			       "CameraView and Widget::Viewport have mismatched sizes!");
 		// Draw the border, if it exists
 		let area = match self.block.take() {
 			Some(b) => {
@@ -33,7 +34,8 @@ impl<'a> Widget for Viewport<'a> {
 			None => area,
 		};
 		// Don't continue if the area inside the border is too small
-		if area.width < 1 || area.height < 1 {
+		if area.width < 1 || area.height < 1
+		|| view.map.len() == 0 {
 			return;
 		}
 		// We are certain of a valid drawing area, so let's gooooo
