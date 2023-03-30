@@ -91,7 +91,9 @@ fn main() -> AppResult<()> {
 			Event::Resize(_, _) => {} // TODO: no resize support yet
 		}
 		// Update the game world
-		eng.app.update();
+		if !eng.paused {
+			eng.app.update();
+		}
 	}
 	// Exit the user interface.
 	tui.exit()?;

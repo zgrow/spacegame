@@ -11,9 +11,9 @@ use bevy::ecs::event::Events;
 pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	let game_events: &mut Events<TuiEvent> = &mut eng.app.world.get_resource_mut::<Events<TuiEvent>>().unwrap();
 	match key_event.code {
-		// Debug key
+		// Pause key
 		KeyCode::Char('p') => {
-			eng.main_menu_toggle();
+			eng.pause_toggle();
 		}
 		// Exit englication on `ESC` or `q`
 		KeyCode::Esc | KeyCode::Char('q') => {

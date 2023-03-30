@@ -23,8 +23,8 @@ pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 /// Contains all of the coordination and driver logic for the game itself
 #[derive(Debug)]
 pub struct GameEngine {
-	/// Is the application running?
-	pub running: bool,
+	pub running: bool, // running vs stopped
+	pub paused: bool, // paused vs unpaused
 	pub app: App, // bevy::app::App, contains all of the ECS bits
 	pub recalculate_layout: bool,
 	pub ui_grid: Vec<Rect>,
@@ -37,6 +37,7 @@ impl GameEngine {
 	pub fn new(max_area: Rect) -> Self {
 		let mut new_eng = Self {
 			running: true,
+			paused: false,
 			app: App::new(),
 			recalculate_layout: false,
 			ui_grid: Vec::new(), // Can't be a Bevy Resource because tui::Rect is ineligible
@@ -47,7 +48,7 @@ impl GameEngine {
 		return new_eng;
 	}
 	/// Runs a single update cycle of the game state
-	pub fn tick(&self) {
+	pub fn tick(&mut self) {
 		eprintln!("TICK");
 	}
 	/// Renders the user interface widgets.
@@ -131,6 +132,11 @@ impl GameEngine {
 		// Is there a wall at this spot?
 		let map = self.app.world.get_resource::<Map>().unwrap();
 		return map.is_occupied(target);
+	}
+	/// Toggles the paused state of the game engine when called
+	pub fn pause_toggle(&mut self) {
+		if self.paused == true { self.paused = false; }
+		else { self.paused = true; }
 	}
 	/// Toggles the main menu's visibility each time it is called
 	pub fn main_menu_toggle(&mut self) {
