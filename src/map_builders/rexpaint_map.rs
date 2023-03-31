@@ -1,11 +1,9 @@
 // rexpaint_map.rs
 // Loads a Rexpaint file into a Map object
 
-use crate::map_builders::{
-	*,
-	image_loader::load_rex_map,
-};
 use bracket_rex::prelude::*;
+use crate::map_builders::*;
+use crate::app::image_loader::load_rex_map;
 
 pub struct RexMapBuilder {
 	map: Map,

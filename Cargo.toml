@@ -21,6 +21,7 @@ bracket-embedding = { version = "0.8.7", default-features = false } # resource e
 # Disabling the defaults removes the rendering/windowing code from Bevy
 # Note also the use of MinimalPlugins in the main() method
 bevy = { version = "0.10.0", default-features = false }
+codepage-437 = "0.1.0"
 #bevy_ecs = "0.10.0"
 # versions of cursive above this require crate 'time' to be v3+, which requires rustc v1.63+
 #cursive = { version = "0.16.3" }

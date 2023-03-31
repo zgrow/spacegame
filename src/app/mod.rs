@@ -2,6 +2,7 @@
 // generated as app.rs using orhun/rust-tui-template via cargo-generate
 // Mar 15 2023
 use std::error;
+use bracket_rex::prelude::XpFile;
 use bevy::app::App;
 use ratatui::backend::Backend;
 use ratatui::layout::{Alignment, Rect, Layout, Direction, Constraint};
@@ -13,8 +14,10 @@ pub mod event;
 pub mod viewport;
 pub mod tui;
 pub mod messagelog;
+pub mod image_loader;
 use viewport::Viewport;
 use crate::app::messagelog::MessageLog;
+use crate::app::image_loader::load_rex_pgraph;
 use crate::components::{Position, Player, CameraView};
 use crate::map::Map;
 
@@ -87,6 +90,7 @@ impl GameEngine {
 		// 0: Viewport -> CameraView_main
 		// 1: (Planq output)
 		// 2: (Status bars)
+		// Start by drawing the output of the main view
 		frame.render_widget(
 			Viewport::new(&self.app)
 			.block(
@@ -97,31 +101,52 @@ impl GameEngine {
 			),
 			self.ui_grid[0],
 		);
+		// Render the main message log pane
 		// Obtain a slice of the message log here and feed to the next widget
+		let mut log_text = "--no logs found--".to_string();
 		let msglog_ref = self.app.world.get_resource::<MessageLog>();
 		if msglog_ref.is_some() {
 			let msglog = msglog_ref.unwrap();
 			let worldmsg = msglog.get_log("world".to_string());
-			let mut log_text = "--no logs found--".to_string();
 			if !worldmsg.is_empty() { log_text = worldmsg[0].clone(); }
-			frame.render_widget(
-				Paragraph::new(log_text) // requires a Vec<Spans<'a>> for group insert on creation
-				.block(
-					Block::default()
-						.title("PLANQ: -offline- ")
-						.title_alignment(Alignment::Left)
-						.borders(Borders::ALL)
-						.border_type(BorderType::Thick)
-						.border_style(Style::default().fg(Color::White)),
-				),
-				self.ui_grid[1],
-			);
 		}
+		// Draw the message log pane
+		frame.render_widget(
+			Paragraph::new(log_text) // requires a Vec<Spans<'a>> for group insert on creation
+			.block(
+				Block::default()
+					.title("PLANQ: -offline- ")
+					.title_alignment(Alignment::Left)
+					.borders(Borders::ALL)
+					.border_type(BorderType::Thick)
+					.border_style(Style::default().fg(Color::White)),
+			),
+			self.ui_grid[1],
+		);
+		// Draw the sidebar pane
+		frame.render_widget(
+			Block::default()
+				.title("Status Rack")
+				.title_alignment(Alignment::Center)
+				.borders(Borders::ALL)
+				.border_type(BorderType::Thick)
+				.border_style(Style::default().fg(Color::White)),
+			self.ui_grid[2],
+		);
+		// Render any optional menus and layers, ie main menu
 		if self.show_main_menu {
-			let block = Block::default().title("Test Menu").borders(Borders::ALL);
-			let area = Rect::new(10, 10, 10, 10); // NOTE: magic numbers
+			let block = Block::default().title("Main Menu").borders(Borders::ALL);
+			let area = Rect::new(10, 12, 23, 10); // NOTE: magic numbers
 			frame.render_widget(Clear, area);
 			frame.render_widget(block, area);
+		}
+		if self.paused {
+			let xpfile = &XpFile::from_resource("../resources/big_pause.xp").unwrap();
+			let graphic = load_rex_pgraph(xpfile);
+			let banner_area = Rect::new(10, 5, graphic.width() as u16, (graphic.height() + 2) as u16);
+			let banner_img = Paragraph::new(graphic).block(Block::default().borders(Borders::TOP | Borders::BOTTOM));
+			frame.render_widget(Clear, banner_area);
+			frame.render_widget(banner_img, banner_area);
 		}
 	}
 	/// Returns true if the specified Position is occupied by a piece of furniture, an entity, etc
@@ -130,6 +155,7 @@ impl GameEngine {
 		// for all entities with a Position,
 		//  return true if enty.posn matches target
 		// Is there a wall at this spot?
+		// FIXME: does not handle entity collision!
 		let map = self.app.world.get_resource::<Map>().unwrap();
 		return map.is_occupied(target);
 	}

@@ -4,7 +4,6 @@
 use crate::map::*;
 mod rexpaint_map;
 use rexpaint_map::RexMapBuilder;
-mod image_loader;
 
 pub trait MapBuilder {
 	fn build_map(&mut self);
