@@ -8,24 +8,25 @@ use ratatui::backend::Backend;
 use ratatui::layout::{Alignment, Rect, Layout, Direction, Constraint};
 use ratatui::style::{Color, Style};
 use ratatui::terminal::Frame;
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Clear};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Clear, List, ListItem};
 pub mod handler;
 pub mod event;
 pub mod viewport;
 pub mod tui;
 pub mod messagelog;
 pub mod image_loader;
+pub mod menu;
 use viewport::Viewport;
 use crate::app::messagelog::MessageLog;
 use crate::app::image_loader::load_rex_pgraph;
+use crate::app::menu::{MainMenuItems, MenuSelector};
 use crate::components::{Position, Player, CameraView};
 use crate::map::Map;
 
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 /// Contains all of the coordination and driver logic for the game itself
-#[derive(Debug)]
-pub struct GameEngine {
+pub struct GameEngine<'a> {
 	pub running: bool, // running vs stopped
 	pub paused: bool, // paused vs unpaused
 	pub app: App, // bevy::app::App, contains all of the ECS bits
@@ -33,8 +34,10 @@ pub struct GameEngine {
 	pub ui_grid: Vec<Rect>,
 	pub player: Player,
 	pub show_main_menu: bool,
+	//pub sel_main_menu: ListState,
+	pub main_menu: MenuSelector<ListItem<'a>>,
 }
-impl GameEngine {
+impl<'a> GameEngine<'a> {
 	/// Constructs a new instance of [`GameEngine`].
 	//pub fn new(layout: Vec<Rect>) -> Self {
 	pub fn new(max_area: Rect) -> Self {
@@ -46,6 +49,7 @@ impl GameEngine {
 			ui_grid: Vec::new(), // Can't be a Bevy Resource because tui::Rect is ineligible
 			player: Player::default(),
 			show_main_menu: false,
+			main_menu: MenuSelector::with_items(Vec::new()),
 		};
 		new_eng.calc_layout(max_area);
 		return new_eng;
@@ -135,10 +139,22 @@ impl GameEngine {
 		);
 		// Render any optional menus and layers, ie main menu
 		if self.show_main_menu {
-			let block = Block::default().title("Main Menu").borders(Borders::ALL);
+			//let main_menu_list = vec![ListItem::new("Alpha"), ListItem::new("Beta"), ListItem::new("Gamma")];
+			self.main_menu.list = MainMenuItems::to_list();
+			let menu = List::new(&*self.main_menu.list)
+				.block(Block::default().title("Main Menu").borders(Borders::ALL))
+				.style(Style::default().fg(Color::White).bg(Color::Black))
+				.highlight_style(Style::default().fg(Color::Black).bg(Color::White))
+				.highlight_symbol("->");
 			let area = Rect::new(10, 12, 23, 10); // NOTE: magic numbers
 			frame.render_widget(Clear, area);
-			frame.render_widget(block, area);
+			frame.render_stateful_widget(menu, area, &mut self.main_menu.state);
+			/* this fires on every index change, not just confirmation
+			match self.main_menu.state.selected() {
+				None => { }
+				Some(selection) => {eprintln!("sel: {}", selection);}
+			}
+			*/
 		}
 		if self.paused {
 			let xpfile = &XpFile::from_resource("../resources/big_pause.xp").unwrap();
