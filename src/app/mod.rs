@@ -26,7 +26,7 @@ use crate::map::Map;
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 /// Contains all of the coordination and driver logic for the game itself
-pub struct GameEngine<'a> {
+pub struct GameEngine {
 	pub running: bool, // running vs stopped
 	pub paused: bool, // paused vs unpaused
 	pub app: App, // bevy::app::App, contains all of the ECS bits
@@ -35,9 +35,9 @@ pub struct GameEngine<'a> {
 	pub player: Player,
 	pub show_main_menu: bool,
 	//pub sel_main_menu: ListState,
-	pub main_menu: MenuSelector<ListItem<'a>>,
+	pub main_menu: MenuSelector<MainMenuItems>,
 }
-impl<'a> GameEngine<'a> {
+impl GameEngine {
 	/// Constructs a new instance of [`GameEngine`].
 	//pub fn new(layout: Vec<Rect>) -> Self {
 	pub fn new(max_area: Rect) -> Self {
@@ -139,9 +139,12 @@ impl<'a> GameEngine<'a> {
 		);
 		// Render any optional menus and layers, ie main menu
 		if self.show_main_menu {
-			//let main_menu_list = vec![ListItem::new("Alpha"), ListItem::new("Beta"), ListItem::new("Gamma")];
-			self.main_menu.list = MainMenuItems::to_list();
-			let menu = List::new(&*self.main_menu.list)
+			self.main_menu.list = MainMenuItems::to_list(); // produces Vec<MainMenuItems>
+			let mut mm_items = Vec::new();
+			for item in self.main_menu.list.iter() {
+				mm_items.push(ListItem::new(item.to_string()));
+			}
+			let menu = List::new(mm_items)
 				.block(Block::default().title("Main Menu").borders(Borders::ALL))
 				.style(Style::default().fg(Color::White).bg(Color::Black))
 				.highlight_style(Style::default().fg(Color::Black).bg(Color::White))
@@ -156,6 +159,7 @@ impl<'a> GameEngine<'a> {
 			}
 			*/
 		}
+		// Display the fancy "PAUSED" banner if the game is paused
 		if self.paused {
 			let xpfile = &XpFile::from_resource("../resources/big_pause.xp").unwrap();
 			let graphic = load_rex_pgraph(xpfile);
@@ -204,6 +208,10 @@ impl<'a> GameEngine<'a> {
 			let mut camera = camera_ref.unwrap();
 			camera.set_dims(self.ui_grid[0].width as i32, self.ui_grid[0].height as i32);
 		}
+	}
+	/// Handles a call to stop the game and exit
+	pub fn quit(&mut self) {
+		self.running = false;
 	}
 }
 

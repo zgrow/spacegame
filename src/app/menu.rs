@@ -1,14 +1,17 @@
 // menu.rs
 // Provides a Menu widget to ratatui
 
-use ratatui::widgets::{StatefulWidget, ListState, ListItem};
+use ratatui::widgets::{StatefulWidget, ListState};
 use ratatui::layout::Rect;
 use ratatui::buffer::Buffer;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use std::fmt;
 
-#[derive(Debug, EnumIter)]
+/// Provides the full list of options for the main menu
+/// The Ord/PartialOrd traits add implicit indexing to this enum
+/// e.g. NULL == 0, NEWGAME == 1; NULL < NEWGAME == true
+#[derive(Debug, EnumIter, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MainMenuItems {
 	NULL,
 	NEWGAME,
@@ -17,10 +20,11 @@ pub enum MainMenuItems {
 	QUIT
 }
 impl MainMenuItems {
-	pub fn to_list() -> Vec<ListItem<'static>> {
+	pub fn to_list() -> Vec<MainMenuItems> {
 		let mut list = Vec::new();
 		for val in MainMenuItems::iter() {
-			list.push(ListItem::new(val.to_string()));
+			if val == MainMenuItems::NULL { continue; } // Don't add NULL to lists
+			list.push(val);
 		}
 		return list;
 	}
@@ -38,12 +42,12 @@ impl fmt::Display for MainMenuItems {
 }
 
 #[derive(Clone)]
-pub struct MenuSelector<ListItem> {
-	pub list: Vec<ListItem>, // the state as it relates to my application
+pub struct MenuSelector<MainMenuItems> {
+	pub list: Vec<MainMenuItems>, // the state as it relates to my application
 	pub state: ListState, // the UI state, incl index of selection and its offset for draw calls
 }
-impl<ListItem> MenuSelector<ListItem> {
-	pub fn with_items(items: Vec<ListItem>) -> MenuSelector<ListItem> {
+impl<MainMenuItems> MenuSelector<MainMenuItems> {
+	pub fn with_items(items: Vec<MainMenuItems>) -> MenuSelector<MainMenuItems> {
 		MenuSelector {
 			list: items,
 			state: ListState::default(),
@@ -81,9 +85,7 @@ impl<ListItem> MenuSelector<ListItem> {
 }
 impl<T> StatefulWidget for MenuSelector<T> {
 	type State = ListState;
-	fn render(self, _area: Rect, _buf: &mut Buffer, _state: &mut Self::State) {
-
-	}
+	fn render(self, _area: Rect, _buf: &mut Buffer, _state: &mut Self::State) { }
 }
 
 // EOF

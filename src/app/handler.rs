@@ -32,34 +32,28 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('k') | KeyCode::Up => {
 				eng.main_menu.prev();
 			}
+			// Allow deselection
 			KeyCode::Left => { eng.main_menu.deselect(); }
 			// Confirm selection
 			KeyCode::Enter => {
+				// note that selected() here produces an index to its internal list, not a value!
 				let choice = eng.main_menu.state.selected();
 				if choice.is_some() {
-					let choice_val = choice.unwrap_or_default();
-					// trying to extract/convert to the menu item is a pain and only gets a String
-					// consider setting up an enum for the main menu options
-					let choice_text = match choice_val {
-						1 => MainMenuItems::NEWGAME,
-						2 => MainMenuItems::LOADGAME,
-						3 => MainMenuItems::SAVEGAME,
-						4 => MainMenuItems::QUIT,
-						_ => MainMenuItems::NULL,
-					};
-					eprintln!("Selection: {}", choice_text);// DEBUG:
-					match choice_text {
+					let choice_val = &eng.main_menu.list[choice.unwrap_or_default()]; // the list value itself
+					match choice_val {
 						MainMenuItems::NEWGAME => {
-							eprintln!("NEWGAME called");
+							eprintln!("NEWGAME called"); // DEBUG:
 						}
 						MainMenuItems::LOADGAME => {
-							eprintln!("LOADGAME called");
+							eprintln!("LOADGAME called"); // DEBUG:
 						}
 						MainMenuItems::SAVEGAME => {
-							eprintln!("SAVEGAME called");
+							eprintln!("SAVEGAME called"); // DEBUG:
 						}
 						MainMenuItems::QUIT => {
-							eng.running = false;
+							eprintln!("QUIT called"); // DEBUG:
+							eng.quit();
+							return Ok(())
 						}
 						MainMenuItems::NULL => { }
 					}
