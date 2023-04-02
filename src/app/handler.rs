@@ -9,13 +9,15 @@ use crate::components::GameEvent::PlayerMove;
 use bevy::ecs::event::Events;
 
 pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
-	let game_events: &mut Events<TuiEvent> = &mut eng.app.world.get_resource_mut::<Events<TuiEvent>>().unwrap();
 	// parse any debug/overrride controls
 	if (key_event.code == KeyCode::Char('c') || key_event.code == KeyCode::Char('C'))
 	&& key_event.modifiers == KeyModifiers::CONTROL {
 		// Always allow the program to be closed via Ctrl-C
-		eng.running = false;
+		//eng.running = false;
+		eng.quit();
 	}
+	// Get a linkage to the game event distribution system
+	let game_events: &mut Events<TuiEvent> = &mut eng.app.world.get_resource_mut::<Events<TuiEvent>>().unwrap();
 	if eng.show_main_menu {
 		// TODO: find a way to generalize this to allow the same logic for inventory selection
 		// use the meta mappings
@@ -45,10 +47,10 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 							eprintln!("NEWGAME called"); // DEBUG:
 						}
 						MainMenuItems::LOADGAME => {
-							eprintln!("LOADGAME called"); // DEBUG:
+							eng.load_game();
 						}
 						MainMenuItems::SAVEGAME => {
-							eprintln!("SAVEGAME called"); // DEBUG:
+							eng.save_game();
 						}
 						MainMenuItems::QUIT => {
 							eprintln!("QUIT called"); // DEBUG:

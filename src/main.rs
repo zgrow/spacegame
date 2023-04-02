@@ -17,6 +17,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use bevy::prelude::*;
 use bevy::app::ScheduleRunnerSettings;
+use bevy_save::prelude::*;
 
 // **INTERNAL LIBS
 use spacegame::app::*;
@@ -27,7 +28,7 @@ use spacegame::app::messagelog::MessageLog;
 use spacegame::components::*;
 use spacegame::rex_assets::RexAssets;
 use spacegame::map_builders::random_builder;
-use spacegame::camera_system::camera_update_sys;
+use spacegame::camera_system::{camera_update_sys, CameraView};
 use spacegame::sys::*;
 
 // **MAIN
@@ -54,6 +55,11 @@ fn main() -> AppResult<()> {
 	// Build up the Bevy instance
 	let mut eng = GameEngine::new(tsize);
 	eng.app
+		.register_saveable::<Player>()
+		.register_saveable::<spacegame::components::Name>() // needs full pathname
+		.register_saveable::<Position>()
+		.register_saveable::<Renderable>()
+		.register_saveable::<Blocking>()
 		.insert_resource(ScheduleRunnerSettings::run_once())
 		.insert_resource(RexAssets::new())
 		.insert_resource(Position{x: 35, y: 20}) // The player's position/starting spawn point

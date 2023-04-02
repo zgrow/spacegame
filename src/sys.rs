@@ -4,11 +4,11 @@
 // NOTE: see bevy/examples/games/alien_cake_addict.rs for example on handling the Player entity
 
 use crate::components::*;
+use crate::camera_system::CameraView;
 use crate::map::*;
 use crate::components::{Name, Position, Renderable, Player, Mobile};
 use crate::sys::GameEvent::PlayerMove;
 use crate::app::messagelog::MessageLog;
-use ratatui::style::{Modifier, Color};
 use bevy::ecs::system::{Commands, Res, Query, ResMut};
 use bevy::ecs::event::EventReader;
 use bevy::ecs::query::{With, Without};
@@ -37,7 +37,7 @@ pub fn new_player_system(mut commands: Commands,
 		Player      { },
 		Name        {name: "Pleyeur".to_string()},
 		Position    {x: spawnpoint.x, y: spawnpoint.y},
-		Renderable  {glyph: "@".to_string(), fg: Color::Green, bg: Color::Black, mods: Modifier::empty()},
+		Renderable  {glyph: "@".to_string(), fg: 2, bg: 0},
 		Viewshed    {visible_tiles: Vec::new(), range: 8, dirty: true},
 		Mobile      { },
 		Blocking    { },
@@ -49,7 +49,7 @@ pub fn new_lmr_system(mut commands: Commands) {
 	commands.spawn((
 		Name        {name: "LMR".to_string()},
 		Position    {x: 12, y: 12}, // TODO: remove magic numbers
-		Renderable  {glyph: "l".to_string(), fg: Color::LightBlue, bg: Color::Black, mods: Modifier::empty()},
+		Renderable  {glyph: "l".to_string(), fg: 14, bg: 0},
 		Viewshed    {visible_tiles: Vec::new(), range: 5, dirty: true},
 		Mobile      { },
 		Blocking    { },
@@ -66,7 +66,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 ) {
 	// Note that these Events are custom jobbers, see the GameEvent enum in the components
 	for event in ereader.iter() {
-		eprintln!("player attempting to move");
+		//eprintln!("player attempting to move"); // DEBUG:
 		match event.etype {
 			PlayerMove(dir) => {
 				let (mut p_pos, mut pview) = player_query.single_mut();

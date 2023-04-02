@@ -2,7 +2,6 @@
 // Defines the gameworld's terrain and interlocks with some bracket-lib logic
 use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
 use bracket_geometry::prelude::*;
-use ratatui::style::Color;
 use bevy::prelude::*;
 use crate::components::*;
 
@@ -11,7 +10,7 @@ pub const MAPHEIGHT: i32 = 60;
 pub const MAPSIZE: i32 = MAPWIDTH * MAPHEIGHT;
 
 ///Decides whether the Tile is open terrain, a wall, et cetera
-#[derive(PartialEq, Copy, Clone, Debug, Default)]
+#[derive(Reflect, PartialEq, Copy, Clone, Debug, Default, FromReflect)]
 pub enum TileType {
 	#[default]
 	Vacuum,
@@ -19,12 +18,13 @@ pub enum TileType {
 	Wall,
 }
 ///Represents a single position within the game world
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Reflect, PartialEq, Clone, Debug, Resource, FromReflect)]
+#[reflect(Resource)]
 pub struct Tile {
 	pub ttype: TileType,
 	pub glyph: String,
-	pub fg: Color,
-	pub bg: Color,
+	pub fg: u8,
+	pub bg: u8,
 	pub mods: String,
 }
 impl Default for Tile {
@@ -32,8 +32,8 @@ impl Default for Tile {
 		Tile {
 			ttype: TileType::Vacuum,
 			glyph: "❏".to_string(),
-			fg: Color::Magenta,
-			bg: Color::Black,
+			fg: 5,
+			bg: 0,
 			mods: "".to_string(),
 		}
 	}
@@ -44,8 +44,8 @@ impl Tile {
 		Tile {
 			ttype: TileType::Vacuum,
 			glyph: "★".to_string(),
-			fg: Color::DarkGray,
-			bg: Color::Black,
+			fg: 8,
+			bg: 0,
 			mods: "".to_string(),
 		}
 	}
@@ -54,8 +54,8 @@ impl Tile {
 		Tile {
 			ttype: TileType::Floor,
 			glyph: ".".to_string(),
-			fg: Color::DarkGray,
-			bg: Color::Black,
+			fg: 8,
+			bg: 0,
 			mods: "".to_string(),
 		}
 	}
@@ -64,14 +64,15 @@ impl Tile {
 		Tile {
 			ttype: TileType::Wall,
 			glyph: "+".to_string(),
-			fg: Color::Blue,
-			bg: Color::Black,
+			fg: 4,
+			bg: 0,
 			mods: "".to_string(),
 		}
 	}
 }
 ///Represents a single layer of physical space in the game world
-#[derive(Clone, Debug, Resource)]
+#[derive(Reflect, Clone, Debug, Resource, Default)]
+#[reflect(Resource)]
 pub struct Map {
 //	pub tilemap: Vec<TileType>,
 	pub tiles: Vec<Tile>,

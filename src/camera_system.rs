@@ -4,15 +4,16 @@
 use crate::components::*;
 use crate::map::*;
 use bevy::ecs::system::*;
-use ratatui::style::*;
 use bracket_geometry::prelude::*;
 
-/** The CameraView struct defn:
- *  pub struct CameraView
- *      pub map: Vec<Tile>,
- *      pub width: i32,
- *      pub height: i32,
- */
+/// Represents a 'flattened' view of the Map's layers, with all entities and effects painted in,
+/// such that it can be read by the Viewport object when it comes time to render the view
+#[derive(Resource)]
+pub struct CameraView {
+	pub map: Vec<Tile>,
+	pub width: i32,
+	pub height: i32,
+}
 /// Provides an abstraction to the Viewport widget with hooks into Bevy's systems for updates
 impl CameraView {
 	pub fn new(new_width: i32, new_height: i32) -> Self {
@@ -124,8 +125,8 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 					// TODO: check for a scenery effect
 					// TODO: check for an animation effect
 				} else {
-					new_tile.fg = Color::DarkGray;
-					new_tile.bg = Color::Black;
+					new_tile.fg = 8;
+					new_tile.bg = 0;
 					new_tile.mods = "".to_string();
 				}
 			} else {
@@ -144,8 +145,8 @@ fn default_tile() -> Tile {
 	Tile {
 		ttype: TileType::Floor,
 		glyph: "#".to_string(),
-		fg: Color::DarkGray,
-		bg: Color::Black,
+		fg: 8,
+		bg: 0,
 		mods: "".to_string()
 	}
 }

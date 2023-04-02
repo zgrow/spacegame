@@ -2,8 +2,9 @@
 // generated as app.rs using orhun/rust-tui-template via cargo-generate
 // Mar 15 2023
 use std::error;
-use bracket_rex::prelude::XpFile;
+use bevy_save::prelude::*;
 use bevy::app::App;
+use bracket_rex::prelude::XpFile;
 use ratatui::backend::Backend;
 use ratatui::layout::{Alignment, Rect, Layout, Direction, Constraint};
 use ratatui::style::{Color, Style};
@@ -20,7 +21,8 @@ use viewport::Viewport;
 use crate::app::messagelog::MessageLog;
 use crate::app::image_loader::load_rex_pgraph;
 use crate::app::menu::{MainMenuItems, MenuSelector};
-use crate::components::{Position, Player, CameraView};
+use crate::components::{Position, Player};
+use crate::camera_system::CameraView;
 use crate::map::Map;
 
 /// Application result type.
@@ -212,6 +214,19 @@ impl GameEngine {
 	/// Handles a call to stop the game and exit
 	pub fn quit(&mut self) {
 		self.running = false;
+	}
+	//  WARN: By default (not sure how to change this!), on Linux, this savegame will be at
+	//      ~/.local/share/spacegame/saves/FILENAME.sav
+	/// Handles a call to save the game
+	pub fn save_game(&mut self) {
+		//eprintln!("SAVEGAME called"); // DEBUG:
+		self.app.world.save("savegame");
+	}
+	/// Handles a call to load the game
+	pub fn load_game(&mut self) {
+		//eprintln!("LOADGAME called"); // DEBUG:
+		self.app.world.load("savegame");
+		// FIXME: need to set the player's viewshed to dirty HERE to force a viewport update
 	}
 }
 

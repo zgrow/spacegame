@@ -1,8 +1,9 @@
 // viewport.rs
 // Defines the Viewport object, which provides a roguelike-style grid-based Widget to ratatui
 
+use ratatui::style::Color::Indexed;
 use crate::map::xy_to_index;
-use crate::components::*;
+use crate::camera_system::CameraView;
 use bevy::app::App;
 use ratatui::{
 	buffer::Buffer,
@@ -43,7 +44,7 @@ impl<'a> Widget for Viewport<'a> {
 			for map_x in area.left()..area.right() {    // for 1:1 mapping!
 				let index = xy_to_index(map_x.into(), map_y.into(), view.width);
 				// TODO: this doesn't include the style modifiers
-				let tilestyle = Style::default().fg(view.map[index].fg).bg(view.map[index].bg);
+				let tilestyle = Style::default().fg(Indexed(view.map[index].fg)).bg(Indexed(view.map[index].bg));
 				buf.set_string(map_x, map_y, &view.map[index].glyph, tilestyle);
 			}
 		}

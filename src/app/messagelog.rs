@@ -1,9 +1,8 @@
 // messagelog.rs
 // Provides some logical handles to facilitate game logging and display via ratatui
 
-use bevy::ecs::system::Resource;
-
-#[derive(PartialEq, Clone)]
+use bevy::prelude::*;
+#[derive(PartialEq, Clone, Reflect, FromReflect)]
 pub struct Message {
 	timestamp: i32,
 	priority: i32,
@@ -20,7 +19,7 @@ impl Message {
 		}
 	}
 }
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Reflect, FromReflect)]
 pub struct MessageChannel {
 	name: String,
 	contents: Vec<Message>,
@@ -36,7 +35,8 @@ impl MessageChannel {
 		self.contents.push(new_msg);
 	}
 }
-#[derive(PartialEq, Clone, Resource)]
+#[derive(PartialEq, Clone, Resource, Reflect, Default)]
+#[reflect(Resource)]
 pub struct MessageLog {
 	logs: Vec<MessageChannel>
 }
