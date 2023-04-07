@@ -61,6 +61,7 @@ pub fn new_lmr_system(mut commands: Commands) {
 pub fn movement_system(mut ereader: EventReader<TuiEvent>,
                        model: Res<Model>,
                        mut player_query: Query<(&mut Position, &mut Viewshed), With<Player>>,
+                       mut player_posn: ResMut<Position>,
                        npc_query: Query<((&Position, &mut Mobile, Option<&mut Viewshed>), (Without<Player>, With<Mobile>))>,
                        blocker_query: Query<&Position, (With<Blocking>, Without<Player>, Without<Mobile>)>,
 ) {
@@ -118,8 +119,14 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 				// Check for map collisions
 				if model.levels[target.z as usize].is_occupied(target) { return; }
 				// If we arrived here, there's nothing in that space blocking the movement
+				// Therefore, update the player's position
 				p_pos.x = target.x;
 				p_pos.y = target.y;
+				p_pos.z = target.z;
+				// Don't forget to update the player position Resource too
+				player_posn.x = target.x;
+				player_posn.y = target.y;
+				player_posn.z = target.z;
 				// Make sure the player's viewshed will be updated on the next pass
 				p_view.dirty = true;
 			}

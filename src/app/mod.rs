@@ -23,7 +23,7 @@ use crate::app::planq::Planq;
 use crate::app::messagelog::MessageLog;
 use crate::app::image_loader::load_rex_pgraph;
 use crate::app::menu::{MainMenuItems, MenuSelector};
-use crate::components::Player;
+use crate::components::*;
 use crate::camera_system::CameraView;
 
 /// Application result type.
@@ -138,9 +138,14 @@ impl GameEngine {
 			self.ui_grid[1],
 		);
 		// Draw the PLANQ
-		//self.render_planq(frame);
+		let mut planq_text = vec!["test string".to_string()];
+		let r_ppos = self.app.world.get_resource::<Position>();
+		if r_ppos.is_some() {
+			let ppos = r_ppos.unwrap();
+			planq_text.push(format!("*D* x: {}, y: {}", ppos.x, ppos.y));
+		}
 		frame.render_widget(
-			Planq::new().block(
+			Planq::new(&planq_text).block(
 				Block::default()
 				.title("PLANQ [offline]")
 				.title_alignment(Alignment::Center)

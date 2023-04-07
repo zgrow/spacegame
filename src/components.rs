@@ -15,7 +15,7 @@ pub struct Player { }
 #[reflect(Component)]
 pub struct Name { pub name: String }
 /// Represents a point on a 2d grid as an xy pair
-#[derive(Reflect, Component, Resource, Copy, Clone, Eq, PartialEq, Default)]
+#[derive(Reflect, Component, Resource, Copy, Clone, Eq, PartialEq, Default, Debug)]
 #[reflect(Component)]
 pub struct Position { pub x: i32, pub y: i32, pub z: i32 }
 /// Makes the entity available to be rendered on the viewport
