@@ -11,6 +11,7 @@
  *  ScheduleRunner that would otherwise be driven by the window system's event feedback
  */
 // TODO: checkout github/zkat/big-brain for a Bevy-based AI model !!! - thanx Bevy dev
+// TODO: checkout github/imsnif/diskonaut for a demo of flexible ratatui box-drawing
 // **EXTERNAL LIBS
 use std::io;
 use ratatui::backend::CrosstermBackend;
@@ -27,13 +28,14 @@ use spacegame::app::event::{Event, EventHandler};
 use spacegame::app::messagelog::MessageLog;
 use spacegame::components::*;
 use spacegame::rex_assets::RexAssets;
-use spacegame::map_builders::random_builder;
+use spacegame::map::Model;
+use spacegame::map_builders::get_builder;
 use spacegame::camera_system::{camera_update_sys, CameraView};
 use spacegame::sys::*;
 
 // **MAIN
 fn main() -> AppResult<()> {
-	std::env::set_var("RUST_BACKTRACE", "1"); //:DEBUG: enables backtrace on program crash
+	std::env::set_var("RUST_BACKTRACE", "1"); // DEBUG: enables backtrace on program crash
 	// Set up ratatui
 	let backend = CrosstermBackend::new(io::stdout());
 	let terminal = Terminal::new(backend)?;
@@ -50,8 +52,8 @@ fn main() -> AppResult<()> {
 	tui.init()?;
 	// Set the initial list of comms channels
 	let chanlist = vec!["world".to_string(),
-	                    "planq".to_string(),
-	                    "debug".to_string()];
+		                "planq".to_string(),
+		                "debug".to_string()];
 	// Build up the Bevy instance
 	let mut eng = GameEngine::new(tsize);
 	eng.app
@@ -62,7 +64,7 @@ fn main() -> AppResult<()> {
 		.register_saveable::<Blocking>()
 		.insert_resource(ScheduleRunnerSettings::run_once())
 		.insert_resource(RexAssets::new())
-		.insert_resource(Position{x: 35, y: 20}) // The player's position/starting spawn point
+		.insert_resource(Position{x: 35, y: 20, z: 0}) // The player's position/starting spawn point
 		.insert_resource(Events::<TuiEvent>::default()) // The Bevy handler for inter-system comms
 		.insert_resource(MessageLog::new(chanlist))
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
@@ -75,10 +77,17 @@ fn main() -> AppResult<()> {
 	// Build the game world
 	// TODO: i thought this was loading via bracket-rex but it has to go after the insert_resource
 	// via Bevy??? need to reexamine later
-	let mut builder = random_builder(1);
+	// TODO: I have a DevMapBuilder set up but need to add it to the system so as to test stairs
+	let mut model = Model::default();
+	let mut builder = get_builder(1);
 	builder.build_map();
-	let worldmap = builder.get_map();
-	eng.app.insert_resource(worldmap);
+	let mut worldmap = builder.get_map();
+	model.levels.push(worldmap);
+	builder = get_builder(99); // produces the dev map
+	worldmap = builder.get_map();
+	model.levels.push(worldmap);
+	model.add_portal((10, 10, 0), (1, 1, 1), true);
+	eng.app.insert_resource(model);
 	// Build the main camera view
 	eng.calc_layout(tsize);
 	let main_camera = CameraView::new(eng.ui_grid[0].width as i32, eng.ui_grid[0].height as i32);

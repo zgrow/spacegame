@@ -75,9 +75,9 @@ pub fn load_rex_map(new_depth: i32, xp_file: &XpFile) -> Map {
 		new_width = layer.width as i32;
 		new_height = layer.height as i32;
 	}
+	// WARN: We assume only ONE layer exists in the file!
 	assert!(layer_count == 1, "More than one layer detected in REXfile");
 	let mut map: Map = Map::new(new_depth, new_width, new_height);
-	// WARN: This assumes only ONE layer exists in the file!
 	for layer in &xp_file.layers {
 		//eprintln!("- Loading map from rexfile"); //:DEBUG:
 		assert!(map.width == layer.width as i32 && map.height == layer.height as i32, "REXfile dims mismatch");
@@ -90,13 +90,13 @@ pub fn load_rex_map(new_depth: i32, xp_file: &XpFile) -> Map {
 					match cell.ch {
 						// As per the REXPaint .xp file standard, these are ASCII decimals
 						// # = wall, . = floor, - = maintenance, " " = vacuum, "=" = door
-						32 => map.tiles[index] = Tile::new_vacuum(),//' '   Vacuum
-						35 => map.tiles[index] = Tile::new_wall(),  // #    Wall
-						45 => map.tiles[index] = Tile::new_floor(), // -    Maintenance
-						46 => map.tiles[index] = Tile::new_floor(), // .    Floor
-						60 => map.tiles[index] = Tile::new_floor(), // <    (Upward)
-						61 => map.tiles[index] = Tile::new_floor(), // =    Door
-						62 => map.tiles[index] = Tile::new_floor(), // >    (Downward)
+						32 => map.tiles[index] = Tile::new_vacuum(),    //' '   Vacuum
+						35 => map.tiles[index] = Tile::new_wall(),      // #    Wall
+						45 => map.tiles[index] = Tile::new_floor(),     // -    Maintenance
+						46 => map.tiles[index] = Tile::new_floor(),     // .    Floor
+						60 => map.tiles[index] = Tile::new_stairway(),  // <    (Upward)
+						61 => map.tiles[index] = Tile::new_floor(),     // =    Door
+						62 => map.tiles[index] = Tile::new_stairway(),  // >    (Downward)
 						_ => {
 							//eprintln!("Unrecognized REXtile encountered: {} @{},{}", cell.ch, x, y);
 						}
