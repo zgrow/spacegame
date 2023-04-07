@@ -17,7 +17,7 @@ pub struct Name { pub name: String }
 /// Represents a point on a 2d grid as an xy pair
 #[derive(Reflect, Component, Resource, Copy, Clone, Eq, PartialEq, Default)]
 #[reflect(Component)]
-pub struct Position { pub x: i32, pub y: i32 }
+pub struct Position { pub x: i32, pub y: i32, pub z: i32 }
 /// Makes the entity available to be rendered on the viewport
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
@@ -28,7 +28,7 @@ pub struct Renderable {
 	pub bg: u8,      // tui-rs
 	//pub mods: Modifier, // tui-rs
 }
-/// Describes an entity that can move around
+/// Describes an entity that can move around, and includes an index to their associated floor/depth
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
 pub struct Mobile { }
@@ -48,7 +48,9 @@ pub enum Direction {
 	S,
 	SE,
 	E,
-	NE
+	NE,
+	UP,
+	DOWN
 }
 /// Provides the descriptors for TUIEvent
 pub enum GameEvent {

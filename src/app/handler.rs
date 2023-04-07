@@ -9,7 +9,7 @@ use crate::components::GameEvent::PlayerMove;
 use bevy::ecs::event::Events;
 
 pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
-	// parse any debug/overrride controls
+	// *** DEBUG KEY HANDLING
 	if (key_event.code == KeyCode::Char('c') || key_event.code == KeyCode::Char('C'))
 	&& key_event.modifiers == KeyModifiers::CONTROL {
 		// Always allow the program to be closed via Ctrl-C
@@ -18,6 +18,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	}
 	// Get a linkage to the game event distribution system
 	let game_events: &mut Events<TuiEvent> = &mut eng.app.world.get_resource_mut::<Events<TuiEvent>>().unwrap();
+	// *** MENU CONTROL HANDLING
 	if eng.show_main_menu {
 		// TODO: find a way to generalize this to allow the same logic for inventory selection
 		// use the meta mappings
@@ -69,6 +70,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			// Else, do nothing
 			_ => {}
 		}
+	// *** GAME CONTROL HANDLING
 	} else { // this should be the 'default' game interaction mode
 		// use the literal mappings
 		match key_event.code {
@@ -94,18 +96,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('k') | KeyCode::Up => {
 				game_events.send(TuiEvent{etype: PlayerMove(Direction::N)});
 			}
-			KeyCode::Char('y') => {
-				game_events.send(TuiEvent{etype: PlayerMove(Direction::NW)});
-			}
-			KeyCode::Char('u') => {
-				game_events.send(TuiEvent{etype: PlayerMove(Direction::NE)});
-			}
-			KeyCode::Char('b') => {
-				game_events.send(TuiEvent{etype: PlayerMove(Direction::SW)});
-			}
-			KeyCode::Char('n') => {
-				game_events.send(TuiEvent{etype: PlayerMove(Direction::SE)});
-			}
+			KeyCode::Char('y') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::NW)});}
+			KeyCode::Char('u') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::NE)});}
+			KeyCode::Char('b') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::SW)});}
+			KeyCode::Char('n') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::SE)});}
+			KeyCode::Char('>') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::DOWN)});}
+			KeyCode::Char('<') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::UP)});}
 			// Other handlers you could add here.
 			_ => {}
 		}

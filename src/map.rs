@@ -1,5 +1,6 @@
 // map.rs
 // Defines the gameworld's terrain and interlocks with some bracket-lib logic
+use std::collections::HashMap;
 use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
 use bracket_geometry::prelude::*;
 use bevy::prelude::*;
@@ -16,6 +17,7 @@ pub enum TileType {
 	Vacuum,
 	Floor,
 	Wall,
+	Stairway,
 }
 ///Represents a single position within the game world
 #[derive(Reflect, PartialEq, Clone, Debug, Resource, FromReflect)]
@@ -39,7 +41,7 @@ impl Default for Tile {
 	}
 }
 impl Tile {
-	///Produces an 'empty space' tile
+	/// Produces an 'empty space' tile
 	pub fn new_vacuum() -> Tile {
 		Tile {
 			ttype: TileType::Vacuum,
@@ -49,7 +51,7 @@ impl Tile {
 			mods: "".to_string(),
 		}
 	}
-	///Produces a default 'floor' tile
+	/// Produces a default 'floor' tile
 	pub fn new_floor() -> Tile {
 		Tile {
 			ttype: TileType::Floor,
@@ -59,7 +61,7 @@ impl Tile {
 			mods: "".to_string(),
 		}
 	}
-	///Produces a default 'wall' tile
+	/// Produces a default 'wall' tile
 	pub fn new_wall() -> Tile {
 		Tile {
 			ttype: TileType::Wall,
@@ -69,26 +71,38 @@ impl Tile {
 			mods: "".to_string(),
 		}
 	}
+	/// Produces a default 'stairway' tile
+	pub fn new_stairway() -> Tile {
+		Tile {
+			ttype: TileType::Stairway,
+			glyph: "∑".to_string(),
+			fg: 5,
+			bg: 0,
+			mods: "".to_string(),
+		}
+	}
 }
 ///Represents a single layer of physical space in the game world
-#[derive(Reflect, Clone, Debug, Resource, Default)]
+#[derive(Reflect, Clone, Debug, Resource, Default, FromReflect)]
 #[reflect(Resource)]
 pub struct Map {
 //	pub tilemap: Vec<TileType>,
 	pub tiles: Vec<Tile>,
 	pub width: i32,
 	pub height: i32,
+	pub level: i32,
 	pub revealed_tiles: Vec<bool>,
 	pub visible_tiles: Vec<bool>,
 }
 impl Map {
 	/// Generates a map from the default settings
-	pub fn new(_new_depth: i32, new_width: i32, new_height: i32) -> Map {
+	pub fn new(new_depth: i32, new_width: i32, new_height: i32) -> Map {
 		let map_size: usize = (new_width * new_height) as usize;
 		Map {
 			tiles: vec![Tile::default(); map_size],
 			width: new_width,
 			height: new_height,
+			level: new_depth,
 			revealed_tiles: vec![false; map_size],
 			visible_tiles: vec![false; map_size],
 		}
@@ -102,7 +116,24 @@ impl Map {
 	pub fn is_occupied(&self, target: Position) -> bool {
 		let index = self.to_index(target.x, target.y);
 		if self.tiles[index].ttype == TileType::Wall { return true }
-	false
+		false
+	}
+}
+/// Represents the entire stack of Maps that comprise a 3D space
+#[derive(Reflect, Clone, Debug, Resource, Default, FromReflect)]
+#[reflect(Resource)]
+pub struct Model {
+	pub levels: Vec<Map>,
+	pub portals: HashMap<(i32, i32, i32), (i32, i32, i32)> // Cross-level linkages
+}
+impl Model {
+	/// Sets up a linkage between two x,y,z positions, even on the same level
+	/// If 'bidir' is true, then the portal will be made two-way
+	pub fn add_portal(&mut self, left: (i32, i32, i32), right: (i32, i32, i32), bidir: bool) {
+		self.portals.insert(left, right);
+		if bidir {
+			self.portals.insert(right, left);
+		}
 	}
 }
 /// Reference method that allows calculation from an arbitrary width

@@ -36,7 +36,7 @@ pub fn new_player_system(mut commands: Commands,
 		// this is the player's collection of components and their initial values
 		Player      { },
 		Name        {name: "Pleyeur".to_string()},
-		Position    {x: spawnpoint.x, y: spawnpoint.y},
+		Position    {x: spawnpoint.x, y: spawnpoint.y, z: spawnpoint.z},
 		Renderable  {glyph: "@".to_string(), fg: 2, bg: 0},
 		Viewshed    {visible_tiles: Vec::new(), range: 8, dirty: true},
 		Mobile      { },
@@ -48,7 +48,7 @@ pub fn new_player_system(mut commands: Commands,
 pub fn new_lmr_system(mut commands: Commands) {
 	commands.spawn((
 		Name        {name: "LMR".to_string()},
-		Position    {x: 12, y: 12}, // TODO: remove magic numbers
+		Position    {x: 12, y: 12, z: 0}, // TODO: remove magic numbers
 		Renderable  {glyph: "l".to_string(), fg: 14, bg: 0},
 		Viewshed    {visible_tiles: Vec::new(), range: 5, dirty: true},
 		Mobile      { },
@@ -59,9 +59,9 @@ pub fn new_lmr_system(mut commands: Commands) {
 //  CONTINUOUS SYSTEMS (run frequently)
 /// Handles entities that can move around the map
 pub fn movement_system(mut ereader: EventReader<TuiEvent>,
-                       map: Res<Map>,
+                       model: Res<Model>,
                        mut player_query: Query<(&mut Position, &mut Viewshed), With<Player>>,
-                       npc_query: Query<((&Position, Option<&mut Viewshed>), (Without<Player>, With<Mobile>))>,
+                       npc_query: Query<((&Position, &mut Mobile, Option<&mut Viewshed>), (Without<Player>, With<Mobile>))>,
                        blocker_query: Query<&Position, (With<Blocking>, Without<Player>, Without<Mobile>)>,
 ) {
 	// Note that these Events are custom jobbers, see the GameEvent enum in the components
@@ -69,9 +69,10 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 		//eprintln!("player attempting to move"); // DEBUG:
 		match event.etype {
 			PlayerMove(dir) => {
-				let (mut p_pos, mut pview) = player_query.single_mut();
+				let (mut p_pos, mut p_view) = player_query.single_mut();
 				let mut xdiff = 0;
 				let mut ydiff = 0;
+				let mut zdiff = 0; // not a coordinate! indexes to the Mobile component's level
 				match dir {
 					Direction::N  =>             { ydiff -= 1 }
 					Direction::NW => { xdiff -= 1; ydiff -= 1 }
@@ -81,32 +82,60 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 					Direction::SE => { xdiff += 1; ydiff += 1 }
 					Direction::E  => { xdiff += 1 }
 					Direction::NE => { xdiff += 1; ydiff -= 1 }
+					Direction::UP   => { zdiff += 1 }
+					Direction::DOWN => { zdiff -= 1 }
 				}
-				let target = Position{x: p_pos.x + xdiff, y: p_pos.y + ydiff};
+				let mut target = Position{x: p_pos.x + xdiff, y: p_pos.y + ydiff, z: p_pos.z + zdiff};
+				// If trying to move up/down to a different floor:
+				if dir == Direction::UP || dir == Direction::DOWN {
+					// Prevent movement if an invalid z-level was obtained
+					if target.z < 0 || target.z as usize >= model.levels.len() { continue; }
+					// Prevent movement if the entity is not on a stairway
+					let t_index = model.levels[target.z as usize].to_index(target.x, target.y);
+					if model.levels[target.z as usize].tiles[t_index].ttype != TileType::Stairway {
+						continue;
+					}
+					// If we arrived here, then all's good; get the destination coords
+					// target is currently the coords of the entity that asked to move UP/DOWN
+					// zdiff indicates the level that the entity wishes to move to
+					let possible = model.portals.get(&(target.x, target.y, zdiff as i32));
+					if possible.is_some() {
+						let actual = possible.unwrap();
+						target.x = actual.0;
+						target.y = actual.1;
+					}
+					// target is now the new coords on the level indexed by zdiff
+					p_pos.x = target.x;
+					p_pos.y = target.y;
+					p_pos.z = zdiff as i32;
+					p_view.dirty = true;
+					continue;
+				}
 				// Check for NPC collisions
 				for guy in npc_query.iter() { if *guy.0.0 == target { return; } }
 				// Check for immobile entity collisions
 				for blocker in blocker_query.iter() { if *blocker == target { return; } }
 				// Check for map collisions
-				if map.is_occupied(target) { return; }
+				if model.levels[target.z as usize].is_occupied(target) { return; }
 				// If we arrived here, there's nothing in that space blocking the movement
 				p_pos.x = target.x;
 				p_pos.y = target.y;
 				// Make sure the player's viewshed will be updated on the next pass
-				pview.dirty = true;
+				p_view.dirty = true;
 			}
 			// TODO: this is where we'd handle an NPCMove action
 		}
 	}
 }
 /// Handles entities that can see physical light
-pub fn visibility_system(mut map: ResMut<Map>,
+pub fn visibility_system(mut model: ResMut<Model>,
                          mut seers: Query<(&mut Viewshed, &Position, Option<&Player>)>
 ) {
 	for (mut viewshed, posn, player) in &mut seers {
 		if viewshed.dirty {
+			let map = &mut model.levels[posn.z as usize];
 			viewshed.visible_tiles.clear();
-			viewshed.visible_tiles = field_of_view(posn_to_point(posn), viewshed.range, &*map);
+			viewshed.visible_tiles = field_of_view(posn_to_point(posn), viewshed.range, map);
 			viewshed.visible_tiles.retain(|p| p.x >= 0 && p.x < map.width
 				                           && p.y >= 0 && p.y < map.height
 			);
