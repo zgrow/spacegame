@@ -13,17 +13,18 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Clear, List, ListI
 pub mod handler;
 pub mod event;
 pub mod viewport;
+pub mod planq;
 pub mod tui;
 pub mod messagelog;
 pub mod image_loader;
 pub mod menu;
 use viewport::Viewport;
+use crate::app::planq::Planq;
 use crate::app::messagelog::MessageLog;
 use crate::app::image_loader::load_rex_pgraph;
 use crate::app::menu::{MainMenuItems, MenuSelector};
-use crate::components::{Position, Player};
+use crate::components::Player;
 use crate::camera_system::CameraView;
-use crate::map::Map;
 
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
@@ -41,7 +42,7 @@ pub struct GameEngine {
 }
 impl GameEngine {
 	/// Constructs a new instance of [`GameEngine`].
-	//pub fn new(layout: Vec<Rect>) -> Self {
+	// pub fn new(layout: Vec<Rect>) -> Self {
 	pub fn new(max_area: Rect) -> Self {
 		let mut new_eng = Self {
 			running: true,
@@ -97,16 +98,27 @@ impl GameEngine {
 		// 1: (Planq output)
 		// 2: (Status bars)
 		// Start by drawing the output of the main view
-		frame.render_widget(
-			Viewport::new(&self.app)
-			.block(
-				Block::default()
-					.borders(Borders::ALL)
+		// If there's a valid CameraView to render, use that
+		if let Some(view) = self.app.world.get_resource_mut::<CameraView>() {
+			frame.render_widget(
+				Viewport::new(&view).block(
+					Block::default()
+					.borders(Borders::NONE)
 					.border_type(BorderType::Double)
 					.border_style(Style::default().fg(Color::White)),
-			),
-			self.ui_grid[0],
-		);
+				),
+				self.ui_grid[0],
+			);
+		} else { // otherwise, just show a blank screen
+			frame.render_widget(
+				Block::default()
+				.title("[no CameraView initialized]")
+				.borders(Borders::ALL)
+				.border_type(BorderType::Double)
+				.border_style(Style::default().fg(Color::White)),
+				self.ui_grid[0],
+			);
+		}
 		// Render the main message log pane
 		// Obtain a slice of the message log here and feed to the next widget
 		let mut log_text = "--no logs found--".to_string();
@@ -118,25 +130,24 @@ impl GameEngine {
 		}
 		// Draw the message log pane
 		frame.render_widget(
-			Paragraph::new(log_text) // requires a Vec<Spans<'a>> for group insert on creation
-			.block(
+			Paragraph::new(log_text).block( // requires a Vec<Spans<'a>> for group insert on creation
 				Block::default()
-					.title("PLANQ: -offline- ")
-					.title_alignment(Alignment::Left)
-					.borders(Borders::ALL)
-					.border_type(BorderType::Thick)
-					.border_style(Style::default().fg(Color::White)),
+				.borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+				.border_style(Style::default().fg(Color::White))
 			),
 			self.ui_grid[1],
 		);
-		// Draw the sidebar pane
+		// Draw the PLANQ
+		//self.render_planq(frame);
 		frame.render_widget(
-			Block::default()
-				.title("Status Rack")
+			Planq::new().block(
+				Block::default()
+				.title("PLANQ [offline]")
 				.title_alignment(Alignment::Center)
 				.borders(Borders::ALL)
 				.border_type(BorderType::Thick)
 				.border_style(Style::default().fg(Color::White)),
+			),
 			self.ui_grid[2],
 		);
 		// Render any optional menus and layers, ie main menu
@@ -170,16 +181,6 @@ impl GameEngine {
 			frame.render_widget(Clear, banner_area);
 			frame.render_widget(banner_img, banner_area);
 		}
-	}
-	/// Returns true if the specified Position is occupied by a piece of furniture, an entity, etc
-	pub fn is_occupied(&self, target: Position) -> bool {
-		// Is there an entity at this spot?
-		// for all entities with a Position,
-		//  return true if enty.posn matches target
-		// Is there a wall at this spot?
-		// FIXME: does not handle entity collision!
-		let map = self.app.world.get_resource::<Map>().unwrap();
-		return map.is_occupied(target);
 	}
 	/// Toggles the paused state of the game engine when called
 	pub fn pause_toggle(&mut self) {

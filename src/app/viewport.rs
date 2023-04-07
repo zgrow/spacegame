@@ -4,7 +4,6 @@
 use ratatui::style::Color::Indexed;
 use crate::map::xy_to_index;
 use crate::camera_system::CameraView;
-use bevy::app::App;
 use ratatui::{
 	buffer::Buffer,
 	widgets::{Widget, Block},
@@ -13,7 +12,7 @@ use ratatui::{
 };
 
 pub struct Viewport<'a> {
-	ecs: &'a App,
+	source: &'a CameraView,
 	// these are the tui-rs attributes
 	block: Option<Block<'a>>,
 	style: Style,
@@ -22,8 +21,7 @@ pub struct Viewport<'a> {
 impl<'a> Widget for Viewport<'a> {
 	fn render(mut self, area: Rect, buf: &mut Buffer) {
 		// Ensure that the CameraView we're about to write into has the right size
-		let view = self.ecs.world.get_resource::<CameraView>().unwrap();
-		assert_eq!((view.width, view.height), (area.width as i32, area.height as i32),
+		assert_eq!((self.source.width, self.source.height), (area.width as i32, area.height as i32),
 			       "CameraView and Widget::Viewport have mismatched sizes!");
 		// Draw the border, if it exists
 		let area = match self.block.take() {
@@ -36,32 +34,32 @@ impl<'a> Widget for Viewport<'a> {
 		};
 		// Don't continue if the area inside the border is too small
 		if area.width < 1 || area.height < 1
-		|| view.map.len() == 0 {
+		|| self.source.map.len() == 0 {
 			return;
 		}
 		// We are certain of a valid drawing area, so let's gooooo
 		for map_y in area.top()..area.bottom() {        // Hooray
 			for map_x in area.left()..area.right() {    // for 1:1 mapping!
-				let index = xy_to_index(map_x.into(), map_y.into(), view.width);
+				let index = xy_to_index(map_x.into(), map_y.into(), self.source.width);
 				// TODO: this doesn't include the style modifiers
-				let tilestyle = Style::default().fg(Indexed(view.map[index].fg)).bg(Indexed(view.map[index].bg));
-				buf.set_string(map_x, map_y, &view.map[index].glyph, tilestyle);
+				let tilestyle = Style::default().fg(Indexed(self.source.map[index].fg)).bg(Indexed(self.source.map[index].bg));
+				buf.set_string(map_x, map_y, &self.source.map[index].glyph, tilestyle);
 			}
 		}
 	}
 }
 impl <'a> Viewport<'a> {
-	pub fn new(newworld: &'a App) -> Viewport<'a> {
+	pub fn new(new_source: &'a CameraView) -> Viewport<'a> {
 		Viewport {
-			ecs: newworld,
+			source: new_source,
 			block: None,
 			style: Style::default(),
 			align: Alignment::Left,
 		}
 	}
 	// These are all chain methods to interconnect with tui-rs
-	pub fn view(mut self, newworld: &'a App) -> Viewport<'a> {
-		self.ecs = newworld;
+	pub fn view(mut self, new_source: &'a CameraView) -> Viewport<'a> {
+		self.source = new_source;
 		self
 	}
 	pub fn block(mut self, block: Block<'a>) -> Viewport<'a> {

@@ -37,12 +37,11 @@ impl CameraView {
 }
 /// Provides the update system for Bevy
 pub fn camera_update_sys(mut camera: ResMut<CameraView>,
-						 renderables: Query<(&Position, &Renderable)>,
-						 map: Res<Map>,
-						 ppos: Res<Position>,
-						 mut pview_query: Query<(&Viewshed, &Player)>,
-						 )
-{
+	                     renderables: Query<(&Position, &Renderable)>,
+	                     model: Res<Model>,
+	                     ppos: Res<Position>,
+	                     mut pview_query: Query<(&Viewshed, &Player)>,
+) {
 	/* UPDATE STRATEGY
 	 * Each layer in the list gets applied in the order it appears: this 'flattens' the
 	 * abstraction into a single 2D plane that can be rendered on the Viewport
@@ -86,29 +85,30 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 	 *      }
 	 */
 	// Absolutely positively do not try to do this if the camera or map are empty
+	let world_map = &model.levels[ppos.z as usize];
 	assert!(camera.map.len() != 0, "camera.map has length 0!");
-	assert!(map.tiles.len() != 0, "map.tiles has length 0!");
-	let centerpoint = Position{x: camera.width / 2, y: camera.height / 2};
-	let minima = Position{x: ppos.x - centerpoint.x, y: ppos.y - centerpoint.y};
-	let maxima = Position{x: ppos.x + centerpoint.x, y: ppos.y + centerpoint.y};
+	assert!(world_map.tiles.len() != 0, "world_map.tiles has length 0!");
+	let centerpoint = Position{x: camera.width / 2, y: camera.height / 2, z: 0};
+	let minima = Position{x: ppos.x - centerpoint.x, y: ppos.y - centerpoint.y, z: 0};
+	let maxima = Position{x: ppos.x + centerpoint.x, y: ppos.y + centerpoint.y, z: 0};
 	let mut screen_y = 0;
 	for target_y in minima.y..maxima.y {
 		let mut screen_x = 0;
 		for target_x in minima.x..maxima.x {
 			// We are iterating on target_x/y and screen_x/y
-			// Update the map and buf indices at the same time to avoid confusion
-			let map_index = map.to_index(target_x, target_y);
+			// Update the world_map and buf indices at the same time to avoid confusion
+			let map_index = world_map.to_index(target_x, target_y);
 			let buf_index = xy_to_index(screen_x, screen_y, camera.width);
 			let mut new_tile = default_tile();
-			// Check for an existing tile in the map
+			// Check for an existing tile in the world_map
 			// Don't use map_index to perform the bounds check:
 			// it'll map to ANY valid index, too many false positives
-			// IF the target_x/y produces a valid map coordinate...
-			if target_x >= 0 && target_x < map.width
-			&& target_y >= 0 && target_y < map.height
-			&& map.revealed_tiles[map_index] { // and if the tile's been seen before...
+			// IF the target_x/y produces a valid world_map coordinate...
+			if target_x >= 0 && target_x < world_map.width
+			&& target_y >= 0 && target_y < world_map.height
+			&& world_map.revealed_tiles[map_index] { // and if the tile's been seen before...
 				// ... THEN put together the displayed tile from various input sources
-				new_tile = map.tiles[map_index].clone(); // First, obtain the background
+				new_tile = world_map.tiles[map_index].clone(); // First, obtain the background
 				let pview = pview_query.get_single_mut().unwrap();
 				if pview.0.visible_tiles.contains(&Point::new(target_x, target_y)) {
 					// Consult the list of renderables for any matches
