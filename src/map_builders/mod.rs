@@ -25,22 +25,24 @@ impl MapBuilder for DevMapBuilder {
 		// do the thing
 		let new_width = 30;
 		let new_height = 30;
-		let mut map: Map = Map::new(1, new_width, new_height);
+		self.map = Map::new(new_width, new_height);
 		let mut index;
-		for x in 0..map.width {
-			index = map.to_index(x, 0);
-			map.tiles[index] = Tile::new_wall();
-			index = map.to_index(x, new_height - 1);
-			map.tiles[index] = Tile::new_wall();
+		let x_max = new_width - 1;
+		let y_max = new_height - 1;
+		// Put up some walls and floors
+		for y in 0..self.map.height {
+			for x in 0..self.map.width {
+				index = self.map.to_index(x, y);
+				if y == 0 { self.map.tiles[index] = Tile::new_wall(); }
+				else if y == y_max { self.map.tiles[index] = Tile::new_wall(); }
+				else if x == 0 { self.map.tiles[index] = Tile::new_wall(); }
+				else if x == x_max { self.map.tiles[index] = Tile::new_wall(); }
+				else { self.map.tiles[index] = Tile::new_floor(); }
+			}
 		}
-		for y in 0..map.height {
-			index = map.to_index(0, y);
-			map.tiles[index] = Tile::new_wall();
-			index = map.to_index(new_width - 1, y);
-			map.tiles[index] = Tile::new_wall();
-		}
-		index = map.to_index(1, 1);
-		map.tiles[index] = Tile::new_stairway();
+		// Put in a single staircase
+		index = self.map.to_index(5, 5);
+		self.map.tiles[index] = Tile::new_stairway();
 	}
 	fn get_map(&self) -> Map {
 		self.map.clone()
@@ -49,7 +51,7 @@ impl MapBuilder for DevMapBuilder {
 impl DevMapBuilder {
 	pub fn new() -> DevMapBuilder {
 		DevMapBuilder {
-			map: Map::new(1, 1, 1)
+			map: Map::new(1, 1)
 		}
 	}
 }

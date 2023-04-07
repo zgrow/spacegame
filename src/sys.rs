@@ -73,27 +73,28 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 				let (mut p_pos, mut p_view) = player_query.single_mut();
 				let mut xdiff = 0;
 				let mut ydiff = 0;
-				let mut zdiff = 0; // not a coordinate! indexes to the Mobile component's level
+				let mut zdiff = 0; // NOTE: not a typical component: z-level indexes to map stack
 				match dir {
-					Direction::N  =>             { ydiff -= 1 }
-					Direction::NW => { xdiff -= 1; ydiff -= 1 }
-					Direction::W  => { xdiff -= 1 }
-					Direction::SW => { xdiff -= 1; ydiff += 1 }
-					Direction::S  =>             { ydiff += 1 }
-					Direction::SE => { xdiff += 1; ydiff += 1 }
-					Direction::E  => { xdiff += 1 }
-					Direction::NE => { xdiff += 1; ydiff -= 1 }
-					Direction::UP   => { zdiff += 1 }
-					Direction::DOWN => { zdiff -= 1 }
+					Direction::N    =>             { ydiff -= 1 }
+					Direction::NW   => { xdiff -= 1; ydiff -= 1 }
+					Direction::W    => { xdiff -= 1 }
+					Direction::SW   => { xdiff -= 1; ydiff += 1 }
+					Direction::S    =>             { ydiff += 1 }
+					Direction::SE   => { xdiff += 1; ydiff += 1 }
+					Direction::E    => { xdiff += 1 }
+					Direction::NE   => { xdiff += 1; ydiff -= 1 }
+					Direction::UP   =>      { zdiff += 1 }
+					Direction::DOWN =>      { zdiff -= 1 }
 				}
+				// Calculate the desired position's components
 				let mut target = Position{x: p_pos.x + xdiff, y: p_pos.y + ydiff, z: p_pos.z + zdiff};
-				// If trying to move up/down to a different floor:
+				// If trying to move up/down to a different floor: (ie zdiff != 0)
 				if dir == Direction::UP || dir == Direction::DOWN {
 					// Prevent movement if an invalid z-level was obtained
 					if target.z < 0 || target.z as usize >= model.levels.len() { continue; }
 					// Prevent movement if the entity is not on a stairway
-					let t_index = model.levels[target.z as usize].to_index(target.x, target.y);
-					if model.levels[target.z as usize].tiles[t_index].ttype != TileType::Stairway {
+					let t_index = model.levels[p_pos.z as usize].to_index(p_pos.x, p_pos.y);
+					if model.levels[p_pos.z as usize].tiles[t_index].ttype != TileType::Stairway {
 						continue;
 					}
 					// If we arrived here, then all's good; get the destination coords
@@ -112,6 +113,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 					p_view.dirty = true;
 					continue;
 				}
+				assert!(model.levels[target.z as usize].tiles.len() > 1, "destination map is empty!");
 				// Check for NPC collisions
 				for guy in npc_query.iter() { if *guy.0.0 == target { return; } }
 				// Check for immobile entity collisions

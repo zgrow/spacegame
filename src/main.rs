@@ -84,9 +84,10 @@ fn main() -> AppResult<()> {
 	let mut worldmap = builder.get_map();
 	model.levels.push(worldmap);
 	builder = get_builder(99); // produces the dev map
+	builder.build_map();
 	worldmap = builder.get_map();
 	model.levels.push(worldmap);
-	model.add_portal((10, 10, 0), (1, 1, 1), true);
+	model.add_portal((3, 20, 0), (5, 5, 1), true);
 	eng.app.insert_resource(model);
 	// Build the main camera view
 	eng.calc_layout(tsize);

@@ -86,23 +86,20 @@ impl Tile {
 #[derive(Reflect, Clone, Debug, Resource, Default, FromReflect)]
 #[reflect(Resource)]
 pub struct Map {
-//	pub tilemap: Vec<TileType>,
 	pub tiles: Vec<Tile>,
 	pub width: i32,
 	pub height: i32,
-	pub level: i32,
 	pub revealed_tiles: Vec<bool>,
 	pub visible_tiles: Vec<bool>,
 }
 impl Map {
 	/// Generates a map from the default settings
-	pub fn new(new_depth: i32, new_width: i32, new_height: i32) -> Map {
+	pub fn new(new_width: i32, new_height: i32) -> Map {
 		let map_size: usize = (new_width * new_height) as usize;
 		Map {
 			tiles: vec![Tile::default(); map_size],
 			width: new_width,
 			height: new_height,
-			level: new_depth,
 			revealed_tiles: vec![false; map_size],
 			visible_tiles: vec![false; map_size],
 		}

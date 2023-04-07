@@ -25,7 +25,7 @@ impl<'a> Widget for Planq<'a> {
 		};
 		// area now contains the remaining space to draw the PLANQ
 		// anything wider than this is going to get truncated!
-		let max_width = area.right() - area.left();
+		let _max_width = area.right() - area.left();
 		// The top and bottom panes are 'fixed' size, while the middle pane is expandable
 		// TODO: The middle pane should be 'smart', and can count how many slots it has available
 		//       for the player to load things into
@@ -34,7 +34,7 @@ impl<'a> Widget for Planq<'a> {
 			.direction(Direction::Vertical)
 			.constraints([Constraint::Length(20), Constraint::Min(3), Constraint::Length(20)].as_ref())
 			.split(area).to_vec();
-		eprintln!("{}, {}", max_width, layout.len());
+		//eprintln!("{}, {}", max_width, layout.len()); // DEBUG:
 		// (test) draw a couple of internal borders
 		for x_index in layout[0].left()..layout[0].right() {
 			buf.set_string(x_index, layout[0].bottom(), "-".to_string(), textstyle);
@@ -71,3 +71,5 @@ impl<'a> Planq<'a> {
 	}
 
 }
+
+// EOF

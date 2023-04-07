@@ -86,6 +86,7 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 	 */
 	// Absolutely positively do not try to do this if the camera or map are empty
 	let world_map = &model.levels[ppos.z as usize];
+	eprintln!("Updating CameraView from map at z-level {}", ppos.z);
 	assert!(camera.map.len() != 0, "camera.map has length 0!");
 	assert!(world_map.tiles.len() != 0, "world_map.tiles has length 0!");
 	let centerpoint = Position{x: camera.width / 2, y: camera.height / 2, z: 0};

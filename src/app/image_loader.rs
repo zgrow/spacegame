@@ -66,7 +66,7 @@ impl XpFileParser {
 	}
 }
 /// Produces a Map object, complete with tilemap, from the specified REXPaint resource
-pub fn load_rex_map(new_depth: i32, xp_file: &XpFile) -> Map {
+pub fn load_rex_map(xp_file: &XpFile) -> Map {
 	let mut new_width: i32 = 1;
 	let mut new_height: i32 = 1;
 	let mut layer_count = 0;
@@ -77,7 +77,7 @@ pub fn load_rex_map(new_depth: i32, xp_file: &XpFile) -> Map {
 	}
 	// WARN: We assume only ONE layer exists in the file!
 	assert!(layer_count == 1, "More than one layer detected in REXfile");
-	let mut map: Map = Map::new(new_depth, new_width, new_height);
+	let mut map: Map = Map::new(new_width, new_height);
 	for layer in &xp_file.layers {
 		//eprintln!("- Loading map from rexfile"); //:DEBUG:
 		assert!(map.width == layer.width as i32 && map.height == layer.height as i32, "REXfile dims mismatch");

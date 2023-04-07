@@ -59,7 +59,7 @@ impl GameEngine {
 	}
 	/// Runs a single update cycle of the game state
 	pub fn tick(&mut self) {
-		eprintln!("TICK");
+		//eprintln!("TICK"); // DEBUG:
 	}
 	/// Renders the user interface widgets.
 	pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
@@ -142,7 +142,7 @@ impl GameEngine {
 		let r_ppos = self.app.world.get_resource::<Position>();
 		if r_ppos.is_some() {
 			let ppos = r_ppos.unwrap();
-			planq_text.push(format!("*D* x: {}, y: {}", ppos.x, ppos.y));
+			planq_text.push(format!("*D* x: {}, y: {}, z: {}", ppos.x, ppos.y, ppos.z));
 		}
 		frame.render_widget(
 			Planq::new(&planq_text).block(
@@ -173,7 +173,7 @@ impl GameEngine {
 			/* this fires on every index change, not just confirmation
 			match self.main_menu.state.selected() {
 				None => { }
-				Some(selection) => {eprintln!("sel: {}", selection);}
+				Some(selection) => {eprintln!("sel: {}", selection);} // DEBUG:
 			}
 			*/
 		}
@@ -221,10 +221,10 @@ impl GameEngine {
 	pub fn quit(&mut self) {
 		self.running = false;
 	}
-	//  WARN: By default (not sure how to change this!), on Linux, this savegame will be at
-	//      ~/.local/share/spacegame/saves/FILENAME.sav
 	/// Handles a call to save the game
 	pub fn save_game(&mut self) {
+	//  WARN: By default (not sure how to change this!), on Linux, this savegame will be at
+	//      ~/.local/share/spacegame/saves/FILENAME.sav
 		//eprintln!("SAVEGAME called"); // DEBUG:
 		self.app.world.save("savegame");
 	}

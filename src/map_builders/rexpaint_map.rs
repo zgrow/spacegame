@@ -21,11 +21,11 @@ impl MapBuilder for RexMapBuilder {
 impl RexMapBuilder {
 	pub fn new() -> RexMapBuilder {
 		RexMapBuilder {
-			map: Map::new(1, 1, 1)
+			map: Map::new(1, 1)
 		}
 	}
 	fn load_test_map(&mut self) {
-		self.map = load_rex_map(1, &XpFile::from_resource("../resources/test_ship.xp").unwrap());
+		self.map = load_rex_map(&XpFile::from_resource("../resources/test_ship.xp").unwrap());
 	}
 }
 
