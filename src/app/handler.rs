@@ -5,7 +5,7 @@ use crate::app::{AppResult, GameEngine, MainMenuItems};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::components::*;
 use crate::components::Direction;
-use crate::components::GameEvent::PlayerMove;
+use crate::components::GameEventType::PlayerMove;
 use bevy::ecs::event::Events;
 
 pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {

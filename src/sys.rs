@@ -7,7 +7,7 @@ use crate::components::*;
 use crate::camera_system::CameraView;
 use crate::map::*;
 use crate::components::{Name, Position, Renderable, Player, Mobile};
-use crate::sys::GameEvent::PlayerMove;
+use crate::sys::GameEventType::PlayerMove;
 use crate::app::messagelog::MessageLog;
 use bevy::ecs::system::{Commands, Res, Query, ResMut};
 use bevy::ecs::event::EventReader;
@@ -27,6 +27,7 @@ pub fn new_camera_system(mut commands: Commands) {
 		height: 0,
 	});
 }
+
 /// Spawns a new player, including their subsystems and default values
 pub fn new_player_system(mut commands: Commands,
 	                     spawnpoint: Res<Position>,
@@ -60,8 +61,8 @@ pub fn new_lmr_system(mut commands: Commands) {
 /// Handles entities that can move around the map
 pub fn movement_system(mut ereader: EventReader<TuiEvent>,
                        model: Res<Model>,
-                       mut player_query: Query<(&mut Position, &mut Viewshed), With<Player>>,
-                       mut player_posn: ResMut<Position>,
+                       mut p_query: Query<(&mut Position, &mut Viewshed), With<Player>>,
+                       mut p_posn_res: ResMut<Position>,
                        npc_query: Query<((&Position, &mut Mobile, Option<&mut Viewshed>), (Without<Player>, With<Mobile>))>,
                        blocker_query: Query<&Position, (With<Blocking>, Without<Player>, Without<Mobile>)>,
 ) {
@@ -70,7 +71,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 		//eprintln!("player attempting to move"); // DEBUG:
 		match event.etype {
 			PlayerMove(dir) => {
-				let (mut p_pos, mut p_view) = player_query.single_mut();
+				let (mut p_pos, mut p_view) = p_query.single_mut();
 				let mut xdiff = 0;
 				let mut ydiff = 0;
 				let mut zdiff = 0; // NOTE: not a typical component: z-level indexes to map stack
@@ -109,11 +110,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 						target.z = actual.2;
 					}
 					// target is now the new coords on the level indexed by zdiff
-					p_pos.x = target.x;
-					p_pos.y = target.y;
-					p_pos.z = target.z;
 					p_view.dirty = true;
-					continue;
 				}
 				assert!(model.levels[target.z as usize].tiles.len() > 1, "destination map is empty!");
 				// Check for NPC collisions
@@ -122,16 +119,12 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 				for blocker in blocker_query.iter() { if *blocker == target { return; } }
 				// Check for map collisions
 				if model.levels[target.z as usize].is_occupied(target) { return; }
+				eprintln!("target: {target:?}"); // DEBUG:
 				// If we arrived here, there's nothing in that space blocking the movement
 				// Therefore, update the player's position
-				eprintln!("target: {target:?}"); // DEBUG:
-				p_pos.x = target.x;
-				p_pos.y = target.y;
-				p_pos.z = target.z;
+				(p_pos.x, p_pos.y, p_pos.z) = (target.x, target.y, target.z);
 				// Don't forget to update the player position Resource too
-				player_posn.x = target.x;
-				player_posn.y = target.y;
-				player_posn.z = target.z;
+				(p_posn_res.x, p_posn_res.y, p_posn_res.z) = (target.x, target.y, target.z);
 				// Make sure the player's viewshed will be updated on the next pass
 				p_view.dirty = true;
 			}

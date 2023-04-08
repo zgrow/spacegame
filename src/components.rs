@@ -53,13 +53,13 @@ pub enum Direction {
 	DOWN
 }
 /// Provides the descriptors for TUIEvent
-pub enum GameEvent {
+pub enum GameEventType {
 	PlayerMove(Direction),
 }
 /// Custom interface obj for passing data from ratatui to Bevy
 #[derive(Resource)]
 pub struct TuiEvent {
-	pub etype: GameEvent,
+	pub etype: GameEventType,
 }
 /// Provides an object abstraction for the sensory range of a given entity
 #[derive(Component)]

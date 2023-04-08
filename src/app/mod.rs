@@ -37,7 +37,6 @@ pub struct GameEngine {
 	pub ui_grid: Vec<Rect>,
 	pub player: Player,
 	pub show_main_menu: bool,
-	//pub sel_main_menu: ListState,
 	pub main_menu: MenuSelector<MainMenuItems>,
 }
 impl GameEngine {

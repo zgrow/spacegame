@@ -4,6 +4,7 @@
 use crate::components::*;
 use crate::map::*;
 use bevy::ecs::system::*;
+use bevy::ecs::event::EventReader;
 use bracket_geometry::prelude::*;
 
 /// Represents a 'flattened' view of the Map's layers, with all entities and effects painted in,
@@ -41,6 +42,7 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 	                     model: Res<Model>,
 	                     ppos: Res<Position>,
 	                     mut pview_query: Query<(&Viewshed, &Player)>,
+	                     mut ereader: EventReader<TuiEvent>,
 ) {
 	/* UPDATE STRATEGY
 	 * Each layer in the list gets applied in the order it appears: this 'flattens' the
@@ -84,9 +86,18 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 	 *          screen_y++                          //move to next row
 	 *      }
 	 */
-	// Absolutely positively do not try to do this if the camera or map are empty
+	for event in ereader.iter() {
+		match event.etype {
+			GameEventType::PlayerMove(Direction::UP) |
+			GameEventType::PlayerMove(Direction::DOWN) => {
+				eprintln!("{ppos:?}");
+			}
+			GameEventType::PlayerMove(_) => { }
+		}
+	}
+	eprintln!("Updating CameraView from map at z-level {}", ppos.z); // DEBUG:
 	let world_map = &model.levels[ppos.z as usize];
-	eprintln!("Updating CameraView from map at z-level {}", ppos.z);
+	// Absolutely positively do not try to do this if the camera or map are empty
 	assert!(camera.map.len() != 0, "camera.map has length 0!");
 	assert!(world_map.tiles.len() != 0, "world_map.tiles has length 0!");
 	let centerpoint = Position{x: camera.width / 2, y: camera.height / 2, z: 0};
