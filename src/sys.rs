@@ -100,16 +100,18 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 					// If we arrived here, then all's good; get the destination coords
 					// target is currently the coords of the entity that asked to move UP/DOWN
 					// zdiff indicates the level that the entity wishes to move to
-					let possible = model.portals.get(&(target.x, target.y, zdiff as i32));
+					let possible = model.portals.get(&(p_pos.x, p_pos.y, p_pos.z));
+					eprintln!("poss: {possible:?}"); // DEBUG:
 					if possible.is_some() {
 						let actual = possible.unwrap();
 						target.x = actual.0;
 						target.y = actual.1;
+						target.z = actual.2;
 					}
 					// target is now the new coords on the level indexed by zdiff
 					p_pos.x = target.x;
 					p_pos.y = target.y;
-					p_pos.z = zdiff as i32;
+					p_pos.z = target.z;
 					p_view.dirty = true;
 					continue;
 				}
@@ -122,6 +124,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 				if model.levels[target.z as usize].is_occupied(target) { return; }
 				// If we arrived here, there's nothing in that space blocking the movement
 				// Therefore, update the player's position
+				eprintln!("target: {target:?}"); // DEBUG:
 				p_pos.x = target.x;
 				p_pos.y = target.y;
 				p_pos.z = target.z;
@@ -141,8 +144,10 @@ pub fn visibility_system(mut model: ResMut<Model>,
                          mut seers: Query<(&mut Viewshed, &Position, Option<&Player>)>
 ) {
 	for (mut viewshed, posn, player) in &mut seers {
+		//eprintln!("posn: {posn:?}"); // DEBUG:
 		if viewshed.dirty {
-			let map = &mut model.levels[posn.z as usize];
+			assert!(posn.z != -1);
+			let map = &mut model.levels[posn.z as usize]; // ERROR: here
 			viewshed.visible_tiles.clear();
 			viewshed.visible_tiles = field_of_view(posn_to_point(posn), viewshed.range, map);
 			viewshed.visible_tiles.retain(|p| p.x >= 0 && p.x < map.width
