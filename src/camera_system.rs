@@ -126,7 +126,7 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 					// Consult the list of renderables for any matches
 					if !&renderables.is_empty() {
 						for (posn, rendee) in &renderables {
-							if (posn.x, posn.y) == (target_x, target_y) {
+							if (posn.x, posn.y, posn.z) == (target_x, target_y, ppos.z) {
 								new_tile.glyph = rendee.glyph.clone();
 								new_tile.fg = rendee.fg;
 								new_tile.bg = rendee.bg;

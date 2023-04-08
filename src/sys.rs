@@ -99,8 +99,6 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 						continue;
 					}
 					// If we arrived here, then all's good; get the destination coords
-					// target is currently the coords of the entity that asked to move UP/DOWN
-					// zdiff indicates the level that the entity wishes to move to
 					let possible = model.portals.get(&(p_pos.x, p_pos.y, p_pos.z));
 					eprintln!("poss: {possible:?}"); // DEBUG:
 					if possible.is_some() {
@@ -109,8 +107,6 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 						target.y = actual.1;
 						target.z = actual.2;
 					}
-					// target is now the new coords on the level indexed by zdiff
-					p_view.dirty = true;
 				}
 				assert!(model.levels[target.z as usize].tiles.len() > 1, "destination map is empty!");
 				// Check for NPC collisions
