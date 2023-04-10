@@ -42,7 +42,7 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 	                     renderables: Query<(&Position, &Renderable), Without<Player>>,
 	                     model: Res<Model>,
 	                     mut q_player: Query<(&Player, &Viewshed, &Position, &Renderable)>,
-	                     mut _ereader: EventReader<TuiEvent>,
+	                     mut _ereader: EventReader<GameEvent>,
 ) {
 	/* UPDATE STRATEGY
 	 * Each layer in the list gets applied in the order it appears: this 'flattens' the

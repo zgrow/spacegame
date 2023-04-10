@@ -5,10 +5,15 @@ use crate::app::{AppResult, GameEngine, MainMenuItems};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::components::*;
 use crate::components::Direction;
-use crate::components::GameEventType::PlayerMove;
+use crate::components::GameEventType::*;
 use bevy::ecs::event::Events;
 
 pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
+	// WARN: There is an important caveat to this system:
+	// Because it is implemented in crossterm via ratatui, making it into a Bevy system
+	// has so far been too difficult to finish, if not outright impossible
+	// The game_events object below will monopolize the mutable ref to the game world
+	// Therefore, do not try to extract and send info now; defer it to Bevy's event handling
 	// *** DEBUG KEY HANDLING
 	if (key_event.code == KeyCode::Char('c') || key_event.code == KeyCode::Char('C'))
 	&& key_event.modifiers == KeyModifiers::CONTROL {
@@ -17,7 +22,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 		eng.quit();
 	}
 	// Get a linkage to the game event distribution system
-	let game_events: &mut Events<TuiEvent> = &mut eng.app.world.get_resource_mut::<Events<TuiEvent>>().unwrap();
+	let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
 	// *** MENU CONTROL HANDLING
 	if eng.show_main_menu {
 		// TODO: find a way to generalize this to allow the same logic for inventory selection
@@ -85,25 +90,25 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			// Move player
 			KeyCode::Char('h') | KeyCode::Left => {
-				game_events.send(TuiEvent{etype: PlayerMove(Direction::W)});
+				game_events.send(GameEvent{etype: PlayerMove(Direction::W)});
 			}
 			KeyCode::Char('l') | KeyCode::Right => {
-				game_events.send(TuiEvent{etype: PlayerMove(Direction::E)});
+				game_events.send(GameEvent{etype: PlayerMove(Direction::E)});
 			}
 			KeyCode::Char('j') | KeyCode::Down => {
-				game_events.send(TuiEvent{etype: PlayerMove(Direction::S)});
+				game_events.send(GameEvent{etype: PlayerMove(Direction::S)});
 			}
 			KeyCode::Char('k') | KeyCode::Up => {
-				game_events.send(TuiEvent{etype: PlayerMove(Direction::N)});
+				game_events.send(GameEvent{etype: PlayerMove(Direction::N)});
 			}
-			KeyCode::Char('y') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::NW)});}
-			KeyCode::Char('u') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::NE)});}
-			KeyCode::Char('b') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::SW)});}
-			KeyCode::Char('n') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::SE)});}
-			KeyCode::Char('>') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::DOWN)});}
-			KeyCode::Char('<') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::UP)});}
+			KeyCode::Char('y') => {game_events.send(GameEvent{etype: PlayerMove(Direction::NW)});}
+			KeyCode::Char('u') => {game_events.send(GameEvent{etype: PlayerMove(Direction::NE)});}
+			KeyCode::Char('b') => {game_events.send(GameEvent{etype: PlayerMove(Direction::SW)});}
+			KeyCode::Char('n') => {game_events.send(GameEvent{etype: PlayerMove(Direction::SE)});}
+			KeyCode::Char('>') => {game_events.send(GameEvent{etype: PlayerMove(Direction::DOWN)});}
+			KeyCode::Char('<') => {game_events.send(GameEvent{etype: PlayerMove(Direction::UP)});}
 			KeyCode::Char('o') => {eprintln!("attempted to OPEN something!");}
-			KeyCode::Char('g') => {eprintln!("attempted to GET something!");}
+			KeyCode::Char('g') => {game_events.send(GameEvent{etype: ItemPickup(Creature::Player)});}
 			KeyCode::Char('s') => {eng.make_item(crate::item_builders::ItemType::Thing, Position::new(10, 10, 0));}
 			// Other handlers you could add here.
 			_ => {}

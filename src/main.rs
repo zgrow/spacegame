@@ -71,7 +71,7 @@ fn main() -> AppResult<()> {
 		.insert_resource(ScheduleRunnerSettings::run_once())
 		.insert_resource(RexAssets::new())
 		.insert_resource(Position{x: 35, y: 20, z: 0}) // The player's position/starting spawn point
-		.insert_resource(Events::<TuiEvent>::default()) // The Bevy handler for inter-system comms
+		.insert_resource(Events::<GameEvent>::default()) // The Bevy handler for inter-system comms
 		.insert_resource(MessageLog::new(chanlist))
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
 		.add_event::<crossterm::event::KeyEvent>()
@@ -80,7 +80,8 @@ fn main() -> AppResult<()> {
 		.add_startup_system(new_lmr_spawn)
 		.add_system(movement_system)
 		.add_system(visibility_system)
-		.add_system(camera_update_sys);
+		.add_system(camera_update_sys)
+		.add_system(item_collection_system);
 	// Build the game world
 	// TODO: i thought this was loading via bracket-rex but it has to go after the insert_resource
 	// via Bevy??? need to reexamine later

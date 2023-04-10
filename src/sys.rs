@@ -7,12 +7,13 @@ use crate::components::*;
 use crate::camera_system::CameraView;
 use crate::map::*;
 use crate::components::{Name, Position, Renderable, Player, Mobile};
-use crate::sys::GameEventType::PlayerMove;
+use crate::sys::GameEventType::*;
 use crate::app::messagelog::MessageLog;
 use crate::item_builders::*;
 use bevy::ecs::system::{Commands, Res, Query, ResMut};
 use bevy::ecs::event::EventReader;
 use bevy::ecs::query::{With, Without};
+use bevy::ecs::entity::Entity;
 use bracket_pathfinding::prelude::*;
 
 //  UTILITIES
@@ -76,7 +77,7 @@ pub fn new_planq_spawn(mut commands: Commands)
 
 //  CONTINUOUS SYSTEMS (run frequently)
 /// Handles entities that can move around the map
-pub fn movement_system(mut ereader: EventReader<TuiEvent>,
+pub fn movement_system(mut ereader: EventReader<GameEvent>,
                        model: Res<Model>,
                        mut p_query: Query<(&mut Position, &mut Viewshed), With<Player>>,
                        mut p_posn_res: ResMut<Position>,
@@ -142,6 +143,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 				p_view.dirty = true;
 			}
 			// TODO: this is where we'd handle an NPCMove action
+			_ => { } // Throw out anything we're not specifically interested in
 		}
 	}
 }
@@ -170,8 +172,22 @@ pub fn visibility_system(mut model: ResMut<Model>,
 		}
 	}
 }
+/// Handles pickup/drop/destroy requests for Items
+pub fn item_collection_system(mut ereader: EventReader<GameEvent>,
+	                          mut _model: ResMut<Model>,
+	                          mut _entity_query: Query<(Entity, &Position, &Container)>,
+	                          mut msglog: ResMut<MessageLog>,
+) {
+	for event in ereader.iter() {
+		match event.etype {
+			ItemPickup(Creature::Player) => { msglog.add("Player attempted to GET item".to_string(), "world".to_string(), 1, 1); }
+			_ => { }
+		}
+	}
+}
+
 /// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
-pub fn planq_system(_ereader: EventReader<TuiEvent>, // subject to change
+pub fn planq_system(_ereader: EventReader<GameEvent>, // subject to change
 	                _p_query: Query<&Position, With<Player>>, // provides interface to player data
 	                //planq: ResMut<Planq>? // contains the PLANQ's settings and data storage
 ) {
