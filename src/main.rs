@@ -58,10 +58,16 @@ fn main() -> AppResult<()> {
 	let mut eng = GameEngine::new(tsize);
 	eng.app
 		.register_saveable::<Player>()
+		.register_saveable::<Planq>()
 		.register_saveable::<spacegame::components::Name>() // needs full pathname
 		.register_saveable::<Position>()
 		.register_saveable::<Renderable>()
-		.register_saveable::<Blocking>()
+		.register_saveable::<Mobile>()
+		.register_saveable::<Obstructive>()
+		.register_saveable::<Portable>()
+		.register_saveable::<Openable>()
+		.register_saveable::<Lockable>()
+		.register_saveable::<Container>()
 		.insert_resource(ScheduleRunnerSettings::run_once())
 		.insert_resource(RexAssets::new())
 		.insert_resource(Position{x: 35, y: 20, z: 0}) // The player's position/starting spawn point
@@ -69,15 +75,15 @@ fn main() -> AppResult<()> {
 		.insert_resource(MessageLog::new(chanlist))
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
 		.add_event::<crossterm::event::KeyEvent>()
-		.add_startup_system(new_player_system) // depends on having player_spawn inserted prior
-		.add_startup_system(new_lmr_system)
+		.add_startup_system(new_player_spawn) // depends on having player_spawn inserted prior
+		.add_startup_system(new_planq_spawn)
+		.add_startup_system(new_lmr_spawn)
 		.add_system(movement_system)
 		.add_system(visibility_system)
 		.add_system(camera_update_sys);
 	// Build the game world
 	// TODO: i thought this was loading via bracket-rex but it has to go after the insert_resource
 	// via Bevy??? need to reexamine later
-	// TODO: I have a DevMapBuilder set up but need to add it to the system so as to test stairs
 	let mut model = Model::default();
 	let mut builder = get_builder(1);
 	builder.build_map();

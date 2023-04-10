@@ -9,6 +9,7 @@ use crate::map::*;
 use crate::components::{Name, Position, Renderable, Player, Mobile};
 use crate::sys::GameEventType::PlayerMove;
 use crate::app::messagelog::MessageLog;
+use crate::item_builders::*;
 use bevy::ecs::system::{Commands, Res, Query, ResMut};
 use bevy::ecs::event::EventReader;
 use bevy::ecs::query::{With, Without};
@@ -18,7 +19,7 @@ use bracket_pathfinding::prelude::*;
 /// Converts a spacegame::Position into a bracket_pathfinding::Point
 pub fn posn_to_point(input: &Position) -> Point { Point { x: input.x, y: input.y } }
 
-//  STARTUP SYSTEMS (run once)
+//  SINGLETON SYSTEMS (run once)
 /// Spawns a new CameraView on the game world (ie the default/main view)
 pub fn new_camera_system(mut commands: Commands) {
 	commands.insert_resource(CameraView {
@@ -29,7 +30,7 @@ pub fn new_camera_system(mut commands: Commands) {
 }
 
 /// Spawns a new player, including their subsystems and default values
-pub fn new_player_system(mut commands: Commands,
+pub fn new_player_spawn(mut commands: Commands,
 	                     spawnpoint: Res<Position>,
 	                     mut msglog: ResMut<MessageLog>,
 ) {
@@ -41,19 +42,35 @@ pub fn new_player_system(mut commands: Commands,
 		Renderable  {glyph: "@".to_string(), fg: 2, bg: 0},
 		Viewshed    {visible_tiles: Vec::new(), range: 8, dirty: true},
 		Mobile      { },
-		Blocking    { },
+		Obstructive { },
 	));
 	msglog.add("WELCOME TO SPACEGAME".to_string(), "world".to_string(), 1, 1);
 }
 /// Spawns a new LMR at the specified Position, using default values
-pub fn new_lmr_system(mut commands: Commands) {
+pub fn new_lmr_spawn(mut commands: Commands)
+{
 	commands.spawn((
 		Name        {name: "LMR".to_string()},
 		Position    {x: 12, y: 12, z: 0}, // TODO: remove magic numbers
 		Renderable  {glyph: "l".to_string(), fg: 14, bg: 0},
 		Viewshed    {visible_tiles: Vec::new(), range: 5, dirty: true},
 		Mobile      { },
-		Blocking    { },
+		Obstructive { },
+	));
+}
+/// Spawns the player's PLANQ [TODO: in the starting locker]
+pub fn new_planq_spawn(mut commands: Commands)
+{
+	commands.spawn((
+		Planq { },
+		Thing {
+			item: Item {
+				name: Name { name: "PLANQ".to_string() },
+				posn: Position::new(25, 30, 0),
+				render: Renderable { glyph: "¶".to_string(), fg: 3, bg: 0 },
+			},
+			portable: Portable { },
+		}
 	));
 }
 
@@ -64,7 +81,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
                        mut p_query: Query<(&mut Position, &mut Viewshed), With<Player>>,
                        mut p_posn_res: ResMut<Position>,
                        npc_query: Query<((&Position, &mut Mobile, Option<&mut Viewshed>), (Without<Player>, With<Mobile>))>,
-                       blocker_query: Query<&Position, (With<Blocking>, Without<Player>, Without<Mobile>)>,
+                       blocker_query: Query<&Position, (With<Obstructive>, Without<Player>, Without<Mobile>)>,
 ) {
 	// Note that these Events are custom jobbers, see the GameEvent enum in the components
 	for event in ereader.iter() {
@@ -100,7 +117,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 					}
 					// If we arrived here, then all's good; get the destination coords
 					let possible = model.portals.get(&(p_pos.x, p_pos.y, p_pos.z));
-					eprintln!("poss: {possible:?}"); // DEBUG:
+					//eprintln!("poss: {possible:?}"); // DEBUG:
 					if possible.is_some() {
 						let actual = possible.unwrap();
 						target.x = actual.0;
@@ -115,7 +132,7 @@ pub fn movement_system(mut ereader: EventReader<TuiEvent>,
 				for blocker in blocker_query.iter() { if *blocker == target { return; } }
 				// Check for map collisions
 				if model.levels[target.z as usize].is_occupied(target) { return; }
-				eprintln!("target: {target:?}"); // DEBUG:
+				//eprintln!("target: {target:?}"); // DEBUG:
 				// If we arrived here, there's nothing in that space blocking the movement
 				// Therefore, update the player's position
 				(p_pos.x, p_pos.y, p_pos.z) = (target.x, target.y, target.z);
@@ -152,6 +169,17 @@ pub fn visibility_system(mut model: ResMut<Model>,
 			viewshed.dirty = false;
 		}
 	}
+}
+/// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
+pub fn planq_system(_ereader: EventReader<TuiEvent>, // subject to change
+	                _p_query: Query<&Position, With<Player>>, // provides interface to player data
+	                //planq: ResMut<Planq>? // contains the PLANQ's settings and data storage
+) {
+	/* TODO: Implement level generation such that the whole layout can be created at startup from a
+	 * tree of rooms, rather than by directly loading a REXPaint map; by retaining this tree-list
+	 * of rooms in the layout, the PLANQ can then show the player's location as an output
+	 */
+
 }
 
 /* TODO: "memory_system":

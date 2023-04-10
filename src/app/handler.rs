@@ -102,6 +102,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('n') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::SE)});}
 			KeyCode::Char('>') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::DOWN)});}
 			KeyCode::Char('<') => {game_events.send(TuiEvent{etype: PlayerMove(Direction::UP)});}
+			KeyCode::Char('o') => {eprintln!("attempted to OPEN something!");}
+			KeyCode::Char('g') => {eprintln!("attempted to GET something!");}
+			KeyCode::Char('s') => {eng.make_item(crate::item_builders::ItemType::Thing, Position::new(10, 10, 0));}
 			// Other handlers you could add here.
 			_ => {}
 		}

@@ -23,6 +23,7 @@ use crate::app::planq::Planq;
 use crate::app::messagelog::MessageLog;
 use crate::app::image_loader::load_rex_pgraph;
 use crate::app::menu::{MainMenuItems, MenuSelector};
+use crate::item_builders::{ItemBuilder, ItemType};
 use crate::components::*;
 use crate::camera_system::CameraView;
 
@@ -35,9 +36,9 @@ pub struct GameEngine {
 	pub app: App, // bevy::app::App, contains all of the ECS bits
 	pub recalculate_layout: bool,
 	pub ui_grid: Vec<Rect>,
-	pub player: Player,
 	pub show_main_menu: bool,
 	pub main_menu: MenuSelector<MainMenuItems>,
+	pub artificer: ItemBuilder,
 }
 impl GameEngine {
 	/// Constructs a new instance of [`GameEngine`].
@@ -49,9 +50,9 @@ impl GameEngine {
 			app: App::new(),
 			recalculate_layout: false,
 			ui_grid: Vec::new(), // Can't be a Bevy Resource because tui::Rect is ineligible
-			player: Player::default(),
 			show_main_menu: false,
 			main_menu: MenuSelector::with_items(Vec::new()),
+			artificer: ItemBuilder { },
 		};
 		new_eng.calc_layout(max_area);
 		return new_eng;
@@ -232,6 +233,10 @@ impl GameEngine {
 		//eprintln!("LOADGAME called"); // DEBUG:
 		self.app.world.load("savegame");
 		// FIXME: need to set the player's viewshed to dirty HERE to force a viewport update
+	}
+	/// Creates an item [TODO: and returns a ref to it for further customization]
+	pub fn make_item(&mut self, new_type: ItemType, location: Position) {
+		self.artificer.spawn(&mut self.app.world, new_type, location);
 	}
 }
 
