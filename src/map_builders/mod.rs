@@ -9,14 +9,12 @@ pub trait MapBuilder {
 	fn build_map(&mut self);
 	fn get_map(&self) -> Map;
 }
-
 pub fn get_builder(selection: i32) -> Box<dyn MapBuilder>{
 	match selection {
 		1 => Box::new(RexMapBuilder::new()),
 		_ => Box::new(DevMapBuilder::new())
 	}
 }
-
 pub struct DevMapBuilder {
 	map: Map,
 }

@@ -4,11 +4,15 @@
 use bevy::prelude::*;
 use bracket_pathfinding::prelude::*;
 
-/// *** SAVE/LOAD ELIGIBLE
+//  *** SAVE/LOAD ELIGIBLE
 /// Provides a "tag" component for the Player entity, easy retrieval
 #[derive(Debug, Component, Reflect, Default, Clone, Copy)]
 #[reflect(Component)]
 pub struct Player { }
+/// Tag component for the player's PLANQ
+#[derive(Reflect, Component, Default)]
+#[reflect(Component)]
+pub struct Planq { }
 //  TODO: later going to add a LMR, AURITA tag...
 /// Effectively a unique ID for an entity
 #[derive(Reflect, Component, Default)]
@@ -18,6 +22,11 @@ pub struct Name { pub name: String }
 #[derive(Reflect, Component, Resource, Copy, Clone, Eq, PartialEq, Default, Debug)]
 #[reflect(Component)]
 pub struct Position { pub x: i32, pub y: i32, pub z: i32 }
+impl Position {
+	pub fn new(new_x: i32, new_y: i32, new_z: i32) -> Position {
+		Position{ x: new_x, y: new_y, z: new_z }
+	}
+}
 /// Makes the entity available to be rendered on the viewport
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
@@ -35,7 +44,23 @@ pub struct Mobile { }
 /// Describes an entity that obstructs movement by other entities
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
-pub struct Blocking { }
+pub struct Obstructive { }
+/// Describes an entity that can be picked up and carried around
+#[derive(Reflect, Component, Default)]
+#[reflect(Component)]
+pub struct Portable { }
+/// Describes an entity with an operable barrier of some kind: a container's lid, or a door, &c
+#[derive(Reflect, Component, Default)]
+#[reflect(Component)]
+pub struct Openable { pub is_open: bool }
+/// Describes an entity with something concealed behind a lock; uses an i32 value as a keyval
+#[derive(Reflect, Component, Default)]
+#[reflect(Component)]
+pub struct Lockable { pub is_locked: bool, pub key: i32 }
+/// Describes an entity which may contain entities tagged with the Portable Component
+#[derive(Reflect, Component, Default)]
+#[reflect(Component)]
+pub struct Container { pub contents: Vec<String> }
 
 //  *** PRIMITIVES AND COMPUTED VALUES (ie no save/load)
 /// The compass rose - note this is not a component...
