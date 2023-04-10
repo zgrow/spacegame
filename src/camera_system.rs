@@ -5,6 +5,7 @@ use crate::components::*;
 use crate::map::*;
 use bevy::ecs::system::*;
 use bevy::ecs::event::EventReader;
+use bevy::ecs::query::Without;
 use bracket_geometry::prelude::*;
 
 /// Represents a 'flattened' view of the Map's layers, with all entities and effects painted in,
@@ -38,11 +39,10 @@ impl CameraView {
 }
 /// Provides the update system for Bevy
 pub fn camera_update_sys(mut camera: ResMut<CameraView>,
-	                     renderables: Query<(&Position, &Renderable)>,
+	                     renderables: Query<(&Position, &Renderable), Without<Player>>,
 	                     model: Res<Model>,
-	                     ppos: Res<Position>,
-	                     mut pview_query: Query<(&Viewshed, &Player)>,
-	                     mut ereader: EventReader<TuiEvent>,
+	                     mut q_player: Query<(&Player, &Viewshed, &Position, &Renderable)>,
+	                     mut _ereader: EventReader<TuiEvent>,
 ) {
 	/* UPDATE STRATEGY
 	 * Each layer in the list gets applied in the order it appears: this 'flattens' the
@@ -86,28 +86,20 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 	 *          screen_y++                          //move to next row
 	 *      }
 	 */
-	for event in ereader.iter() {
-		match event.etype {
-			GameEventType::PlayerMove(Direction::UP) |
-			GameEventType::PlayerMove(Direction::DOWN) => {
-				eprintln!("{ppos:?}");
-			}
-			GameEventType::PlayerMove(_) => { }
-		}
-	}
-	eprintln!("Updating CameraView from map at z-level {}", ppos.z); // DEBUG:
-	let world_map = &model.levels[ppos.z as usize];
+	let player = q_player.get_single_mut().unwrap();
+	//eprintln!("Updating CameraView from map at z-level {}", player.2.z); // DEBUG:
+	let world_map = &model.levels[player.2.z as usize];
 	// Absolutely positively do not try to do this if the camera or map are empty
 	assert!(camera.map.len() != 0, "camera.map has length 0!");
 	assert!(world_map.tiles.len() != 0, "world_map.tiles has length 0!");
 	let centerpoint = Position{x: camera.width / 2, y: camera.height / 2, z: 0};
-	let minima = Position{x: ppos.x - centerpoint.x, y: ppos.y - centerpoint.y, z: 0};
-	let maxima = Position{x: ppos.x + centerpoint.x, y: ppos.y + centerpoint.y, z: 0};
+	let minima = Position{x: player.2.x - centerpoint.x, y: player.2.y - centerpoint.y, z: 0};
+	let maxima = Position{x: player.2.x + centerpoint.x, y: player.2.y + centerpoint.y, z: 0};
 	let mut screen_y = 0;
 	for target_y in minima.y..maxima.y {
 		let mut screen_x = 0;
 		for target_x in minima.x..maxima.x {
-			// We are iterating on target_x/y and screen_x/y
+			// We are iterating on target_x/y AND screen_x/y
 			// Update the world_map and buf indices at the same time to avoid confusion
 			let map_index = world_map.to_index(target_x, target_y);
 			let buf_index = xy_to_index(screen_x, screen_y, camera.width);
@@ -119,14 +111,20 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 			if target_x >= 0 && target_x < world_map.width
 			&& target_y >= 0 && target_y < world_map.height
 			&& world_map.revealed_tiles[map_index] { // and if the tile's been seen before...
-				// ... THEN put together the displayed tile from various input sources
-				new_tile = world_map.tiles[map_index].clone(); // First, obtain the background
-				let pview = pview_query.get_single_mut().unwrap();
-				if pview.0.visible_tiles.contains(&Point::new(target_x, target_y)) {
-					// Consult the list of renderables for any matches
+				// ... THEN put together the displayed tile from various input sources:
+				// First, obtain the background
+				new_tile = world_map.tiles[map_index].clone();
+				if target_x == player.2.x && target_y == player.2.y {
+					// If this tile is where the player's standing, draw the player and move on
+					new_tile.glyph = player.3.glyph.clone();
+					new_tile.fg = player.3.fg;
+					new_tile.bg = player.3.bg;
+					new_tile.mods = "".to_string();
+				} else if player.1.visible_tiles.contains(&Point::new(target_x, target_y)) {
+					// Else, render everything the player can see that isn't the player itself
 					if !&renderables.is_empty() {
 						for (posn, rendee) in &renderables {
-							if (posn.x, posn.y, posn.z) == (target_x, target_y, ppos.z) {
+							if (posn.x, posn.y, posn.z) == (target_x, target_y, player.2.z) {
 								new_tile.glyph = rendee.glyph.clone();
 								new_tile.fg = rendee.fg;
 								new_tile.bg = rendee.bg;
@@ -137,6 +135,7 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 					// TODO: check for a scenery effect
 					// TODO: check for an animation effect
 				} else {
+					// Otherwise, just assume this is a real-but-not-visible tile and recolor it
 					new_tile.fg = 8;
 					new_tile.bg = 0;
 					new_tile.mods = "".to_string();
