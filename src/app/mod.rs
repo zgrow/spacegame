@@ -121,16 +121,15 @@ impl GameEngine {
 		}
 		// Render the main message log pane
 		// Obtain a slice of the message log here and feed to the next widget
-		let mut log_text = "--no logs found--".to_string();
+		let mut worldmsg = Vec::new();
 		let msglog_ref = self.app.world.get_resource::<MessageLog>();
 		if msglog_ref.is_some() {
 			let msglog = msglog_ref.unwrap();
-			let worldmsg = msglog.get_log("world".to_string());
-			if !worldmsg.is_empty() { log_text = worldmsg[0].clone(); }
+			worldmsg = msglog.get_log("world".to_string());
 		}
 		// Draw the message log pane
 		frame.render_widget(
-			Paragraph::new(log_text).block( // requires a Vec<Spans<'a>> for group insert on creation
+			Paragraph::new(worldmsg).block( // requires a Vec<Spans<'a>> for group insert on creation
 				Block::default()
 				.borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
 				.border_style(Style::default().fg(Color::White))

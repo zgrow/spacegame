@@ -1,6 +1,8 @@
 // messagelog.rs
 // Provides some logical handles to facilitate game logging and display via ratatui
 
+use ratatui::text::Spans;
+
 use bevy::prelude::*;
 #[derive(PartialEq, Clone, Reflect, FromReflect)]
 pub struct Message {
@@ -67,13 +69,13 @@ impl MessageLog {
 	}
 	/// Retrieves the set of log messages from a specified channel
 	/// If the given channel does not exist, an empty vector will be returned
-	pub fn get_log(&self, req_channel: String) -> Vec<String> {
+	pub fn get_log(&self, req_channel: String) -> Vec<Spans> {
 		let mut backlog = Vec::new();
 		if self.logs.is_empty() { return backlog; }
 		for channel in &self.logs {
 			if channel.name == req_channel {
 				for msg in &channel.contents {
-					backlog.push(msg.text.clone());
+					backlog.push(msg.text.clone().into());
 				}
 			}
 		}
