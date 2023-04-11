@@ -5,6 +5,8 @@ use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
 use bracket_geometry::prelude::*;
 use bevy::prelude::*;
 use crate::components::*;
+use std::fmt::Display;
+use std::fmt;
 
 pub const MAPWIDTH: i32 = 80;
 pub const MAPHEIGHT: i32 = 60;
@@ -18,6 +20,18 @@ pub enum TileType {
 	Floor,
 	Wall,
 	Stairway,
+}
+impl Display for TileType {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let output;
+		match self {
+			TileType::Vacuum => { output = "vacuum" }
+			TileType::Floor => { output = "floor" }
+			TileType::Wall => { output = "wall" }
+			TileType::Stairway => { output = "stairway" }
+		}
+		write!(f, "{}", output)
+	}
 }
 ///Represents a single position within the game world
 #[derive(Reflect, PartialEq, Clone, Debug, Resource, FromReflect)]

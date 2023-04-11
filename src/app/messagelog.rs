@@ -52,6 +52,11 @@ impl MessageLog {
 		MessageLog{ logs: new_logs }
 	}
 	/// Adds a new message to the given channel; if the channel does not exist it will be made
+	/// # Arguments
+	/// * `msg_text` - The text of the message
+	/// * `msg_chan` - The msg channel's name, ie "world"
+	/// * `msg_prio` - Higher -> more important
+	/// * `msg_time` - As number of seconds since game epoch
 	pub fn add(&mut self, msg_text: String, msg_chan: String, msg_prio: i32, msg_time: i32) {
 		// Check for an existing channel to add the new message to
 		for channel in &mut self.logs {
@@ -66,6 +71,10 @@ impl MessageLog {
 		let mut new_channel = MessageChannel::new(&msg_chan);
 		new_channel.add(Message::new(msg_time, msg_prio, msg_chan, msg_text));
 		self.logs.push(new_channel);
+	}
+	/// Helper method: adds a new message directly to the "world" channel [TODO: with an immediate timestamp]
+	pub fn tell_player(&mut self, msg_text: String) {
+		self.add(msg_text, "world".to_string(), 0, 0);
 	}
 	/// Retrieves the set of log messages from a specified channel
 	/// If the given channel does not exist, an empty vector will be returned

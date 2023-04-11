@@ -77,18 +77,20 @@ pub fn new_planq_spawn(mut commands: Commands)
 
 //  CONTINUOUS SYSTEMS (run frequently)
 /// Handles entities that can move around the map
-pub fn movement_system(mut ereader: EventReader<GameEvent>,
-                       model: Res<Model>,
-                       mut p_query: Query<(&mut Position, &mut Viewshed), With<Player>>,
-                       mut p_posn_res: ResMut<Position>,
-                       npc_query: Query<((&Position, &mut Mobile, Option<&mut Viewshed>), (Without<Player>, With<Mobile>))>,
-                       blocker_query: Query<&Position, (With<Obstructive>, Without<Player>, Without<Mobile>)>,
+pub fn movement_system(mut ereader:     EventReader<GameEvent>,
+	                     model:           Res<Model>,
+	                     mut msglog:      ResMut<MessageLog>,
+	                     mut p_query:     Query<(&mut Position, &mut Viewshed), With<Player>>,
+	                     mut p_posn_res:  ResMut<Position>,
+	                     npc_query:       Query<((&Position, &mut Mobile, &Name, Option<&mut Viewshed>), (Without<Player>, With<Mobile>))>,
+	                     blocker_query:   Query<(&Position, &Name), (With<Obstructive>, Without<Player>, Without<Mobile>)>,
 ) {
 	// Note that these Events are custom jobbers, see the GameEvent enum in the components
 	for event in ereader.iter() {
 		//eprintln!("player attempting to move"); // DEBUG:
 		match event.etype {
 			PlayerMove(dir) => {
+				let mut feedback;
 				let (mut p_pos, mut p_view) = p_query.single_mut();
 				let mut xdiff = 0;
 				let mut ydiff = 0;
@@ -107,13 +109,18 @@ pub fn movement_system(mut ereader: EventReader<GameEvent>,
 				}
 				// Calculate the desired position's components
 				let mut target = Position{x: p_pos.x + xdiff, y: p_pos.y + ydiff, z: p_pos.z + zdiff};
-				// If trying to move up/down to a different floor: (ie zdiff != 0)
+				let t_index = model.levels[target.z as usize].to_index(target.x, target.y);
+				// NOTE: IF the actor is changing z-levels, some extra logic is required:
 				if dir == Direction::UP || dir == Direction::DOWN {
 					// Prevent movement if an invalid z-level was obtained
 					if target.z < 0 || target.z as usize >= model.levels.len() { continue; }
 					// Prevent movement if the entity is not on a stairway
-					let t_index = model.levels[p_pos.z as usize].to_index(p_pos.x, p_pos.y);
-					if model.levels[p_pos.z as usize].tiles[t_index].ttype != TileType::Stairway {
+					let p_index = model.levels[p_pos.z as usize].to_index(p_pos.x, p_pos.y);
+					if model.levels[p_pos.z as usize].tiles[p_index].ttype != TileType::Stairway {
+						feedback = "There is nothing here to ".to_string();
+						if zdiff == 1 { feedback.push_str("ascend.") }
+						else { feedback.push_str("descend.") }
+						msglog.tell_player(feedback);
 						continue;
 					}
 					// If we arrived here, then all's good; get the destination coords
@@ -126,13 +133,38 @@ pub fn movement_system(mut ereader: EventReader<GameEvent>,
 						target.z = actual.2;
 					}
 				}
-				assert!(model.levels[target.z as usize].tiles.len() > 1, "destination map is empty!");
+				assert!(model.levels[target.z as usize].tiles.len() > 1, "Destination map is empty!");
+				let mut way_is_blocked = false;
+				feedback = "You run into ".to_string();
 				// Check for NPC collisions
-				for guy in npc_query.iter() { if *guy.0.0 == target { return; } }
+				for guy in npc_query.iter() {
+					if *guy.0.0 == target {
+						way_is_blocked = true;
+						feedback.push_str("the ");
+						feedback.push_str(&guy.0.2.name);
+						feedback.push_str(".");
+					}
+				}
 				// Check for immobile entity collisions
-				for blocker in blocker_query.iter() { if *blocker == target { return; } }
+				for blocker in blocker_query.iter() {
+					if *blocker.0 == target {
+						way_is_blocked = true;
+						feedback.push_str("a ");
+						feedback.push_str(&blocker.1.name);
+						feedback.push_str(".");
+					}
+				}
 				// Check for map collisions
-				if model.levels[target.z as usize].is_occupied(target) { return; }
+				if model.levels[target.z as usize].is_occupied(target) {
+					way_is_blocked = true;
+					feedback.push_str("the ");
+					feedback.push_str(&model.levels[target.z as usize].tiles[t_index].ttype.to_string());
+					feedback.push_str(".");
+				}
+				if way_is_blocked {
+					msglog.tell_player(feedback);
+					return;
+				}
 				//eprintln!("target: {target:?}"); // DEBUG:
 				// If we arrived here, there's nothing in that space blocking the movement
 				// Therefore, update the player's position
@@ -141,6 +173,7 @@ pub fn movement_system(mut ereader: EventReader<GameEvent>,
 				(p_posn_res.x, p_posn_res.y, p_posn_res.z) = (target.x, target.y, target.z);
 				// Make sure the player's viewshed will be updated on the next pass
 				p_view.dirty = true;
+				// TODO: Tell the player about anything they can now see, such as the contents of the floor
 			}
 			// TODO: this is where we'd handle an NPCMove action
 			_ => { } // Throw out anything we're not specifically interested in
@@ -149,13 +182,13 @@ pub fn movement_system(mut ereader: EventReader<GameEvent>,
 }
 /// Handles entities that can see physical light
 pub fn visibility_system(mut model: ResMut<Model>,
-                         mut seers: Query<(&mut Viewshed, &Position, Option<&Player>)>
+	                       mut seers: Query<(&mut Viewshed, &Position, Option<&Player>)>
 ) {
 	for (mut viewshed, posn, player) in &mut seers {
 		//eprintln!("posn: {posn:?}"); // DEBUG:
 		if viewshed.dirty {
 			assert!(posn.z != -1);
-			let map = &mut model.levels[posn.z as usize]; // ERROR: here
+			let map = &mut model.levels[posn.z as usize];
 			viewshed.visible_tiles.clear();
 			viewshed.visible_tiles = field_of_view(posn_to_point(posn), viewshed.range, map);
 			viewshed.visible_tiles.retain(|p| p.x >= 0 && p.x < map.width
@@ -180,7 +213,9 @@ pub fn item_collection_system(mut ereader: EventReader<GameEvent>,
 ) {
 	for event in ereader.iter() {
 		match event.etype {
-			ItemPickup(Creature::Player) => { msglog.add("Player attempted to GET item".to_string(), "world".to_string(), 1, 1); }
+			ItemPickup(Creature::Player) => {
+				msglog.add("Player attempted to GET item".to_string(), "world".to_string(), 1, 1);
+			}
 			_ => { }
 		}
 	}
