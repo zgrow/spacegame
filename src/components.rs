@@ -42,6 +42,7 @@ pub struct Renderable {
 	pub fg: u8,      // tui-rs as a Color::Indexed
 	pub bg: u8,      // tui-rs
 	//pub mods: Modifier, // tui-rs
+	//pub priority: i32, // stdlib: TODO: determines whether this entity is drawn over other entities
 }
 /// Describes an entity that can move around, and includes an index to their associated floor/depth
 #[derive(Reflect, Component, Default)]

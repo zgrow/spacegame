@@ -75,8 +75,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			// Else, do nothing
 			_ => {}
 		}
+	}
 	// *** GAME CONTROL HANDLING
-	} else { // this should be the 'default' game interaction mode
+	else { // this should be the 'default' game interaction mode
 		// use the literal mappings
 		match key_event.code {
 			// Pause key
@@ -109,7 +110,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('<') => {game_events.send(GameEvent{etype: PlayerMove(Direction::UP)});}
 			KeyCode::Char('o') => {eprintln!("attempted to OPEN something!");}
 			KeyCode::Char('g') => {game_events.send(GameEvent{etype: ItemPickup(Creature::Player)});}
-			KeyCode::Char('s') => {eng.make_item(crate::item_builders::ItemType::Thing, Position::new(10, 10, 0));}
+			KeyCode::Char('s') => {
+				eng.make_item(crate::item_builders::ItemType::Snack, Position::new(30, 20, 0));
+			}
 			// Other handlers you could add here.
 			_ => {}
 		}
