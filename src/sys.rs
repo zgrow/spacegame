@@ -69,7 +69,7 @@ pub fn new_planq_spawn(mut commands: Commands)
 				posn: Position::new(25, 30, 0),
 				render: Renderable { glyph: "¶".to_string(), fg: 3, bg: 0 },
 			},
-			portable: Portable { },
+			portable: Portable { carrier: Entity::PLACEHOLDER },
 		}
 	));
 }
@@ -177,14 +177,6 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 						msglog.tell_player(format!("There's some stuff here on the ground."));
 					}
 				}
-				//let qty_entys_in_target = model.levels[target.z as usize].contents.len();
-				//if qty_entys_in_target > 0 {
-				//	if qty_entys_in_target >= 4 {
-				//		msglog.tell_player(format!("There are several things lying here on the floor."));
-				//	} else {
-				//	// FIXME: display shortlist summary of items instead of the below
-				//	}
-				//}
 			}
 			// TODO: this is where we'd handle an NPCMove action
 			_ => { } // Throw out anything we're not specifically interested in
@@ -235,16 +227,36 @@ pub fn visibility_system(mut model: ResMut<Model>,
 	}
 }
 /// Handles pickup/drop/destroy requests for Items
-pub fn item_collection_system(mut ereader: EventReader<GameEvent>,
-	                          mut _model: ResMut<Model>,
-	                          mut _entity_query: Query<(Entity, &Position, &Container)>,
-	                          mut msglog: ResMut<MessageLog>,
+pub fn item_collection_system(//mut commands: Commands,
+	                            mut ereader:  EventReader<GameEvent>,
+	                            mut _model:   ResMut<Model>,
+	                            enty_query:   Query<(Entity, &Position), With<Container>>,
+	                            _item_query:   Query<(Entity, &Position), With<Portable>>,
+	                            mut msglog:   ResMut<MessageLog>,
+	                            p_posn_res:   Res<Position>,
 ) {
 	for event in ereader.iter() {
 		match event.etype {
+			// An Item is moving from the World into an entity's Container
 			ItemPickup(Creature::Player) => {
-				msglog.add("Player attempted to GET item".to_string(), "world".to_string(), 1, 1);
+				let mut item_count = 0;
+				for enty in enty_query.iter() {
+					if *enty.1 == *p_posn_res {
+						item_count += 1;
+					}
+				}
+				item_count -= 1; // DEBUG: deduct the player from the count lol
+				if item_count > 1 {
+					msglog.tell_player(format!("There are {} items here.", item_count));
+				} else if item_count > 0 {
+					//commands.entity(grabber).push_children(&[item]);
+					msglog.tell_player(format!("You pick up the ITEM."));
+				}
 			}
+			// TODO: 'give', an Item is moving from one entity's Container to another Container
+			// TODO: 'drop', an Item is moving from an entity's Container into the World
+			// TODO: 'destroy', an Item is set to be destroyed
+			// NOTE: this system does not (yet?) handle item creation requests
 			_ => { }
 		}
 	}

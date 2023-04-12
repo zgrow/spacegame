@@ -69,7 +69,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 						posn:   location,
 						render: Renderable { glyph: "t".to_string(), fg: 4, bg: 0 },
 					},
-					portable: Portable { },
+					portable: Portable { carrier: Entity::PLACEHOLDER },
 				})
 			}
 			ItemType::Fixture   => {
@@ -103,7 +103,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 							posn:   location,
 							render: Renderable { glyph: "%".to_string(), fg: 5, bg: 0 },
 						},
-						portable: Portable { },
+						portable: Portable { carrier: Entity::PLACEHOLDER },
 					},
 					//consume: Consumable { },
 				})

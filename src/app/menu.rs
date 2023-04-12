@@ -42,9 +42,12 @@ impl fmt::Display for MainMenuItems {
 }
 
 #[derive(Clone)]
-pub struct MenuSelector<MainMenuItems> {
-	pub list: Vec<MainMenuItems>, // the state as it relates to my application
+pub struct MenuSelector<T> {
+	pub list: Vec<T>, // the state as it relates to my application
 	pub state: ListState, // the UI state, incl index of selection and its offset for draw calls
+}
+impl<Entity> MenuSelector<Entity> {
+
 }
 impl<MainMenuItems> MenuSelector<MainMenuItems> {
 	pub fn with_items(items: Vec<MainMenuItems>) -> MenuSelector<MainMenuItems> {

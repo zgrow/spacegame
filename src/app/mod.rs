@@ -25,7 +25,9 @@ use crate::app::image_loader::load_rex_pgraph;
 use crate::app::menu::{MainMenuItems, MenuSelector};
 use crate::item_builders::{ItemBuilder, ItemType};
 use crate::components::*;
+use crate::components::Name;
 use crate::camera_system::CameraView;
+use bevy::ecs::entity::*;
 
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
@@ -34,11 +36,13 @@ pub struct GameEngine {
 	pub running: bool, // running vs stopped
 	pub paused: bool, // paused vs unpaused
 	pub app: App, // bevy::app::App, contains all of the ECS bits
+	pub artificer: ItemBuilder,
 	pub recalculate_layout: bool,
 	pub ui_grid: Vec<Rect>,
-	pub show_main_menu: bool,
+	pub main_menu_is_visible: bool,
 	pub main_menu: MenuSelector<MainMenuItems>,
-	pub artificer: ItemBuilder,
+	pub item_chooser_is_visible: bool,
+	pub item_chooser: MenuSelector<Entity>,
 }
 impl GameEngine {
 	/// Constructs a new instance of [`GameEngine`].
@@ -50,9 +54,11 @@ impl GameEngine {
 			app: App::new(),
 			recalculate_layout: false,
 			ui_grid: Vec::new(), // Can't be a Bevy Resource because tui::Rect is ineligible
-			show_main_menu: false,
+			main_menu_is_visible: false,
 			main_menu: MenuSelector::with_items(Vec::new()),
 			artificer: ItemBuilder { },
+			item_chooser_is_visible: false,
+			item_chooser: MenuSelector::with_items(Vec::new()),
 		};
 		new_eng.calc_layout(max_area);
 		return new_eng;
@@ -143,6 +149,7 @@ impl GameEngine {
 			let ppos = r_ppos.unwrap();
 			planq_text.push(format!("*D* x: {}, y: {}, z: {}", ppos.x, ppos.y, ppos.z));
 		}
+		// FIXME: only draw the regular Planq bar if the Planq is actually on the player and running
 		frame.render_widget(
 			Planq::new(&planq_text).block(
 				Block::default()
@@ -155,7 +162,7 @@ impl GameEngine {
 			self.ui_grid[2],
 		);
 		// Render any optional menus and layers, ie main menu
-		if self.show_main_menu {
+		if self.main_menu_is_visible {
 			self.main_menu.list = MainMenuItems::to_list(); // produces Vec<MainMenuItems>
 			let mut mm_items = Vec::new();
 			for item in self.main_menu.list.iter() {
@@ -166,7 +173,7 @@ impl GameEngine {
 				.style(Style::default().fg(Color::White).bg(Color::Black))
 				.highlight_style(Style::default().fg(Color::Black).bg(Color::White))
 				.highlight_symbol("->");
-			let area = Rect::new(10, 12, 23, 10); // NOTE: magic numbers
+			let area = Rect::new(10, 12, 23, 10); // WARN: magic numbers
 			frame.render_widget(Clear, area);
 			frame.render_stateful_widget(menu, area, &mut self.main_menu.state);
 			/* this fires on every index change, not just confirmation
@@ -175,6 +182,33 @@ impl GameEngine {
 				Some(selection) => {eprintln!("sel: {}", selection);} // DEBUG:
 			}
 			*/
+		}
+		if self.item_chooser_is_visible {
+//			let mut item_list = Vec::new();
+//			let mut item_query = self.app.world.query_filtered::<(Entity, &Position, &Name), With<Portable>>();
+//			let p_posn = self.app.world.get_resource::<Position>().unwrap();
+//			// Gather up a list of items located at the player's position
+//			// TODO: Calculate the height of the list given the qty of items
+//			// WARN: not sure if this will accomodate a too-long list with scrolling...
+//			for item in item_query.iter(&self.app.world).enumerate() {
+//				if *item.1.1 == *p_posn {
+//					item_list.push(ListItem::new(item.1.2.name.clone()));
+//					self.item_chooser.list.push(item.1.0);
+//				}
+//			}
+			let mut item_list = Vec::new();
+			for item in self.item_chooser.list.iter() {
+				let name = self.app.world.get::<Name>(*item);
+				item_list.push(ListItem::new(name.unwrap().name.clone()));
+			}
+			let menu = List::new(item_list)
+				.block(Block::default().title("Select:").borders(Borders::ALL))
+				.style(Style::default())
+				.highlight_style(Style::default().fg(Color::Black).bg(Color::White))
+				.highlight_symbol("->");
+			let area = Rect::new(40, 12, 23, 10); // WARN: magic numbers
+			frame.render_widget(Clear, area);
+			frame.render_stateful_widget(menu, area, &mut self.item_chooser.state);
 		}
 		// Display the fancy "PAUSED" banner if the game is paused
 		if self.paused {
@@ -194,8 +228,13 @@ impl GameEngine {
 	/// Toggles the main menu's visibility each time it is called
 	pub fn main_menu_toggle(&mut self) {
 		// sets the visibility state of the main menu popup
-		if self.show_main_menu == false { self.show_main_menu = true; }
-		else { self.show_main_menu = false; }
+		if self.main_menu_is_visible == false { self.main_menu_is_visible = true; }
+		else { self.main_menu_is_visible = false; }
+	}
+	/// Toggles the item chooser menu
+	pub fn item_chooser_toggle(&mut self) {
+		if self.item_chooser_is_visible == false { self.item_chooser_is_visible = true; }
+		else { self.item_chooser_is_visible = false; }
 	}
 	/// Recalculates the GameEngine.ui_grid object based on the given area
 	pub fn calc_layout(&mut self, area: Rect) {

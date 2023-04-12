@@ -58,9 +58,16 @@ pub struct Mobile { }
 #[reflect(Component)]
 pub struct Obstructive { }
 /// Describes an entity that can be picked up and carried around
-#[derive(Reflect, Component, Default)]
+#[derive(Reflect, Component)]
 #[reflect(Component)]
-pub struct Portable { }
+pub struct Portable { pub carrier: Entity }
+impl FromWorld for Portable {
+	fn from_world(_world: &mut World) -> Self {
+		Self {
+			carrier: Entity::PLACEHOLDER,
+		}
+	}
+}
 /// Describes an entity with an operable barrier of some kind: a container's lid, or a door, &c
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
