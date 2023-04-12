@@ -29,7 +29,6 @@ pub fn new_camera_system(mut commands: Commands) {
 		height: 0,
 	});
 }
-
 /// Spawns a new player, including their subsystems and default values
 pub fn new_player_spawn(mut commands: Commands,
 	                     spawnpoint: Res<Position>,
@@ -80,12 +79,11 @@ pub fn new_planq_spawn(mut commands: Commands)
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	                     model:           Res<Model>,
 	                     mut msglog:      ResMut<MessageLog>,
-	                     mut p_query:     Query<(&mut Position, &mut Viewshed), With<Player>>,
 	                     mut p_posn_res:  ResMut<Position>,
-	                     npc_query:       Query<((&Position, &mut Mobile, &Name, Option<&mut Viewshed>), (Without<Player>, With<Mobile>))>,
-	                     blocker_query:   Query<(&Position, &Name), (With<Obstructive>, Without<Player>, Without<Mobile>)>,
-) {
-	// Note that these Events are custom jobbers, see the GameEvent enum in the components
+	                     mut p_query:     Query<(&mut Position, &mut Viewshed), With<Player>>,
+	                     enty_query:      Query<(&Position, &Name, Option<&mut Viewshed>), Without<Player>>,
+	                     //Query<(&Position, &Name, Option<&mut Viewshed>), (With<Obstructive>, Without<Player>)>,
+) { // Note that these Events are custom jobbers, see the GameEvent enum in the components
 	for event in ereader.iter() {
 		//eprintln!("player attempting to move"); // DEBUG:
 		match event.etype {
@@ -134,38 +132,20 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					}
 				}
 				assert!(model.levels[target.z as usize].tiles.len() > 1, "Destination map is empty!");
-				let mut way_is_blocked = false;
-				feedback = "You run into ".to_string();
-				// Check for NPC collisions
-				for guy in npc_query.iter() {
-					if *guy.0.0 == target {
-						way_is_blocked = true;
-						feedback.push_str("the ");
-						feedback.push_str(&guy.0.2.name);
-						feedback.push_str(".");
+				if model.levels[target.z as usize].blocked_tiles[t_index] {
+					// Find out who's in the way and tell the player about it
+					// CASE 1: there's an entity at that location
+					for guy in enty_query.iter() {
+						if guy.0 == &target {
+							msglog.tell_player(format!("The way {} is blocked by a {}.", dir, guy.1));
+							return;
+						}
 					}
-				}
-				// Check for immobile entity collisions
-				for blocker in blocker_query.iter() {
-					if *blocker.0 == target {
-						way_is_blocked = true;
-						feedback.push_str("a ");
-						feedback.push_str(&blocker.1.name);
-						feedback.push_str(".");
-					}
-				}
-				// Check for map collisions
-				if model.levels[target.z as usize].is_occupied(target) {
-					way_is_blocked = true;
-					feedback.push_str("the ");
-					feedback.push_str(&model.levels[target.z as usize].tiles[t_index].ttype.to_string());
-					feedback.push_str(".");
-				}
-				if way_is_blocked {
-					msglog.tell_player(feedback);
+					// CASE 2: it's a wall or similar
+					msglog.tell_player(format!("The way {} is blocked by the {}.",
+						              dir, &model.levels[target.z as usize].tiles[t_index].ttype.to_string()));
 					return;
 				}
-				//eprintln!("target: {target:?}"); // DEBUG:
 				// If we arrived here, there's nothing in that space blocking the movement
 				// Therefore, update the player's position
 				(p_pos.x, p_pos.y, p_pos.z) = (target.x, target.y, target.z);
@@ -174,10 +154,59 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				// Make sure the player's viewshed will be updated on the next pass
 				p_view.dirty = true;
 				// TODO: Tell the player about anything they can now see, such as the contents of the floor
+				// A tile's contents are implicitly defined as those non-blocking entities at a given Posn
+				let mut contents = Vec::new();
+				for enty in enty_query.iter() {
+					if *enty.0 == *p_pos {
+						contents.push(&enty.1.name);
+					}
+				}
+				if contents.len() >= 1 {
+					if contents.len() <= 3 {
+						// Use a short summary
+						let mut text = "There's a ".to_string();
+						loop {
+							text.push_str(contents.pop().unwrap());
+							if contents.len() == 0 { break; }
+							else { text.push_str(", and a "); }
+						}
+					text.push_str(" here.");
+					msglog.tell_player(text);
+					} else {
+						// Use a long summary
+						msglog.tell_player(format!("There's some stuff here on the ground."));
+					}
+				}
+				//let qty_entys_in_target = model.levels[target.z as usize].contents.len();
+				//if qty_entys_in_target > 0 {
+				//	if qty_entys_in_target >= 4 {
+				//		msglog.tell_player(format!("There are several things lying here on the floor."));
+				//	} else {
+				//	// FIXME: display shortlist summary of items instead of the below
+				//	}
+				//}
 			}
 			// TODO: this is where we'd handle an NPCMove action
 			_ => { } // Throw out anything we're not specifically interested in
 		}
+	}
+}
+/// Provides a map of blocked tiles, among other things, to the pathfinding systems
+pub fn map_indexing_system(_ereader:    EventReader<GameEvent>,
+	                         mut model:   ResMut<Model>,
+	                         mut blocker_query: Query<&Position, With<Obstructive>>,
+	                         _enty_query:  Query<(Entity, &Position)>
+) {
+	// ERROR: This system is currently hardcoded for level 0!
+	// TODO: consider possible optimization for not updating levels that the player is not on?
+	// might require some extra smartness to allow updates if the LMR does something out of sight
+	// First, rebuild the blocking map by the map tiles
+	model.levels[0].update_blocked_tiles();
+	// Then, step through all blocking entities and flag their locations on the map as well
+	for guy in blocker_query.iter_mut() {
+		if guy.z != 0 { continue; } // FIXME: this only allows updates to the blocking map for floor 0
+		let index = model.levels[0].to_index(guy.x, guy.y);
+		model.levels[0].blocked_tiles[index] = true;
 	}
 }
 /// Handles entities that can see physical light

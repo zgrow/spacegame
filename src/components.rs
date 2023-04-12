@@ -19,6 +19,11 @@ pub struct Planq { }
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
 pub struct Name { pub name: String }
+impl fmt::Display for Name {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.name)
+	}
+}
 /// Represents a point on a 2d grid as an xy pair
 #[derive(Reflect, Component, Resource, Copy, Clone, Eq, PartialEq, Default, Debug)]
 #[reflect(Component)]
@@ -77,6 +82,14 @@ pub enum Creature {
 	Zilch,      // Any non-player entity or character
 }
 /// The compass rose - note this is not a component...
+/// These are mapped to cardinals just for ease of comprehension
+//  On a boat, the directions are:
+//  BOW:       front of the boat; fore == towards front
+//  STERN:     rear of the boat; aft == towards back
+//  STARBOARD: right side of the boat, facing fwd
+//  PORT:      left side of the boat, facing fwd
+//  ABOVE:     up above deck
+//  BELOW:     down below deck
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Direction {
 	N,
@@ -89,6 +102,24 @@ pub enum Direction {
 	NE,
 	UP,
 	DOWN
+}
+impl fmt::Display for Direction {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let text: String;
+		match self {
+			Direction::N    => { text = "north".to_string(); }
+			Direction::NW   => { text = "northwest".to_string(); }
+			Direction::W    => { text = "west".to_string(); }
+			Direction::SW   => { text = "southwest".to_string(); }
+			Direction::S    => { text = "south".to_string(); }
+			Direction::SE   => { text = "southeast".to_string(); }
+			Direction::E    => { text = "east".to_string(); }
+			Direction::NE   => { text = "northeast".to_string(); }
+			Direction::UP   => { text = "up".to_string(); }
+			Direction::DOWN => { text = "down".to_string(); }
+		}
+		write!(f, "{}", text)
+	}
 }
 /// Provides the descriptors for TUIEvent
 pub enum GameEventType {

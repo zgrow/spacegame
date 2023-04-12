@@ -105,6 +105,7 @@ pub struct Map {
 	pub height: i32,
 	pub revealed_tiles: Vec<bool>,
 	pub visible_tiles: Vec<bool>,
+	pub blocked_tiles: Vec<bool>,
 }
 impl Map {
 	/// Generates a map from the default settings
@@ -116,6 +117,7 @@ impl Map {
 			height: new_height,
 			revealed_tiles: vec![false; map_size],
 			visible_tiles: vec![false; map_size],
+			blocked_tiles: vec![false; map_size],
 		}
 	}
 	/// Converts an x, y pair into a tilemap index using the given map's width
@@ -128,6 +130,22 @@ impl Map {
 		let index = self.to_index(target.x, target.y);
 		if self.tiles[index].ttype == TileType::Wall { return true }
 		false
+	}
+	/// Walks through the map and populates the blocked_tiles map according to the TileTypes
+	pub fn update_blocked_tiles(&mut self) {
+		for (index, tile) in self.tiles.iter_mut().enumerate() {
+			self.blocked_tiles[index] = tile.ttype == TileType::Wall;
+		}
+	}
+	//  PRIVATE METHODS
+	/// Returns true if the specified location is not blocked
+	fn is_exit_valid(&self, x: i32, y: i32) -> bool {
+		if x < 1 || x > self.width - 1
+		|| y < 1 || y > self.height - 1 {
+			return false;
+		}
+		let index = self.to_index(x, y);
+		!self.blocked_tiles[index]
 	}
 }
 /// Represents the entire stack of Maps that comprise a 3D space

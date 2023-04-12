@@ -78,6 +78,7 @@ fn main() -> AppResult<()> {
 		.add_startup_system(new_player_spawn) // depends on having player_spawn inserted prior
 		.add_startup_system(new_planq_spawn)
 		.add_startup_system(new_lmr_spawn)
+		.add_system(map_indexing_system)
 		.add_system(movement_system)
 		.add_system(visibility_system)
 		.add_system(camera_update_sys)
