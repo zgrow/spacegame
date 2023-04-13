@@ -128,10 +128,12 @@ impl fmt::Display for Direction {
 		write!(f, "{}", text)
 	}
 }
-/// Provides the descriptors for TUIEvent
+/// Provides the descriptors for GameEvents
+/// TODO: optimize this to break up the events into different classes/groups so that the event
+/// readers in the various subsystems only have to worry about their specific class of events
 pub enum GameEventType {
 	PlayerMove(Direction),
-	ItemPickup(Creature),
+	ItemPickup,
 	//ItemDrop(Position)?
 	//ItemGive(???)?
 }
@@ -139,6 +141,15 @@ pub enum GameEventType {
 #[derive(Resource)]
 pub struct GameEvent {
 	pub etype: GameEventType,
+	pub context: Option<GameEventContext>,
+}
+/// Friendly bucket for holding contextual information about game actions
+/// Note that this expresses a 1:1 relation: this preserves the atomic nature of the event
+/// If an event occurs with multiple objects, then that event should be broken into multiple
+#[derive(Resource)]
+pub struct GameEventContext {
+	pub subject: Entity, // the entity performing the action; by defn, only one
+	pub object: Entity, // the entity upon which the subject will perform the action
 }
 /// Provides an object abstraction for the sensory range of a given entity
 #[derive(Component)]

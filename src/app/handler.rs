@@ -18,7 +18,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	// Because it is implemented in crossterm via ratatui, making it into a Bevy system
 	// has so far been too difficult to finish, if not outright impossible
 	// The game_events object below will monopolize the mutable ref to the game world
-	// Therefore, do not try to extract and send info now; defer it to Bevy's event handling
+	// Therefore, do not try to extract and send info from here; defer to Bevy's event handling
 	// *** DEBUG KEY HANDLING
 	if (key_event.code == KeyCode::Char('c') || key_event.code == KeyCode::Char('C'))
 	&& key_event.modifiers == KeyModifiers::CONTROL {
@@ -27,6 +27,8 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 		eng.quit();
 	}
 	// Get a linkage to the game event distribution system
+	let mut player_query = eng.app.world.query_filtered::<Entity, With<Player>>();
+	let player = player_query.get_single(&eng.app.world).unwrap();
 	let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
 	// *** MENU CONTROL HANDLING
 	if eng.main_menu_is_visible {
@@ -101,35 +103,33 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			// Move player
 			KeyCode::Char('h') | KeyCode::Left => {
-				game_events.send(GameEvent{etype: PlayerMove(Direction::W)});
+				game_events.send(GameEvent{etype: PlayerMove(Direction::W), context: None});
 			}
 			KeyCode::Char('l') | KeyCode::Right => {
-				game_events.send(GameEvent{etype: PlayerMove(Direction::E)});
+				game_events.send(GameEvent{etype: PlayerMove(Direction::E), context: None});
 			}
 			KeyCode::Char('k') | KeyCode::Up => {
 				if eng.item_chooser_is_visible {
 					eng.item_chooser.prev();
 				} else {
-					game_events.send(GameEvent{etype: PlayerMove(Direction::N)});
+					game_events.send(GameEvent{etype: PlayerMove(Direction::N), context: None});
 				}
 			}
 			KeyCode::Char('j') | KeyCode::Down => {
 				if eng.item_chooser_is_visible {
 					eng.item_chooser.next();
 				} else {
-					game_events.send(GameEvent{etype: PlayerMove(Direction::S)});
+					game_events.send(GameEvent{etype: PlayerMove(Direction::S), context: None});
 				}
 			}
-			KeyCode::Char('y') => {game_events.send(GameEvent{etype: PlayerMove(Direction::NW)});}
-			KeyCode::Char('u') => {game_events.send(GameEvent{etype: PlayerMove(Direction::NE)});}
-			KeyCode::Char('b') => {game_events.send(GameEvent{etype: PlayerMove(Direction::SW)});}
-			KeyCode::Char('n') => {game_events.send(GameEvent{etype: PlayerMove(Direction::SE)});}
-			KeyCode::Char('>') => {game_events.send(GameEvent{etype: PlayerMove(Direction::DOWN)});}
-			KeyCode::Char('<') => {game_events.send(GameEvent{etype: PlayerMove(Direction::UP)});}
+			KeyCode::Char('y') => {game_events.send(GameEvent{etype: PlayerMove(Direction::NW), context: None});}
+			KeyCode::Char('u') => {game_events.send(GameEvent{etype: PlayerMove(Direction::NE), context: None});}
+			KeyCode::Char('b') => {game_events.send(GameEvent{etype: PlayerMove(Direction::SW), context: None});}
+			KeyCode::Char('n') => {game_events.send(GameEvent{etype: PlayerMove(Direction::SE), context: None});}
+			KeyCode::Char('>') => {game_events.send(GameEvent{etype: PlayerMove(Direction::DOWN), context: None});}
+			KeyCode::Char('<') => {game_events.send(GameEvent{etype: PlayerMove(Direction::UP), context: None});}
 			KeyCode::Char('o') => {eprintln!("attempted to OPEN something!");}
-			//KeyCode::Char('g') => {game_events.send(GameEvent{etype: ItemPickup(Creature::Player)});}
 			KeyCode::Char('g') => {
-				// FIXME: if there's something here to pick up, show the item chooser
 				let mut item_list = Vec::new();
 				let mut item_query = eng.app.world.query_filtered::<(Entity, &Position, &Name), With<Portable>>();
 				let p_posn = eng.app.world.get_resource::<Position>().unwrap();
@@ -144,17 +144,20 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						eng.item_chooser.list.push(item.1.0);
 					}
 				}
-				if item_list.len() > 0 { eng.item_chooser_toggle(); }
+				if item_list.len() > 0 {
+					if item_list.len() > 1 { eng.item_chooser_toggle(); }
+					else { /* pick up the only item on the tile */ }
+				}
 			}
 			KeyCode::Enter     => {
 				// If the item chooser is open, operate on that
 				if eng.item_chooser_is_visible {
 					let choice = eng.item_chooser.state.selected();
 					if choice.is_some() {
-						let _choice_val = &eng.item_chooser.list[choice.unwrap_or_default()];
-						game_events.send(GameEvent{etype: ItemPickup(Creature::Player)});
-						// compare the selection to the list...
-						eng.item_chooser_toggle();
+						let choice_val = &eng.item_chooser.list[choice.unwrap_or_default()];
+						let new_context = GameEventContext{subject: player, object: *choice_val};
+						game_events.send(GameEvent{etype: ItemPickup, context: Some(new_context)});
+						eng.item_chooser_toggle(); // close the chooser
 						eng.item_chooser.deselect();
 						return Ok(())
 					}

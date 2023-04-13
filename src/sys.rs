@@ -227,31 +227,20 @@ pub fn visibility_system(mut model: ResMut<Model>,
 	}
 }
 /// Handles pickup/drop/destroy requests for Items
-pub fn item_collection_system(//mut commands: Commands,
+pub fn item_collection_system(mut commands: Commands,
 	                            mut ereader:  EventReader<GameEvent>,
-	                            mut _model:   ResMut<Model>,
-	                            enty_query:   Query<(Entity, &Position), With<Container>>,
-	                            _item_query:   Query<(Entity, &Position), With<Portable>>,
-	                            mut msglog:   ResMut<MessageLog>,
-	                            p_posn_res:   Res<Position>,
+	                            mut _model:    ResMut<Model>,
+	                            mut _msglog:   ResMut<MessageLog>,
 ) {
 	for event in ereader.iter() {
+		if event.context.is_none() { return; } // All these actions require context info
+		let econtext = event.context.as_ref().unwrap();
 		match event.etype {
 			// An Item is moving from the World into an entity's Container
-			ItemPickup(Creature::Player) => {
-				let mut item_count = 0;
-				for enty in enty_query.iter() {
-					if *enty.1 == *p_posn_res {
-						item_count += 1;
-					}
-				}
-				item_count -= 1; // DEBUG: deduct the player from the count lol
-				if item_count > 1 {
-					msglog.tell_player(format!("There are {} items here.", item_count));
-				} else if item_count > 0 {
-					//commands.entity(grabber).push_children(&[item]);
-					msglog.tell_player(format!("You pick up the ITEM."));
-				}
+			ItemPickup => {
+				commands.entity(econtext.object)
+				.insert(Portable{carrier: econtext.subject}) // put the container's ID to the target's Portable component
+				.remove::<Position>(); // remove the Position component from the target
 			}
 			// TODO: 'give', an Item is moving from one entity's Container to another Container
 			// TODO: 'drop', an Item is moving from an entity's Container into the World
