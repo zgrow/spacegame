@@ -88,7 +88,7 @@ impl MessageLog {
 				}
 			}
 		}
-		return backlog;
+		backlog
 	}
 }
 

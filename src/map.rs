@@ -47,7 +47,7 @@ impl Default for Tile {
 	fn default() -> Tile {
 		Tile {
 			ttype: TileType::Vacuum,
-			glyph: "❏".to_string(),
+			glyph: "ø".to_string(),
 			fg: 5,
 			bg: 0,
 			mods: "".to_string(),
@@ -138,7 +138,7 @@ impl Map {
 		}
 	}
 	//  PRIVATE METHODS
-	/// Returns true if the specified location is not blocked
+	/* Returns true if the specified location is not blocked
 	fn is_exit_valid(&self, x: i32, y: i32) -> bool {
 		if x < 1 || x > self.width - 1
 		|| y < 1 || y > self.height - 1 {
@@ -147,6 +147,7 @@ impl Map {
 		let index = self.to_index(x, y);
 		!self.blocked_tiles[index]
 	}
+	*/
 }
 /// Represents the entire stack of Maps that comprise a 3D space
 #[derive(Reflect, Clone, Debug, Resource, Default, FromReflect)]

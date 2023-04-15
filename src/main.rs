@@ -26,6 +26,7 @@ use spacegame::app::tui::Tui;
 use spacegame::app::handler::key_parser;
 use spacegame::app::event::{Event, EventHandler};
 use spacegame::app::messagelog::MessageLog;
+use spacegame::app::planq::*;
 use spacegame::components::*;
 use spacegame::rex_assets::RexAssets;
 use spacegame::map::Model;
@@ -73,6 +74,7 @@ fn main() -> AppResult<()> {
 		.insert_resource(Position{x: 35, y: 20, z: 0}) // The player's position/starting spawn point
 		.insert_resource(Events::<GameEvent>::default()) // The Bevy handler for inter-system comms
 		.insert_resource(MessageLog::new(chanlist))
+		.insert_resource(PlanqSettings::new())
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
 		.add_event::<crossterm::event::KeyEvent>()
 		.add_startup_system(new_player_spawn) // depends on having player_spawn inserted prior
@@ -82,7 +84,9 @@ fn main() -> AppResult<()> {
 		.add_system(movement_system)
 		.add_system(visibility_system)
 		.add_system(camera_update_sys)
-		.add_system(item_collection_system);
+		.add_system(item_collection_system)
+		.add_system(planq_system)
+	;
 	// Build the game world
 	// TODO: i thought this was loading via bracket-rex but it has to go after the insert_resource
 	// via Bevy??? need to reexamine later
@@ -99,7 +103,7 @@ fn main() -> AppResult<()> {
 	eng.app.insert_resource(model);
 	// Build the main camera view
 	eng.calc_layout(tsize);
-	let main_camera = CameraView::new(eng.ui_grid[0].width as i32, eng.ui_grid[0].height as i32);
+	let main_camera = CameraView::new(eng.ui_grid.camera_main.width as i32, eng.ui_grid.camera_main.height as i32);
 	eng.app.insert_resource(main_camera);
 	// Run an initial cycle of Bevy; triggers all of the startup systems; should be last setup oper
 	eng.app.update();

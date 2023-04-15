@@ -19,7 +19,7 @@ pub mod messagelog;
 pub mod image_loader;
 pub mod menu;
 use viewport::Viewport;
-use crate::app::planq::Planq;
+use crate::app::planq::*;
 use crate::app::messagelog::MessageLog;
 use crate::app::image_loader::load_rex_pgraph;
 use crate::app::menu::{MainMenuItems, MenuSelector};
@@ -38,29 +38,30 @@ pub struct GameEngine {
 	pub app: App, // bevy::app::App, contains all of the ECS bits
 	pub artificer: ItemBuilder,
 	pub recalculate_layout: bool,
-	pub ui_grid: Vec<Rect>,
+	pub ui_grid: UIGrid,
 	pub main_menu_is_visible: bool,
 	pub main_menu: MenuSelector<MainMenuItems>,
 	pub item_chooser_is_visible: bool,
-	pub item_chooser: MenuSelector<Entity>,
+	pub item_chooser: MenuSelector<Entity>, // provides the menu for item pickup from World
+	pub planq_chooser: MenuSelector<Entity>, // provides a generic menu selector via the Planq
 }
 impl GameEngine {
 	/// Constructs a new instance of [`GameEngine`].
-	// pub fn new(layout: Vec<Rect>) -> Self {
 	pub fn new(max_area: Rect) -> Self {
 		let mut new_eng = Self {
 			running: true,
 			paused: false,
 			app: App::new(),
+			artificer: ItemBuilder { spawn_count: 0 },
 			recalculate_layout: false,
-			ui_grid: Vec::new(), // Can't be a Bevy Resource because tui::Rect is ineligible
+			ui_grid: UIGrid::new(), // Can't be a Bevy Resource because tui::Rect is ineligible
 			main_menu_is_visible: false,
 			main_menu: MenuSelector::with_items(Vec::new()),
-			artificer: ItemBuilder { },
 			item_chooser_is_visible: false,
 			item_chooser: MenuSelector::with_items(Vec::new()),
+			planq_chooser: MenuSelector::with_items(Vec::new()),
 		};
-		new_eng.calc_layout(max_area);
+		new_eng.ui_grid.calc_layout(max_area);
 		return new_eng;
 	}
 	/// Runs a single update cycle of the game state
@@ -75,30 +76,6 @@ impl GameEngine {
 			self.calc_layout(frame.size());
 			self.recalculate_layout = false;
 		}
-		/* Use the layout to build up the UI and its contents
-		 * - iterate through the layout stack
-		 * - if the object indexed to the layout Rect is active, then draw it
-		 * frame.render_widget(self, Widget, area: Rect)
-		 * - might consider nesting the calls:
-		 *   draw_thing<Backend>(f: &mut Frame<Backend>, app: &mut App, area: Rect)
-		 * TODO: one day i'll have the time to make this dynamic/rearrangable...
-		 *        right now we're just going to use a hardcoded set and order
-		 * MAIN LAYOUT
-		 * +----+-+
-		 * | 1  | |
-		 * |    |3|
-		 * +----+ |
-		 * | 2  | |
-		 * +----+-+
-		 * block 1 is the overworld camera
-		 *  - dims: min: w30, h30, max: fill
-		 * block 2 is the PLANQ output and message log
-		 *  - dims: min: w(B1), h5+1, max: fill
-		 * block 3 is the status output stack
-		 *  - layout within block 3 is handled by its internal logic
-		 *  - dims: min: w10, h(S), max: w20, h(S)
-		 * Cogmind uses a minimum 'grid' size of 80 wide by 60 high, seems legit
-		 */
 		// ui_grid index list:
 		// 0: Viewport -> CameraView_main
 		// 1: (Planq output)
@@ -113,7 +90,7 @@ impl GameEngine {
 					.border_type(BorderType::Double)
 					.border_style(Style::default().fg(Color::White)),
 				),
-				self.ui_grid[0],
+				self.ui_grid.camera_main,
 			);
 		} else { // otherwise, just show a blank screen
 			frame.render_widget(
@@ -122,45 +99,113 @@ impl GameEngine {
 				.borders(Borders::ALL)
 				.border_type(BorderType::Double)
 				.border_style(Style::default().fg(Color::White)),
-				self.ui_grid[0],
+				self.ui_grid.camera_main,
 			);
 		}
 		// Render the main message log pane
 		// Obtain a slice of the message log here and feed to the next widget
-		let mut worldmsg = Vec::new();
 		let msglog_ref = self.app.world.get_resource::<MessageLog>();
 		if msglog_ref.is_some() {
-			let msglog = msglog_ref.unwrap();
-			worldmsg = msglog.get_log("world".to_string());
+			let msglog = msglog_ref.unwrap(); // get a handle on the msglog service
+			let worldmsg = msglog.get_log("world".to_string()); // get the full backlog
+			//eprintln!("*** worldmsg.len {}, ui_grid.msg_world.height {}", worldmsg.len() as i32, self.ui_grid.msg_world.height as i32); // DEBUG:
+			/* FIXME: magic number offset for window borders
+			 * NOTE: it would be possible to 'reserve' space here by setting the magic num offset
+			 *       greater than is strictly required to cause scrollback
+			 */
+			// Strict attention to typing required here lest we cause subtraction overflow errs
+			let backlog_start_offset = (worldmsg.len() as i32) - self.ui_grid.msg_world.height as i32 + 2;
+			let mut backlog_start: usize = 0;
+			if backlog_start_offset > 0 { backlog_start = backlog_start_offset as usize; }
+			let backlog = worldmsg[backlog_start..].to_vec(); // get a slice of the latest msgs
+			// Draw the message log pane
+			frame.render_widget(
+				Paragraph::new(backlog).block( // requires a Vec<Spans<'a>> for group insert on creation
+					Block::default()
+					.borders(Borders::ALL)
+					.border_style(Style::default().fg(Color::White))
+				),
+				self.ui_grid.msg_world,
+			);
 		}
-		// Draw the message log pane
-		frame.render_widget(
-			Paragraph::new(worldmsg).block( // requires a Vec<Spans<'a>> for group insert on creation
-				Block::default()
-				.borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
-				.border_style(Style::default().fg(Color::White))
-			),
-			self.ui_grid[1],
-		);
 		// Draw the PLANQ
-		let mut planq_text = vec!["test string".to_string()];
-		let r_ppos = self.app.world.get_resource::<Position>();
-		if r_ppos.is_some() {
-			let ppos = r_ppos.unwrap();
-			planq_text.push(format!("*D* x: {}, y: {}, z: {}", ppos.x, ppos.y, ppos.z));
-		}
+		let ppos = self.app.world.get_resource::<Position>().unwrap(); // DEBUG:
+		let mut planq_text = vec!["test string".to_string()]; // DEBUG:
+		planq_text.push(format!("*D* x: {}, y: {}, z: {}", ppos.x, ppos.y, ppos.z)); // DEBUG:
 		// FIXME: only draw the regular Planq bar if the Planq is actually on the player and running
-		frame.render_widget(
-			Planq::new(&planq_text).block(
-				Block::default()
-				.title("PLANQ [offline]")
-				.title_alignment(Alignment::Center)
-				.borders(Borders::ALL)
-				.border_type(BorderType::Thick)
-				.border_style(Style::default().fg(Color::White)),
-			),
-			self.ui_grid[2],
-		);
+		let planq = self.app.world.get_resource::<PlanqSettings>().unwrap();
+		if planq.is_carried {
+			// Always draw the Planq's status output
+			frame.render_widget(
+				// if planq.is_running ... TODO:
+				PlanqStatus::new(&planq_text).block(
+					Block::default()
+					.title("PLANQ OUTPUT")
+					.title_alignment(Alignment::Center)
+					.borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
+					.border_type(BorderType::Thick)
+					.border_style(Style::default().fg(Color::White)),
+				),
+				self.ui_grid.planq_status,
+			);
+			// Display output #1 if enabled
+			if planq.output_1_enabled {
+				// match planq.output_1_mode { ... (build an enum?) TODO:
+				if planq.show_inventory {
+					if planq.inventory_list.len() > 0 {
+						let mut item_list = Vec::new();
+						self.planq_chooser.list.clear();
+						for item in &planq.inventory_list {
+							self.planq_chooser.list.push(*item);
+							let mut name = self.app.world.get::<Name>(*item).unwrap().name.clone();
+							name.push_str(&String::from(format!("-{item:?}")));
+							item_list.push(ListItem::new(name.clone()));
+						}
+						let inventory_menu = List::new(item_list)
+							.block(Block::default().title("Inventory").borders(Borders::ALL))
+							.style(Style::default())
+							.highlight_style(Style::default().fg(Color::Black).bg(Color::White))
+							.highlight_symbol("->");
+						frame.render_stateful_widget(inventory_menu, self.ui_grid.planq_output_1, &mut self.planq_chooser.state);
+					} else {
+						frame.render_widget(
+							Paragraph::new("inventory is empty").block(
+								Block::default()
+								.borders(Borders::ALL)
+								.border_type(BorderType::Thick)
+								.border_style(Style::default().fg(Color::White)),
+							),
+							self.ui_grid.planq_output_1,
+						);
+					}
+				}
+			}
+			// Display output #2 if enabled
+			if planq.output_2_enabled {
+				// TODO: figure out which output to display here
+				frame.render_widget(
+					Block::default()
+					.title("output_2 test")
+					.title_alignment(Alignment::Left)
+					.borders(Borders::ALL)
+					.border_type(BorderType::Thick)
+					.border_style(Style::default().fg(Color::White)),
+					self.ui_grid.planq_output_2,
+				);
+			}
+		}
+		// Display some kind of 'planq offline' state if not carried
+		else { // Player is not carrying a planq
+			frame.render_widget(
+				Paragraph::new("\n\n no PLANQ detected ").block(
+					Block::default()
+					.borders(Borders::NONE)
+					.border_type(BorderType::Thick)
+					.border_style(Style::default().fg(Color::Gray).bg(Color::Black))
+				),
+				self.ui_grid.planq_status,
+			);
+		}
 		// Render any optional menus and layers, ie main menu
 		if self.main_menu_is_visible {
 			self.main_menu.list = MainMenuItems::to_list(); // produces Vec<MainMenuItems>
@@ -184,18 +229,6 @@ impl GameEngine {
 			*/
 		}
 		if self.item_chooser_is_visible {
-//			let mut item_list = Vec::new();
-//			let mut item_query = self.app.world.query_filtered::<(Entity, &Position, &Name), With<Portable>>();
-//			let p_posn = self.app.world.get_resource::<Position>().unwrap();
-//			// Gather up a list of items located at the player's position
-//			// TODO: Calculate the height of the list given the qty of items
-//			// WARN: not sure if this will accomodate a too-long list with scrolling...
-//			for item in item_query.iter(&self.app.world).enumerate() {
-//				if *item.1.1 == *p_posn {
-//					item_list.push(ListItem::new(item.1.2.name.clone()));
-//					self.item_chooser.list.push(item.1.0);
-//				}
-//			}
 			let mut item_list = Vec::new();
 			for item in self.item_chooser.list.iter() {
 				let name = self.app.world.get::<Name>(*item);
@@ -236,23 +269,15 @@ impl GameEngine {
 		if self.item_chooser_is_visible == false { self.item_chooser_is_visible = true; }
 		else { self.item_chooser_is_visible = false; }
 	}
-	/// Recalculates the GameEngine.ui_grid object based on the given area
+	/// Requests a recalculation of the GameEngine.ui_grid object based on the given area
 	pub fn calc_layout(&mut self, area: Rect) {
 		//eprintln!("calc_layout() called"); // DEBUG:
-		let mut first_split = Layout::default()
-			.direction(Direction::Horizontal)
-			.constraints([Constraint::Min(30), Constraint::Length(30)].as_ref())
-			.split(area).to_vec();
-		self.ui_grid = Layout::default()
-			.direction(Direction::Vertical)
-			.constraints([Constraint::Min(30), Constraint::Length(12)].as_ref())
-			.split(first_split[0]).to_vec();
-		self.ui_grid.push(first_split.pop().unwrap());
+		self.ui_grid.calc_layout(area);
 		let camera_ref = self.app.world.get_resource_mut::<CameraView>();
 		if camera_ref.is_some() {
 			eprintln!("- resizing cameraview during call to calc_layout()");// DEBUG:
 			let mut camera = camera_ref.unwrap();
-			camera.set_dims(self.ui_grid[0].width as i32, self.ui_grid[0].height as i32);
+			camera.set_dims(self.ui_grid.camera_main.width as i32, self.ui_grid.camera_main.height as i32);
 		}
 	}
 	/// Handles a call to stop the game and exit
@@ -275,6 +300,79 @@ impl GameEngine {
 	/// Creates an item [TODO: and returns a ref to it for further customization]
 	pub fn make_item(&mut self, new_type: ItemType, location: Position) {
 		self.artificer.spawn(&mut self.app.world, new_type, location);
+	}
+}
+/// Provides a bunch of named fields (rather than a tuple) of grid components
+pub struct UIGrid {
+	/// Provides the main view onto the worldmap
+	pub camera_main:    Rect,
+	/// Designates the 'default' message log, which always shows msgs from the World channel
+	pub msg_world:      Rect,
+	/// Designates the area for the whole Planq sidebar, all panels included
+	pub planq_sidebar:  Rect,
+	/// Designates the space reserved for the Planq's stats: offline status, battery power, &c
+	pub planq_status:   Rect,
+	/// Designates the first output screen of the Planq; user-configurable
+	pub planq_output_1: Rect,
+	/// Designates the second output screen of the Planq; user-configurable
+	pub planq_output_2: Rect,
+}
+impl UIGrid {
+	pub fn new() -> UIGrid {
+		UIGrid {
+			camera_main: Rect::default(),
+			msg_world: Rect::default(),
+			planq_sidebar: Rect::default(),
+			planq_status: Rect::default(),
+			planq_output_1: Rect::default(),
+			planq_output_2: Rect::default(),
+		}
+	}
+	/// Recalculates the UI layout based on the given size
+	pub fn calc_layout(&mut self, max_area: Rect) {
+		/* Use the layout to build up the UI and its contents
+		 * - iterate through the layout stack
+		 * - if the object indexed to the layout Rect is active, then draw it
+		 * frame.render_widget(self, Widget, area: Rect)
+		 * - might consider nesting the calls:
+		 *   draw_thing<Backend>(f: &mut Frame<Backend>, app: &mut App, area: Rect)
+		 * TODO: one day i'll have the time to make this dynamic/rearrangable...
+		 * MAIN LAYOUT
+		 * +----+-+
+		 * | 1  | |
+		 * |    |3|
+		 * +----+ |
+		 * | 2  | |
+		 * +----+-+
+		 * block 1 is the overworld camera
+		 *  - dims: min: w30, h30, max: fill
+		 * block 2 is the PLANQ output and message log
+		 *  - dims: min: w(B1), h5+1, max: fill
+		 * block 3 is the status output stack
+		 *  - layout within block 3 is handled by its internal logic
+		 *  - dims: min: w10, h(S), max: w20, h(S)
+		 * Cogmind uses a minimum 'grid' size of 80 wide by 60 high, seems legit
+		 */
+		// Recalculate everything given the new area
+		let main_horiz_split = Layout::default()
+			.direction(Direction::Horizontal)
+			.constraints([Constraint::Min(30), Constraint::Length(30)].as_ref())
+			.split(max_area).to_vec();
+		let camera_worldmsg_split = Layout::default()
+			.direction(Direction::Vertical)
+			.constraints([Constraint::Min(30), Constraint::Length(12)].as_ref())
+			.split(main_horiz_split[0]).to_vec();
+		let planq_splits = Layout::default()
+			.direction(Direction::Vertical)
+			.constraints([Constraint::Min(3), Constraint::Length(20), Constraint::Length(20)].as_ref())
+			.split(main_horiz_split[1]).to_vec();
+		// Update the UIGrid itself to hold the new sizes
+		self.camera_main = camera_worldmsg_split[0];
+		self.msg_world = camera_worldmsg_split[1];
+		self.planq_sidebar = main_horiz_split[1];
+		self.planq_status = planq_splits[0];
+		self.planq_output_1 = planq_splits[1];
+		self.planq_output_2 = planq_splits[2];
 	}
 }
 

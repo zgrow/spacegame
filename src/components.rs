@@ -10,12 +10,13 @@ use std::fmt;
 #[derive(Debug, Component, Reflect, Default, Clone, Copy)]
 #[reflect(Component)]
 pub struct Player { }
-/// Tag component for the player's PLANQ
-#[derive(Reflect, Component, Default)]
+#[derive(Debug, Component, Reflect, Default, Clone, Copy)]
 #[reflect(Component)]
-pub struct Planq { }
-//  TODO: later going to add a LMR, AURITA tag...
-/// Effectively a unique ID for an entity
+pub struct LMR { }
+#[derive(Debug, Component, Reflect, Default, Clone, Copy)]
+#[reflect(Component)]
+pub struct AURITA { }
+/// Provides the player-facing identifier
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
 pub struct Name { pub name: String }
@@ -128,20 +129,41 @@ impl fmt::Display for Direction {
 		write!(f, "{}", text)
 	}
 }
+/// Provides an object abstraction for the sensory range of a given entity
+#[derive(Component)]
+pub struct Viewshed {
+	pub visible_tiles: Vec<Point>, //bracket_lib::pathfinding::field_of_view
+	pub range: i32,
+	pub dirty: bool, // indicates whether this viewshed needs to be updated from world data
+}
+
+//  *** GAME EVENTS
 /// Provides the descriptors for GameEvents
 /// TODO: optimize this to break up the events into different classes/groups so that the event
 /// readers in the various subsystems only have to worry about their specific class of events
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum GameEventType {
+	NullEvent,
 	PlayerMove(Direction),
-	ItemPickup,
-	//ItemDrop(Position)?
-	//ItemGive(???)?
+	ItemUse,
+	ItemMove,
+	ItemDrop,
+	ItemKILL,
+	PlanqEvent(PlanqEventType),
 }
 /// Custom interface obj for passing data from ratatui to Bevy
 #[derive(Resource)]
 pub struct GameEvent {
 	pub etype: GameEventType,
 	pub context: Option<GameEventContext>,
+}
+impl GameEvent {
+	pub fn new() -> GameEvent {
+		GameEvent {
+			etype: GameEventType::NullEvent,
+			context: None
+		}
+	}
 }
 /// Friendly bucket for holding contextual information about game actions
 /// Note that this expresses a 1:1 relation: this preserves the atomic nature of the event
@@ -151,11 +173,14 @@ pub struct GameEventContext {
 	pub subject: Entity, // the entity performing the action; by defn, only one
 	pub object: Entity, // the entity upon which the subject will perform the action
 }
-/// Provides an object abstraction for the sensory range of a given entity
-#[derive(Component)]
-pub struct Viewshed {
-	pub visible_tiles: Vec<Point>, //bracket_lib::pathfinding::field_of_view
-	pub range: i32,
-	pub dirty: bool, // indicates whether this viewshed needs to be updated from world data
+/// Defines the set of control and input events that the Planq needs to handle
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum PlanqEventType {
+	Startup,
+	Shutdown,
+	Reboot,
+	InventoryUse,
+	InventoryDrop,
 }
+
 // EOF

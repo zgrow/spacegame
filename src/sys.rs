@@ -7,8 +7,10 @@ use crate::components::*;
 use crate::camera_system::CameraView;
 use crate::map::*;
 use crate::components::{Name, Position, Renderable, Player, Mobile};
-use crate::sys::GameEventType::*;
+use crate::components::PlanqEventType::*;
+use crate::sys::GameEventType::*; // Required to avoid having to specify the enum path every time
 use crate::app::messagelog::MessageLog;
+use crate::app::planq::*;
 use crate::item_builders::*;
 use bevy::ecs::system::{Commands, Res, Query, ResMut};
 use bevy::ecs::event::EventReader;
@@ -31,8 +33,8 @@ pub fn new_camera_system(mut commands: Commands) {
 }
 /// Spawns a new player, including their subsystems and default values
 pub fn new_player_spawn(mut commands: Commands,
-	                     spawnpoint: Res<Position>,
-	                     mut msglog: ResMut<MessageLog>,
+	                    spawnpoint: Res<Position>,
+	                    mut msglog: ResMut<MessageLog>,
 ) {
 	commands.spawn((
 		// this is the player's collection of components and their initial values
@@ -43,12 +45,14 @@ pub fn new_player_spawn(mut commands: Commands,
 		Viewshed    {visible_tiles: Vec::new(), range: 8, dirty: true},
 		Mobile      { },
 		Obstructive { },
+		Container   { contents: Vec::new() },
 	));
 	msglog.add("WELCOME TO SPACEGAME".to_string(), "world".to_string(), 1, 1);
 }
 /// Spawns a new LMR at the specified Position, using default values
-pub fn new_lmr_spawn(mut commands: Commands)
-{
+pub fn new_lmr_spawn(mut commands:  Commands,
+	                 mut msglog:    ResMut<MessageLog>,
+) {
 	commands.spawn((
 		Name        {name: "LMR".to_string()},
 		Position    {x: 12, y: 12, z: 0}, // TODO: remove magic numbers
@@ -57,10 +61,12 @@ pub fn new_lmr_spawn(mut commands: Commands)
 		Mobile      { },
 		Obstructive { },
 	));
+	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0), "debug".to_string(), 1, 1);
 }
 /// Spawns the player's PLANQ [TODO: in the starting locker]
-pub fn new_planq_spawn(mut commands: Commands)
-{
+pub fn new_planq_spawn(mut commands:    Commands,
+	                   mut msglog:      ResMut<MessageLog>,
+) {
 	commands.spawn((
 		Planq { },
 		Thing {
@@ -72,18 +78,22 @@ pub fn new_planq_spawn(mut commands: Commands)
 			portable: Portable { carrier: Entity::PLACEHOLDER },
 		}
 	));
+	msglog.add(format!("planq spawned at {}, {}, {}", 25, 30, 0), "debug".to_string(), 1, 1);
 }
 
 //  CONTINUOUS SYSTEMS (run frequently)
 /// Handles entities that can move around the map
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
-	                     model:           Res<Model>,
-	                     mut msglog:      ResMut<MessageLog>,
-	                     mut p_posn_res:  ResMut<Position>,
-	                     mut p_query:     Query<(&mut Position, &mut Viewshed), With<Player>>,
-	                     enty_query:      Query<(&Position, &Name, Option<&mut Viewshed>), Without<Player>>,
-	                     //Query<(&Position, &Name, Option<&mut Viewshed>), (With<Obstructive>, Without<Player>)>,
-) { // Note that these Events are custom jobbers, see the GameEvent enum in the components
+	                   model:           Res<Model>,
+	                   mut msglog:      ResMut<MessageLog>,
+	                   mut p_posn_res:  ResMut<Position>,
+	                   mut p_query:     Query<(&mut Position, &mut Viewshed), With<Player>>,
+	                   enty_query:      Query<(&Position, &Name, Option<&mut Viewshed>), Without<Player>>,
+) { // NOTE: these Events are custom jobbers, see the GameEvent enum in the components
+    // NOTE: the enty_query doesn't need to include Obstructive component because the map's
+	// blocked_tiles sub-map already includes that information in an indexed vector
+	// This allows us to only worry about consulting the query when we know we need it, as it is
+	// much more expensive to iterate a query than to generate it
 	for event in ereader.iter() {
 		//eprintln!("player attempting to move"); // DEBUG:
 		match event.etype {
@@ -153,8 +163,10 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				(p_posn_res.x, p_posn_res.y, p_posn_res.z) = (target.x, target.y, target.z);
 				// Make sure the player's viewshed will be updated on the next pass
 				p_view.dirty = true;
-				// TODO: Tell the player about anything they can now see, such as the contents of the floor
 				// A tile's contents are implicitly defined as those non-blocking entities at a given Posn
+				// If we use the player's position, then we may conclude that any entities at that
+				// position that are not the player must be non-blocking, since the player's
+				// movement rules prevent them from entering a tile with any other Obstructive enty
 				let mut contents = Vec::new();
 				for enty in enty_query.iter() {
 					if *enty.0 == *p_pos {
@@ -185,9 +197,9 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 }
 /// Provides a map of blocked tiles, among other things, to the pathfinding systems
 pub fn map_indexing_system(_ereader:    EventReader<GameEvent>,
-	                         mut model:   ResMut<Model>,
-	                         mut blocker_query: Query<&Position, With<Obstructive>>,
-	                         _enty_query:  Query<(Entity, &Position)>
+	                       mut model:   ResMut<Model>,
+	                       mut blocker_query: Query<&Position, With<Obstructive>>,
+	                       _enty_query:  Query<(Entity, &Position)>
 ) {
 	// ERROR: This system is currently hardcoded for level 0!
 	// TODO: consider possible optimization for not updating levels that the player is not on?
@@ -203,7 +215,7 @@ pub fn map_indexing_system(_ereader:    EventReader<GameEvent>,
 }
 /// Handles entities that can see physical light
 pub fn visibility_system(mut model: ResMut<Model>,
-	                       mut seers: Query<(&mut Viewshed, &Position, Option<&Player>)>
+	                     mut seers: Query<(&mut Viewshed, &Position, Option<&Player>)>
 ) {
 	for (mut viewshed, posn, player) in &mut seers {
 		//eprintln!("posn: {posn:?}"); // DEBUG:
@@ -228,39 +240,118 @@ pub fn visibility_system(mut model: ResMut<Model>,
 }
 /// Handles pickup/drop/destroy requests for Items
 pub fn item_collection_system(mut commands: Commands,
-	                            mut ereader:  EventReader<GameEvent>,
-	                            mut _model:    ResMut<Model>,
-	                            mut _msglog:   ResMut<MessageLog>,
+	                          mut ereader:  EventReader<GameEvent>,
+	                          mut _model:    ResMut<Model>,
+	                          mut msglog:   ResMut<MessageLog>,
+	                          // The list of every Item that is in a container
+	                          i_query:      Query<(Entity, &Name, &Portable, Option<&Position>)>,
+	                          // The list of every non-player Container
+	                          e_query:      Query<(Entity, &Name, &Position, &Container), Without<Player>>,
+	                          // The player
+	                          p_query:      Query<(Entity, &Name, &Position, &Container), With<Player>>
 ) {
 	for event in ereader.iter() {
 		if event.context.is_none() { return; } // All these actions require context info
 		let econtext = event.context.as_ref().unwrap();
-		match event.etype {
-			// An Item is moving from the World into an entity's Container
-			ItemPickup => {
-				commands.entity(econtext.object)
-				.insert(Portable{carrier: econtext.subject}) // put the container's ID to the target's Portable component
-				.remove::<Position>(); // remove the Position component from the target
+		let message: String;
+		let item_name = i_query.get(econtext.object).unwrap().1.to_string();
+		let player = p_query.get_single().unwrap();
+		// assume this was a player action by arbitrary default
+		let mut subject = player.0;
+		let mut location = player.2;
+		let mut subject_name = player.1.name.clone();
+		let mut player_action = true;
+		if econtext.subject != player.0 { // but in case it wasn't, set the subject accordingly
+			for enty in e_query.iter() {
+				if enty.0 == econtext.subject {
+					subject = enty.0;
+					location = enty.2;
+					subject_name = enty.1.name.clone();
+					player_action = false;
+					break; // Entity IDs are guaranteed to be unique, therefore stop at first match
+				}
 			}
-			// TODO: 'give', an Item is moving from one entity's Container to another Container
-			// TODO: 'drop', an Item is moving from an entity's Container into the World
-			// TODO: 'destroy', an Item is set to be destroyed
+		}
+		// Prefer to dispatch the message immediately when it is finished, as not every branch
+		// in this logic should actually generate a message (ie ItemKILL)
+		match event.etype {
+			// An Item is moving from the World into an entity's Container: "pick up"
+			// or is moving between possession of entities: "give"
+			ItemMove => {
+				if player_action {
+					message = format!("Obtained a {}.", item_name);
+				} else {
+					message = format!("The {} takes a {}.", subject_name, item_name);
+				}
+				msglog.tell_player(message);
+				commands.entity(econtext.object)
+				.insert(Portable{carrier: subject}) // put the container's ID to the target's Portable component
+				.remove::<Position>(); // remove the Position component from the target
+				// note that the above simply does nothing if it doesn't exist
+				// so it's safe to call on enty -> enty transfers
+			}
+			// An Item is being dropped from an Entity to the World
+			ItemDrop => {
+				if player_action {
+					message = format!("Dropped a {}.", item_name);
+				} else {
+					message = format!("The {} drops a {}.", subject_name, item_name);
+				}
+				msglog.tell_player(message);
+				commands.entity(econtext.object)
+				.insert(Portable{carrier: Entity::PLACEHOLDER}) // still portable but not carried
+				.insert(Position{x: location.x, y: location.y, z: location.z});
+			}
+			// Permanently removes an Item from the game
+			ItemKILL => {
+				commands.entity(econtext.object).despawn();
+			}
 			// NOTE: this system does not (yet?) handle item creation requests
 			_ => { }
 		}
 	}
 }
-
 /// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
-pub fn planq_system(_ereader: EventReader<GameEvent>, // subject to change
-	                _p_query: Query<&Position, With<Player>>, // provides interface to player data
-	                //planq: ResMut<Planq>? // contains the PLANQ's settings and data storage
+pub fn planq_system(mut ereader: EventReader<GameEvent>, // subject to change
+	                p_query: Query<(Entity, &Position), With<Player>>, // provides interface to player data
+	                mut planq: ResMut<PlanqSettings>, // contains the PLANQ's settings and data storage
+	                i_query: Query<(Entity, &Portable), Without<Position>>,
 ) {
 	/* TODO: Implement level generation such that the whole layout can be created at startup from a
 	 * tree of rooms, rather than by directly loading a REXPaint map; by retaining this tree-list
-	 * of rooms in the layout, the PLANQ can then show the player's location as an output
+	 * of rooms in the layout, the PLANQ can then show the player's location as a room name
 	 */
-
+	// Update the planq's settings if there are any changes queued up
+	let player = p_query.get_single().unwrap();
+	for event in ereader.iter() {
+		match event.etype {
+			PlanqEvent(p_cmd) => {
+				match p_cmd {
+					Startup => { planq.is_running = true; } // TODO: convert field to planq.state
+					Shutdown => { planq.is_running = false; }
+					Reboot => { }
+					InventoryUse => {
+						planq.inventory_toggle(); // display the inventory menu
+						planq.action_mode = PlanqActionMode::UseItem;
+					}
+					InventoryDrop => {
+						planq.inventory_toggle(); // display the inventory menu
+						planq.action_mode = PlanqActionMode::DropItem;
+					}
+				}
+			}
+			_ => { }
+		}
+	}
+	if planq.show_inventory {
+		// fill the planq's inventory list
+		planq.inventory_list = Vec::new();
+		for item in i_query.iter().enumerate() {
+			if item.1.1.carrier == player.0 {
+				planq.inventory_list.push(item.1.0);
+			}
+		}
+	}
 }
 
 /* TODO: "memory_system":

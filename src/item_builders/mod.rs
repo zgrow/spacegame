@@ -50,14 +50,15 @@ pub struct Door {
 
 /// Provides a facility for creating items during gameplay
 #[derive(Resource, Default)]
-pub struct ItemBuilder { }
+pub struct ItemBuilder { pub spawn_count: i32 }
 impl<'a, 'b> ItemBuilder where 'a: 'b {
 	/// Spawns an Item Entity in the World, ie at a map Position, and returns a ref to it
-	pub fn spawn(&'b self, world: &'a mut World, new_type: ItemType, location: Position) -> EntityMut<'b> {
+	pub fn spawn(&'b mut self, world: &'a mut World, new_type: ItemType, location: Position) -> EntityMut<'b> {
+		self.spawn_count += 1;
 		match new_type {
 			ItemType::Simple    => {
 				world.spawn( Item {
-					name: Name { name: "_simpleItem".to_string() },
+					name: Name { name: format!("_simpleItem_{}", self.spawn_count) },
 					posn:   location,
 					render: Renderable { glyph: "i".to_string(), fg: 4, bg: 0 },
 				})
@@ -65,7 +66,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			ItemType::Thing     => {
 				world.spawn( Thing {
 					item: Item {
-						name: Name { name: "_thing".to_string() },
+						name: Name { name: format!("_thing_{}", self.spawn_count) },
 						posn:   location,
 						render: Renderable { glyph: "t".to_string(), fg: 4, bg: 0 },
 					},
@@ -75,7 +76,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			ItemType::Fixture   => {
 				world.spawn( Fixture {
 					item: Item {
-						name: Name { name: "_fixture".to_string() },
+						name: Name { name: format!("_fixture_{}", self.spawn_count) },
 						posn:   location,
 						render: Renderable { glyph: "#".to_string(), fg: 4, bg: 0 },
 					},
@@ -86,7 +87,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 				world.spawn( Door {
 					item: Fixture {
 						item:   Item {
-							name: Name { name: "_door".to_string() },
+							name: Name { name: format!("_door_{}", self.spawn_count) },
 							posn:   location,
 							render: Renderable { glyph: "O".to_string(), fg: 4, bg: 0 },
 						},
@@ -99,7 +100,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 				world.spawn( Snack {
 					item: Thing {
 						item: Item {
-							name:   Name { name: "_snack".to_string() },
+							name:   Name { name: format!("_snack_{}", self.spawn_count) },
 							posn:   location,
 							render: Renderable { glyph: "%".to_string(), fg: 5, bg: 0 },
 						},

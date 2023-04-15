@@ -26,7 +26,7 @@ impl CameraView {
 		}
 	}
 	pub fn set_dims(&mut self, new_width: i32, new_height: i32) {
-		// NOTE: include a sanity check here that actually examines the dims prior to resize
+		// TODO: include a sanity check here that actually examines the dims prior to resize
 		// if the resize is required, then probably safest to wipe the whole thing...
 		// either way, make sure that the CameraView gets an update before next render call
 		self.width = new_width;
