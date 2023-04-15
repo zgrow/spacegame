@@ -46,41 +46,44 @@ pub struct MenuSelector<T> {
 	pub list: Vec<T>, // the state as it relates to my application
 	pub state: ListState, // the UI state, incl index of selection and its offset for draw calls
 }
-impl<Entity> MenuSelector<Entity> {
-
-}
-impl<MainMenuItems> MenuSelector<MainMenuItems> {
-	pub fn with_items(items: Vec<MainMenuItems>) -> MenuSelector<MainMenuItems> {
+impl<T> MenuSelector<T> {
+	pub fn with_items(items: Vec<T>) -> MenuSelector<T> {
 		MenuSelector {
 			list: items,
 			state: ListState::default(),
 		}
 	}
 	pub fn next(&mut self) {
-		let index = match self.state.selected() {
-			Some(index) => {
-				if index >= (self.list.len() - 1) {
-					0
-				} else {
-					index + 1
+		if self.list.len() != 0 {
+			let index = match self.state.selected() {
+				Some(index) => {
+					if index >= (self.list.len() - 1) {
+						0
+					} else {
+						index + 1
+					}
 				}
-			}
-			None => 0,
-		};
-		self.state.select(Some(index));
+				None => 0,
+			};
+			self.state.select(Some(index));
+		}
+		// simply do nothing at all if there's no list to traverse
 	}
 	pub fn prev(&mut self) {
-		let index = match self.state.selected() {
-			Some(index) => {
-				if index == 0 {
-					self.list.len() - 1
-				} else {
-					index - 1
+		if self.list.len() != 0 {
+			let index = match self.state.selected() {
+				Some(index) => {
+					if index == 0 {
+						self.list.len() - 1
+					} else {
+						index - 1
+					}
 				}
-			}
-			None => 0,
-		};
-		self.state.select(Some(index));
+				None => 0,
+			};
+			self.state.select(Some(index));
+		}
+		// simply do nothing at all if there's no list to traverse
 	}
 	pub fn deselect(&mut self) {
 		self.state.select(None);
