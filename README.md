@@ -1,5 +1,5 @@
 # spacegame
-Scifi roguelike-ish project built in Rust with ratatui and Bevy-minimal
+Scifi roguelike-ish project built in Rust with ratatui and Bevy-minimal :rocket::zap::fire:
 
 ## why tho
 I wanted to learn Rust, and in my opinion the current champ of roguelike tutorials is the [RLTK](https://bfnightly.bracketproductions.com/rustbook/).
@@ -13,13 +13,14 @@ Right now this is definitely still pre-alpha. Do not expect stability or interes
 
 ## where is this even going
 Eventually, this will be a scifi game about escaping from a dying starship. Also, [REDACTED FOR SPOILERS]
+
 Here's some of my feature goals in no particular order:
 - A in-game personal computer with a toy shell command parser
 - A terrifying robot that will chase you around the ship
-- A more-or-less complete roguelike engine with features inspired by Inform, including:
--- Extended relational and associative logic: an easy example would be 'containment' or 'wearing [something]', though systems like Inform go farther and extend the logic to cover player and NPC actions, before and after rule-checking, and many similar narrative tools
--- Narrative triggers and a system of narrative 'scenes' (as in screenplay) that maintains state related to plot structure
--- A library of text formatting tools for generating grammatically-correct narrative text from game elements
+- Some features inspired by Inform and other IF systems, including:
+  - Extended relational and associative logic: all games use simple relations like 'containment' or 'wearing [something]'; systems like Inform go farther and extend the logic to cover player and NPC actions, before and after rule-checking, and many similar narrative tools
+  - Narrative triggers within the environment and a system of narrative 'scenes' (as in screenplay) that maintains state related to plot structure
+  - A library of text formatting tools for generating grammatically-correct narrative text from game elements
 
 ## shoutouts
 - [Bevy](https://bevyengine.org/) - current backend library
@@ -27,5 +28,5 @@ Here's some of my feature goals in no particular order:
 - [crossterm](https://github.com/crossterm-rs/crossterm) - only supported terminal backend so far
 - [bracket-lib](https://github.com/amethyst/bracket-lib) - simply a fine collection of roguelike tools
 - [strum](https://github.com/Peternator7/strum) - STRing enUM handling, which i am certain to do more of in the future
-- [zkat/big-brain](https://github.com/zkat/big-brain) - this is p. much the perfect gateway for using ML in game AI in Rurst imho
+- [zkat/big-brain](https://github.com/zkat/big-brain) - this is p. much the perfect gateway for using ML in game AI in Rust imho
 - [imsnif/diskonaut](https://github.com/imsnif/diskonaut) - excellent example of dynamic UI with ratatui
