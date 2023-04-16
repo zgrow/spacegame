@@ -28,13 +28,13 @@ use crate::components::*;
 use crate::components::Name;
 use crate::camera_system::CameraView;
 use bevy::ecs::entity::*;
+use bevy::prelude::*;
 
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 /// Contains all of the coordination and driver logic for the game itself
 pub struct GameEngine {
-	pub running: bool, // running vs stopped
-	pub paused: bool, // paused vs unpaused
+	pub running: bool, // control flag for the game loop as started in main()
 	pub app: App, // bevy::app::App, contains all of the ECS bits
 	pub artificer: ItemBuilder,
 	pub recalculate_layout: bool,
@@ -43,6 +43,7 @@ pub struct GameEngine {
 	pub main_menu: MenuSelector<MainMenuItems>,
 	pub item_chooser_is_visible: bool,
 	pub item_chooser: MenuSelector<Entity>, // provides the menu for item pickup from World
+	// see the planq obj for the planq_chooser's visibility setting
 	pub planq_chooser: MenuSelector<Entity>, // provides a generic menu selector via the Planq
 }
 impl GameEngine {
@@ -50,7 +51,6 @@ impl GameEngine {
 	pub fn new(max_area: Rect) -> Self {
 		let mut new_eng = Self {
 			running: true,
-			paused: false,
 			app: App::new(),
 			artificer: ItemBuilder { spawn_count: 0 },
 			recalculate_layout: false,
@@ -67,6 +67,7 @@ impl GameEngine {
 	/// Runs a single update cycle of the game state
 	pub fn tick(&mut self) {
 		//eprintln!("TICK"); // DEBUG:
+		self.app.update();
 	}
 	/// Renders the user interface widgets.
 	pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
@@ -244,7 +245,8 @@ impl GameEngine {
 			frame.render_stateful_widget(menu, area, &mut self.item_chooser.state);
 		}
 		// Display the fancy "PAUSED" banner if the game is paused
-		if self.paused {
+		let eng_settings = self.app.world.get_resource::<GameSettings>().unwrap();
+		if eng_settings.mode == EngineMode::Paused {
 			let xpfile = &XpFile::from_resource("../resources/big_pause.xp").unwrap();
 			let graphic = load_rex_pgraph(xpfile);
 			let banner_area = Rect::new(10, 5, graphic.width() as u16, (graphic.height() + 2) as u16);
@@ -253,11 +255,11 @@ impl GameEngine {
 			frame.render_widget(banner_img, banner_area);
 		}
 	}
-	/// Toggles the paused state of the game engine when called
+/*	/// Toggles the paused state of the game engine when called
 	pub fn pause_toggle(&mut self) {
 		if self.paused == true { self.paused = false; }
 		else { self.paused = true; }
-	}
+	}*/
 	/// Toggles the main menu's visibility each time it is called
 	pub fn main_menu_toggle(&mut self) {
 		// sets the visibility state of the main menu popup
@@ -302,6 +304,20 @@ impl GameEngine {
 		self.artificer.spawn(&mut self.app.world, new_type, location);
 	}
 }
+
+#[derive(Resource, FromReflect, Reflect, Copy, Clone, PartialEq, Eq, Default)]
+#[reflect(Resource)]
+pub struct GameSettings {
+	pub mode: EngineMode,
+}
+impl GameSettings {
+	pub fn new() -> GameSettings {
+		GameSettings {
+			mode: EngineMode::Running,
+		}
+	}
+}
+
 /// Provides a bunch of named fields (rather than a tuple) of grid components
 pub struct UIGrid {
 	/// Provides the main view onto the worldmap

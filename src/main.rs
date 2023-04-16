@@ -69,6 +69,7 @@ fn main() -> AppResult<()> {
 		.register_saveable::<Openable>()
 		.register_saveable::<Lockable>()
 		.register_saveable::<Container>()
+		.insert_resource(GameSettings::new())
 		.insert_resource(ScheduleRunnerSettings::run_once())
 		.insert_resource(RexAssets::new())
 		.insert_resource(Position{x: 35, y: 20, z: 0}) // The player's position/starting spawn point
@@ -80,6 +81,7 @@ fn main() -> AppResult<()> {
 		.add_startup_system(new_player_spawn) // depends on having player_spawn inserted prior
 		.add_startup_system(new_planq_spawn)
 		.add_startup_system(new_lmr_spawn)
+		.add_system(engine_system)
 		.add_system(map_indexing_system)
 		.add_system(movement_system)
 		.add_system(visibility_system)
@@ -95,11 +97,13 @@ fn main() -> AppResult<()> {
 	builder.build_map();
 	let mut worldmap = builder.get_map();
 	model.levels.push(worldmap);
+	// build the dev map and drop a portal to it
 	builder = get_builder(99); // produces the dev map
 	builder.build_map();
 	worldmap = builder.get_map();
 	model.levels.push(worldmap);
 	model.add_portal((3, 20, 0), (5, 5, 1), true);
+	// Add the game world to the engine
 	eng.app.insert_resource(model);
 	// Build the main camera view
 	eng.calc_layout(tsize);
@@ -119,9 +123,9 @@ fn main() -> AppResult<()> {
 			Event::Resize(_, _) => {} // TODO: no resize support yet
 		}
 		// Update the game world
-		if !eng.paused {
-			eng.app.update();
-		}
+		//if !eng.paused {
+		//	eng.app.update();
+		//}
 	}
 	// Exit the user interface.
 	tui.exit()?;

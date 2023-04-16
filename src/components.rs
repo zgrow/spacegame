@@ -39,6 +39,12 @@ impl fmt::Display for Position {
 		write!(f, "{}, {}, {}", self.x, self.y, self.z)
 	}
 }
+impl PartialEq<(i32, i32, i32)> for Position {
+	fn eq(&self, other: &(i32, i32, i32)) -> bool {
+		if self.x == other.0 && self.y == other.1 && self.z == other.2 { true }
+		else { false }
+	}
+}
 /// Makes the entity available to be rendered on the viewport
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
@@ -83,6 +89,18 @@ pub struct Lockable { pub is_locked: bool, pub key: i32 }
 pub struct Container { pub contents: Vec<String> }
 
 //  *** PRIMITIVES AND COMPUTED VALUES (ie no save/load)
+/// Sets the current run mode of the GameEngine
+#[derive(Resource, Copy, Clone, Eq, PartialEq, Default, Debug, Reflect, FromReflect)]
+#[reflect(Resource)]
+pub enum EngineMode {
+	#[default]
+	Offline,
+	Startup,
+	Running,
+	Paused,
+	GoodEnd,
+	BadEnd, // TODO: set up variants for both this and GoodEnd
+}
 /// A convenient type that makes it clear whether we mean the Player entity or some other
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum Creature {
@@ -141,8 +159,9 @@ pub struct Viewshed {
 /// Provides the descriptors for GameEvents
 /// TODO: optimize this to break up the events into different classes/groups so that the event
 /// readers in the various subsystems only have to worry about their specific class of events
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Default)]
 pub enum GameEventType {
+	#[default]
 	NullEvent,
 	PlayerMove(Direction),
 	ItemUse,
@@ -150,21 +169,24 @@ pub enum GameEventType {
 	ItemDrop,
 	ItemKILL,
 	PlanqEvent(PlanqEventType),
+	ModeSwitch(EngineMode), // switches the engine to the specified mode
+	PauseToggle, // specifically causes a mode switch between Running <-> Paused
 }
 /// Custom interface obj for passing data from ratatui to Bevy
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct GameEvent {
 	pub etype: GameEventType,
 	pub context: Option<GameEventContext>,
 }
 impl GameEvent {
-	pub fn new() -> GameEvent {
+	pub fn new(new_type: GameEventType, new_context: Option<GameEventContext>) -> GameEvent {
 		GameEvent {
-			etype: GameEventType::NullEvent,
-			context: None
+			etype: new_type,
+			context: new_context,
 		}
 	}
 }
+
 /// Friendly bucket for holding contextual information about game actions
 /// Note that this expresses a 1:1 relation: this preserves the atomic nature of the event
 /// If an event occurs with multiple objects, then that event should be broken into multiple
@@ -174,7 +196,7 @@ pub struct GameEventContext {
 	pub object: Entity, // the entity upon which the subject will perform the action
 }
 /// Defines the set of control and input events that the Planq needs to handle
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Resource)]
 pub enum PlanqEventType {
 	Startup,
 	Shutdown,

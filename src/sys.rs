@@ -11,6 +11,7 @@ use crate::components::PlanqEventType::*;
 use crate::sys::GameEventType::*; // Required to avoid having to specify the enum path every time
 use crate::app::messagelog::MessageLog;
 use crate::app::planq::*;
+use crate::app::*;
 use crate::item_builders::*;
 use bevy::ecs::system::{Commands, Res, Query, ResMut};
 use bevy::ecs::event::EventReader;
@@ -82,6 +83,31 @@ pub fn new_planq_spawn(mut commands:    Commands,
 }
 
 //  CONTINUOUS SYSTEMS (run frequently)
+/// Runs assessment of the game state for things like victory/defeat conditions, &c
+pub fn engine_system(mut _commands:      Commands,
+	                 mut state:         ResMut<GameSettings>,
+	                 mut ereader:       EventReader<GameEvent>,
+	                 p_query:           Query<(Entity, &Position), With<Player>>,
+) {
+	for event in ereader.iter() {
+		match event.etype {
+			ModeSwitch(mode) => {// Immediately switch to the specified mode
+				eprintln!("Switching engine mode: {mode:?}"); // DEBUG:
+				state.mode = mode;
+			}
+			PauseToggle => {
+				eprintln!("Pause toggled"); // DEBUG:
+				if state.mode == EngineMode::Running { state.mode = EngineMode::Paused; }
+				else if state.mode == EngineMode::Paused { state.mode = EngineMode::Running; }
+			}
+			_ => { } // Throw out all other event types
+		}
+	}
+	// TODO: the gameover conditions are somewhat protracted, not sure yet on health model
+	// Check for the victory state
+	// version 0.1: Player must be standing in the specified Position
+	if *p_query.get_single().unwrap().1 == (0, 0, 0) { state.mode = EngineMode::GoodEnd; }
+}
 /// Handles entities that can move around the map
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	                   model:           Res<Model>,

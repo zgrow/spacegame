@@ -34,7 +34,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	let mut player_query = eng.app.world.query_filtered::<Entity, With<Player>>();
 	let player = player_query.get_single(&eng.app.world).unwrap();
 	let planq = &mut eng.app.world.get_resource_mut::<PlanqSettings>().unwrap();
-	let mut new_event = GameEvent::new();
+	let mut new_event = GameEvent::default();
 	// *** MENU CONTROL HANDLING
 	if eng.main_menu_is_visible
 	|| eng.item_chooser_is_visible {
@@ -42,9 +42,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 		match key_event.code {
 			// Close open menus/unpause on Esc or Q
 			KeyCode::Esc | KeyCode::Char('Q') => {
-				eng.paused = false;
 				eng.main_menu_is_visible = false;
 				eng.item_chooser_is_visible = false;
+				// Dispatch immediately
+				let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
+				game_events.send(GameEvent::new(ModeSwitch(EngineMode::Running), None));
+				return Ok(())
 			}
 			// Scroll the menu
 			KeyCode::Char('j') | KeyCode::Down => {
@@ -85,23 +88,24 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 							MainMenuItems::NULL => { }
 						}
 						// Then clear off the screen and return to the game
-						eng.pause_toggle();
 						eng.main_menu_toggle();
 						eng.main_menu.deselect();
+						// Immediate dispatch due to return requirement
+						let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
+						game_events.send(GameEvent::new(ModeSwitch(EngineMode::Running), None));
 						return Ok(())
 					}
 				} else if eng.item_chooser_is_visible {
 					let choice = eng.item_chooser.state.selected();
 					if choice.is_some() {
 						let choice_val = &eng.item_chooser.list[choice.unwrap_or_default()];
-						new_event.etype = ItemMove;
-						new_event.context = Some(GameEventContext{subject: player, object: *choice_val});
+						let context = Some(GameEventContext{subject: player, object: *choice_val});
 						eng.item_chooser_toggle(); // close the chooser
-						eng.pause_toggle();
 						eng.item_chooser.deselect();
-						// Immediately dispatch the Event since we have to return
+						// Immediate dispatch due to return requirement
 						let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
-						game_events.send(new_event);
+						game_events.send(GameEvent::new(ItemMove, context));
+						game_events.send(GameEvent::new(ModeSwitch(EngineMode::Running), None));
 						return Ok(())
 					}
 				}
@@ -116,35 +120,45 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 		match key_event.code {
 			// Pause key
 			KeyCode::Char('p') => {
-				eng.pause_toggle();
+				// Dispatch immediately, do not defer
+				let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
+				game_events.send(GameEvent::new(PauseToggle, None));
+				return Ok(())
 			}
 			// Pause and show main menu on `ESC` or `Q`
 			KeyCode::Esc | KeyCode::Char('Q') => {
 				// Close the planq chooser if it's open, cancel any in-progress action
 				if planq.action_mode != PlanqActionMode::Default {
-					// WARN: may need to force a chooser deselect here?
+					eng.planq_chooser.deselect();
 					planq.show_inventory = false; // close the inventory prompt if it's open
 					planq.action_mode = PlanqActionMode::Default; // exit Drop or Item request
 				} else if eng.item_chooser_is_visible {// Close the item chooser if it's open
-					eng.item_chooser_toggle();
-					eng.pause_toggle();
+					eng.item_chooser.deselect();
+					eng.item_chooser_is_visible = false;
+					// Dispatch immediately, do not defer
+					let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
+					game_events.send(GameEvent::new(ModeSwitch(EngineMode::Running), None));
+					return Ok(())
 				} else {// Player must be trying to open the main menu
-					eng.main_menu_toggle();
-					eng.pause_toggle();
+					eng.main_menu_is_visible = true;
+					// Dispatch immediately, do not defer
+					let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
+					game_events.send(GameEvent::new(ModeSwitch(EngineMode::Paused), None));
+					return Ok(())
 				}
 			}
 			// Move player
-			KeyCode::Char('h') => {new_event.etype = PlayerMove(Direction::W); new_event.context = None }
-			KeyCode::Char('l') => {new_event.etype = PlayerMove(Direction::E); new_event.context = None }
-			KeyCode::Char('k') => {new_event.etype = PlayerMove(Direction::N); new_event.context = None }
-			KeyCode::Char('j') => {new_event.etype = PlayerMove(Direction::S); new_event.context = None }
-			KeyCode::Char('y') => {new_event.etype = PlayerMove(Direction::NW); new_event.context = None }
-			KeyCode::Char('u') => {new_event.etype = PlayerMove(Direction::NE); new_event.context = None }
-			KeyCode::Char('b') => {new_event.etype = PlayerMove(Direction::SW); new_event.context = None }
-			KeyCode::Char('n') => {new_event.etype = PlayerMove(Direction::SE); new_event.context = None }
-			KeyCode::Char('>') => {new_event.etype = PlayerMove(Direction::DOWN); new_event.context = None }
-			KeyCode::Char('<') => {new_event.etype = PlayerMove(Direction::UP); new_event.context = None }
-			KeyCode::Char('i') => {new_event.etype = PlanqEvent(InventoryUse); new_event.context = None}
+			KeyCode::Char('h') => {new_event.etype = PlayerMove(Direction::W);}
+			KeyCode::Char('l') => {new_event.etype = PlayerMove(Direction::E);}
+			KeyCode::Char('k') => {new_event.etype = PlayerMove(Direction::N);}
+			KeyCode::Char('j') => {new_event.etype = PlayerMove(Direction::S);}
+			KeyCode::Char('y') => {new_event.etype = PlayerMove(Direction::NW);}
+			KeyCode::Char('u') => {new_event.etype = PlayerMove(Direction::NE);}
+			KeyCode::Char('b') => {new_event.etype = PlayerMove(Direction::SW);}
+			KeyCode::Char('n') => {new_event.etype = PlayerMove(Direction::SE);}
+			KeyCode::Char('>') => {new_event.etype = PlayerMove(Direction::DOWN);}
+			KeyCode::Char('<') => {new_event.etype = PlayerMove(Direction::UP);}
+			KeyCode::Char('i') => {new_event.etype = PlanqEvent(InventoryUse);}
 			KeyCode::Char('o') => {eprintln!("attempted to OPEN something!");}
 			KeyCode::Char('g') => { // gets the item on the ground (if only one) or invokes item chooser
 				let mut item_list = Vec::new();
@@ -164,7 +178,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if item_list.len() > 0 {
 					if item_list.len() > 1 {
 						eng.item_chooser_toggle();
-						eng.pause_toggle();
+						//let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
+						//game_events.send(GameEvent::new(ModeSwitch(EngineMode::Paused), None));
+						new_event.etype = ModeSwitch(EngineMode::Paused);
 					}
 					else { // item_list.len == 1
 						let choice_val = &eng.item_chooser.list[0];
@@ -173,7 +189,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					}
 				}
 			}
-			KeyCode::Char('d') => {new_event.etype = PlanqEvent(InventoryDrop); new_event.context = None}
+			KeyCode::Char('d') => {new_event.etype = PlanqEvent(InventoryDrop);}
 			KeyCode::Char('s') => { // DEBUG: drops a snack for testing
 				eng.make_item(crate::item_builders::ItemType::Snack, Position::new(30, 20, 0));
 			}
