@@ -35,6 +35,7 @@ pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 /// Contains all of the coordination and driver logic for the game itself
 pub struct GameEngine {
 	pub running: bool, // control flag for the game loop as started in main()
+	pub standby: bool, // if true, the game itself is not yet loaded/has ended
 	pub app: App, // bevy::app::App, contains all of the ECS bits
 	pub artificer: ItemBuilder,
 	pub recalculate_layout: bool,
@@ -51,6 +52,7 @@ impl GameEngine {
 	pub fn new(max_area: Rect) -> Self {
 		let mut new_eng = Self {
 			running: true,
+			standby: true,
 			app: App::new(),
 			artificer: ItemBuilder { spawn_count: 0 },
 			recalculate_layout: false,
@@ -69,8 +71,20 @@ impl GameEngine {
 		//eprintln!("TICK"); // DEBUG:
 		self.app.update();
 	}
-	/// Renders the user interface widgets.
+	/// Renders the standby mode
+	pub fn render_standby<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
+		let main_menu = "test";
+		frame.render_widget(
+			Paragraph::new(main_menu).block(
+				Block::default()
+			),
+			frame.size()
+		);
+	}
+	/// Renders the game and its GUI.
 	pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
+		// If the engine is still in standby mode, defer to that immediately
+		if self.standby { self.render_standby(frame); return; }
 		// METHOD
 		// - if the layout is 'dirty', recalculate it
 		if self.recalculate_layout {
@@ -253,13 +267,13 @@ impl GameEngine {
 			let banner_img = Paragraph::new(graphic).block(Block::default().borders(Borders::TOP | Borders::BOTTOM));
 			frame.render_widget(Clear, banner_area);
 			frame.render_widget(banner_img, banner_area);
+		} else if eng_settings.mode == EngineMode::GoodEnd {
+			eprintln!("*************************");
+			eprintln!("*** Victory detected! ***");
+			eprintln!("*************************");
+			self.quit();
 		}
 	}
-/*	/// Toggles the paused state of the game engine when called
-	pub fn pause_toggle(&mut self) {
-		if self.paused == true { self.paused = false; }
-		else { self.paused = true; }
-	}*/
 	/// Toggles the main menu's visibility each time it is called
 	pub fn main_menu_toggle(&mut self) {
 		// sets the visibility state of the main menu popup

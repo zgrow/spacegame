@@ -95,11 +95,12 @@ pub struct Container { pub contents: Vec<String> }
 pub enum EngineMode {
 	#[default]
 	Offline,
+	Standby,    // ie when showing the startup menu, victory/game over screens, &c
 	Startup,
 	Running,
 	Paused,
 	GoodEnd,
-	BadEnd, // TODO: set up variants for both this and GoodEnd
+	BadEnd,     // TODO: set up variants for both this and GoodEnd? maybe just a GameOver mode?
 }
 /// A convenient type that makes it clear whether we mean the Player entity or some other
 #[derive(Copy, Clone, Eq, PartialEq)]

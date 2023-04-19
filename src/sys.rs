@@ -106,7 +106,7 @@ pub fn engine_system(mut _commands:      Commands,
 	// TODO: the gameover conditions are somewhat protracted, not sure yet on health model
 	// Check for the victory state
 	// version 0.1: Player must be standing in the specified Position
-	if *p_query.get_single().unwrap().1 == (0, 0, 0) { state.mode = EngineMode::GoodEnd; }
+	if *p_query.get_single().unwrap().1 == (28, 1, 1) { state.mode = EngineMode::GoodEnd; }
 }
 /// Handles entities that can move around the map
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,

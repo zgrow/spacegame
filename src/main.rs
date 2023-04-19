@@ -122,10 +122,6 @@ fn main() -> AppResult<()> {
 			Event::Mouse(_) => {} // TODO: no mouse support yet
 			Event::Resize(_, _) => {} // TODO: no resize support yet
 		}
-		// Update the game world
-		//if !eng.paused {
-		//	eng.app.update();
-		//}
 	}
 	// Exit the user interface.
 	tui.exit()?;
