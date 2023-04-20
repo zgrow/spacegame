@@ -11,7 +11,7 @@ use std::fmt;
 /// Provides the full list of options for the main menu
 /// The Ord/PartialOrd traits add implicit indexing to this enum
 /// e.g. NULL == 0, NEWGAME == 1; NULL < NEWGAME == true
-#[derive(Debug, EnumIter, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, EnumIter, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum MainMenuItems {
 	NULL,
 	NEWGAME,

@@ -51,8 +51,9 @@ impl GameEngine {
 	/// Constructs a new instance of [`GameEngine`].
 	pub fn new(max_area: Rect) -> Self {
 		let mut new_eng = Self {
+			// Set standby to true and main_menu_is_visible to true to restore the proto-start screen
 			running: true,
-			standby: true,
+			standby: false,
 			app: App::new(),
 			artificer: ItemBuilder { spawn_count: 0 },
 			recalculate_layout: false,
@@ -71,20 +72,39 @@ impl GameEngine {
 		//eprintln!("TICK"); // DEBUG:
 		self.app.update();
 	}
-	/// Renders the standby mode
-	pub fn render_standby<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
-		let main_menu = "test";
-		frame.render_widget(
-			Paragraph::new(main_menu).block(
-				Block::default()
-			),
-			frame.size()
-		);
+	/// Renders the main menu, useful so that we can draw it by itself in standby mode
+	pub fn render_main_menu<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
+		// self.main_menu.list is what holds the backing values
+		// this mm_items list holds the matching list of display values
+		let mut mm_items = Vec::new();
+		for item in MainMenuItems::to_list().iter() {
+			match item {
+				MainMenuItems::NULL => { /* do nothing, ofc */ }
+				MainMenuItems::NEWGAME => {
+					mm_items.push(ListItem::new(item.to_string()));
+					self.main_menu.list.push(*item);
+				}
+				MainMenuItems::LOADGAME => { /* FIXME: only add LOADGAME if a save exists */ }
+				MainMenuItems::SAVEGAME => { /* FIXME: only add SAVEGAME if a game is going */ }
+				MainMenuItems::QUIT => {
+					mm_items.push(ListItem::new(item.to_string()));
+					self.main_menu.list.push(*item);
+				}
+			}
+		}
+		let menu = List::new(mm_items)
+			.block(Block::default().title("Main Menu").borders(Borders::ALL))
+			.style(Style::default().fg(Color::White).bg(Color::Black))
+			.highlight_style(Style::default().fg(Color::Black).bg(Color::White))
+			.highlight_symbol("->");
+		let area = Rect::new(10, 12, 23, 10); // WARN: magic numbers
+		frame.render_widget(Clear, area);
+		frame.render_stateful_widget(menu, area, &mut self.main_menu.state);
 	}
 	/// Renders the game and its GUI.
 	pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
 		// If the engine is still in standby mode, defer to that immediately
-		if self.standby { self.render_standby(frame); return; }
+		if self.standby { self.render_main_menu(frame); return; }
 		// METHOD
 		// - if the layout is 'dirty', recalculate it
 		if self.recalculate_layout {
@@ -223,6 +243,7 @@ impl GameEngine {
 		}
 		// Render any optional menus and layers, ie main menu
 		if self.main_menu_is_visible {
+			/*
 			self.main_menu.list = MainMenuItems::to_list(); // produces Vec<MainMenuItems>
 			let mut mm_items = Vec::new();
 			for item in self.main_menu.list.iter() {
@@ -236,6 +257,8 @@ impl GameEngine {
 			let area = Rect::new(10, 12, 23, 10); // WARN: magic numbers
 			frame.render_widget(Clear, area);
 			frame.render_stateful_widget(menu, area, &mut self.main_menu.state);
+			*/
+			self.render_main_menu(frame);
 			/* this fires on every index change, not just confirmation
 			match self.main_menu.state.selected() {
 				None => { }

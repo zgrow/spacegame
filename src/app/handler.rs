@@ -40,8 +40,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	|| eng.item_chooser_is_visible {
 		// use the meta mappings
 		match key_event.code {
+			// Only handle these keys if the game's actually in-progress
 			// Close open menus/unpause on Esc or Q
 			KeyCode::Esc | KeyCode::Char('Q') => {
+				// Only handle this if the game's actually running
+				if eng.standby { return Ok(()); }
 				eng.main_menu_is_visible = false;
 				eng.item_chooser_is_visible = false;
 				// Dispatch immediately
@@ -73,6 +76,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						match choice_val {
 							MainMenuItems::NEWGAME => {
 								eprintln!("NEWGAME called"); // DEBUG:
+								if eng.standby { eng.standby = false; return Ok(()); }
 							}
 							MainMenuItems::LOADGAME => {
 								eng.load_game();
