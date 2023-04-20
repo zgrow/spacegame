@@ -227,16 +227,24 @@ pub fn map_indexing_system(_ereader:    EventReader<GameEvent>,
 	                       mut blocker_query: Query<&Position, With<Obstructive>>,
 	                       _enty_query:  Query<(Entity, &Position)>
 ) {
-	// ERROR: This system is currently hardcoded for level 0!
 	// TODO: consider possible optimization for not updating levels that the player is not on?
 	// might require some extra smartness to allow updates if the LMR does something out of sight
 	// First, rebuild the blocking map by the map tiles
-	model.levels[0].update_blocked_tiles();
-	// Then, step through all blocking entities and flag their locations on the map as well
-	for guy in blocker_query.iter_mut() {
-		if guy.z != 0 { continue; } // FIXME: this only allows updates to the blocking map for floor 0
-		let index = model.levels[0].to_index(guy.x, guy.y);
-		model.levels[0].blocked_tiles[index] = true;
+	let mut f_index = 0;
+	for floor in model.levels.iter_mut() {
+		floor.update_blocked_tiles();
+		for guy in blocker_query.iter_mut() {
+			if guy.z != f_index { continue; }
+			let index = floor.to_index(guy.x, guy.y);
+			floor.blocked_tiles[index] = true;
+		}
+		// Then, step through all blocking entities and flag their locations on the map as well
+		for guy in blocker_query.iter_mut() {
+			if guy.z != f_index { continue; }
+			let index = floor.to_index(guy.x, guy.y);
+			floor.blocked_tiles[index] = true;
+		}
+		f_index += 1;
 	}
 }
 /// Handles entities that can see physical light
