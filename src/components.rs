@@ -78,7 +78,11 @@ impl FromWorld for Portable {
 /// Describes an entity with an operable barrier of some kind: a container's lid, or a door, &c
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
-pub struct Openable { pub is_open: bool }
+pub struct Openable {
+	pub is_open: bool,
+	pub open_glyph: String,
+	pub closed_glyph: String,
+}
 /// Describes an entity with something concealed behind a lock; uses an i32 value as a keyval
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
@@ -158,20 +162,23 @@ pub struct Viewshed {
 
 //  *** GAME EVENTS
 /// Provides the descriptors for GameEvents
+/// Unless otherwise noted, any relevant event info will be included as a GameEventContext
 /// TODO: optimize this to break up the events into different classes/groups so that the event
 /// readers in the various subsystems only have to worry about their specific class of events
 #[derive(Copy, Clone, Eq, PartialEq, Default)]
 pub enum GameEventType {
 	#[default]
 	NullEvent,
+	PauseToggle, // specifically causes a mode switch between Running <-> Paused
+	ModeSwitch(EngineMode), // switches the engine to the specified mode
 	PlayerMove(Direction),
 	ItemUse,
 	ItemMove,
 	ItemDrop,
 	ItemKILL,
+	DoorOpen,
+	DoorClose,
 	PlanqEvent(PlanqEventType),
-	ModeSwitch(EngineMode), // switches the engine to the specified mode
-	PauseToggle, // specifically causes a mode switch between Running <-> Paused
 }
 /// Custom interface obj for passing data from ratatui to Bevy
 #[derive(Resource, Default)]

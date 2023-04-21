@@ -4,6 +4,8 @@ use bracket_rex::prelude::*;
 use crate::map::*;
 use ratatui::text::{Span, Text};
 use codepage_437::CP437_WINGDINGS;
+use crate::components::Position;
+use crate::item_builders::ItemType;
 
 pub struct XpFileParser {
 	pub dict_rexval_to_string: HashMap<u32, String>,
@@ -66,7 +68,7 @@ impl XpFileParser {
 	}
 }
 /// Produces a Map object, complete with tilemap, from the specified REXPaint resource
-pub fn load_rex_map(xp_file: &XpFile) -> Map {
+pub fn load_rex_map(xp_file: &XpFile) -> (Map, Vec<(ItemType, Position)>) {
 	let mut new_width: i32 = 1;
 	let mut new_height: i32 = 1;
 	let mut layer_count = 0;
@@ -78,6 +80,7 @@ pub fn load_rex_map(xp_file: &XpFile) -> Map {
 	// WARN: We assume only ONE layer exists in the file!
 	assert!(layer_count == 1, "More than one layer detected in REXfile");
 	let mut map: Map = Map::new(new_width, new_height);
+	let mut enty_list = Vec::new();
 	for layer in &xp_file.layers {
 		//eprintln!("- Loading map from rexfile"); //:DEBUG:
 		assert!(map.width == layer.width as i32 && map.height == layer.height as i32, "REXfile dims mismatch");
@@ -95,7 +98,11 @@ pub fn load_rex_map(xp_file: &XpFile) -> Map {
 						45 => map.tiles[index] = Tile::new_floor(),     // -    Maintenance
 						46 => map.tiles[index] = Tile::new_floor(),     // .    Floor
 						60 => map.tiles[index] = Tile::new_stairway(),  // <    (Upward)
-						61 => map.tiles[index] = Tile::new_floor(),     // =    Door
+						61 => {                                         // =    Door
+							eprintln!("* found a DOOR: {}, {}", x, y);
+							enty_list.push((ItemType::Door, Position::new(x as i32, y as i32, 0)));
+							map.tiles[index] = Tile::new_floor()
+						},
 						62 => map.tiles[index] = Tile::new_stairway(),  // >    (Downward)
 						_ => {
 							//eprintln!("Unrecognized REXtile encountered: {} @{},{}", cell.ch, x, y);
@@ -105,7 +112,7 @@ pub fn load_rex_map(xp_file: &XpFile) -> Map {
 			}
 		}
 	}
-	map
+	(map, enty_list)
 }
 /// Produces a 'raw' Text object (ie a Vec<Spans<>>) to be displayed via ratatui::Paragraph
 pub fn load_rex_pgraph(xp_file: &XpFile) -> Text<'static> {

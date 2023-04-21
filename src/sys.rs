@@ -259,6 +259,37 @@ pub fn map_indexing_system(_ereader:    EventReader<GameEvent>,
 		f_index += 1;
 	}
 }
+/// Handles DoorOpen/Close events
+pub fn door_system(mut commands:    Commands,
+                   mut ereader:     EventReader<GameEvent>,
+                   mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, Option<&Obstructive>)>,
+) {
+	for event in ereader.iter() {
+		if event.context.is_none() { return; }
+		let econtext = event.context.as_ref().unwrap();
+		match event.etype {
+			GameEventType::DoorOpen => {
+				for mut door in door_query.iter_mut() {
+					if door.0 == econtext.object {
+						door.2.is_open = true;
+						door.3.glyph = door.2.open_glyph.clone();
+						commands.entity(door.0).remove::<Obstructive>();
+					}
+				}
+			}
+			GameEventType::DoorClose => {
+				for mut door in door_query.iter_mut() {
+					if door.0 == econtext.object {
+						door.2.is_open = false;
+						door.3.glyph = door.2.closed_glyph.clone();
+						commands.entity(door.0).insert(Obstructive {});
+					}
+				}
+			}
+			_ => { }
+		}
+	}
+}
 /// Handles entities that can see physical light
 pub fn visibility_system(mut model: ResMut<Model>,
 	                     mut seers: Query<(&mut Viewshed, &Position, Option<&Player>)>

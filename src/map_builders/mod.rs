@@ -4,10 +4,13 @@
 use crate::map::*;
 mod rexpaint_map;
 use rexpaint_map::RexMapBuilder;
+use crate::components::Position;
+use crate::item_builders::ItemType;
 
 pub trait MapBuilder {
 	fn build_map(&mut self);
 	fn get_map(&self) -> Map;
+	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)>;
 }
 pub fn get_builder(selection: i32) -> Box<dyn MapBuilder>{
 	match selection {
@@ -17,6 +20,7 @@ pub fn get_builder(selection: i32) -> Box<dyn MapBuilder>{
 }
 pub struct DevMapBuilder {
 	map: Map,
+	new_entys: Vec<(ItemType, Position)>,
 }
 impl MapBuilder for DevMapBuilder {
 	fn build_map(&mut self) {
@@ -45,11 +49,15 @@ impl MapBuilder for DevMapBuilder {
 	fn get_map(&self) -> Map {
 		self.map.clone()
 	}
+	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
+	    self.new_entys.clone()
+	}
 }
 impl DevMapBuilder {
 	pub fn new() -> DevMapBuilder {
 		DevMapBuilder {
-			map: Map::new(1, 1)
+			map: Map::new(1, 1),
+			new_entys: Vec::new(),
 		}
 	}
 }

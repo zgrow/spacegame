@@ -93,18 +93,24 @@ fn main() -> AppResult<()> {
 	// TODO: i thought this was loading via bracket-rex but it has to go after the insert_resource
 	// via Bevy??? need to reexamine later
 	let mut model = Model::default();
+	let cur_floor = 0;
 	let mut builder = get_builder(1);
 	builder.build_map();
 	let mut worldmap = builder.get_map();
+	// build all of the furniture, backdrops, and so on for this level
+	let mut item_spawns = builder.get_item_spawn_list();
+	eprintln!("item_spawns.len: {}", item_spawns.len());
+	eng.artificer.spawn_batch(&mut eng.app.world, &mut item_spawns, cur_floor);
 	model.levels.push(worldmap);
 	// build the dev map and drop a portal to it
 	builder = get_builder(99); // produces the dev map
 	builder.build_map();
+	//cur_floor += 1;
 	worldmap = builder.get_map();
 	model.levels.push(worldmap);
 	model.add_portal((3, 20, 0), (5, 5, 1), true);
 	// Add the game world to the engine
-	eng.app.insert_resource(model);
+	eng.app.insert_resource(model); 
 	// Build the main camera view
 	eng.calc_layout(tsize);
 	let main_camera = CameraView::new(eng.ui_grid.camera_main.width as i32, eng.ui_grid.camera_main.height as i32);
