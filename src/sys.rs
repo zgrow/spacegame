@@ -88,6 +88,8 @@ pub fn engine_system(mut _commands:      Commands,
 	                 mut state:         ResMut<GameSettings>,
 	                 mut ereader:       EventReader<GameEvent>,
 	                 p_query:           Query<(Entity, &Position), With<Player>>,
+	                 q_query:           Query<(Entity, &Portable), With<Planq>>,
+	                 p_items_query:     Query<(Entity, &Portable), Without<Position>>,
 ) {
 	for event in ereader.iter() {
 		match event.etype {
@@ -105,8 +107,18 @@ pub fn engine_system(mut _commands:      Commands,
 	}
 	// TODO: the gameover conditions are somewhat protracted, not sure yet on health model
 	// Check for the victory state
+	let player = p_query.get_single().unwrap();
+	let planq = q_query.get_single().unwrap();
+	let mut p_inventory = Vec::new();
+	for item in p_items_query.iter() {
+		if item.1.carrier == player.0 { p_inventory.push(item.0); }
+	}
 	// version 0.1: Player must be standing in the specified Position
-	if *p_query.get_single().unwrap().1 == (28, 1, 1) { state.mode = EngineMode::GoodEnd; }
+	//if *player.1 == Position::new(28, 1, 1) { state.mode = EngineMode::GoodEnd; } // FIXME: partialeq?
+	// version 0.2: v0.1 AND Player.has == planq
+	if *player.1 == Position::new(28, 1, 1)
+	&& p_inventory.contains(&planq.0)
+	{ state.mode = EngineMode::GoodEnd; }
 }
 /// Handles entities that can move around the map
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
