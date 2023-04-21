@@ -79,8 +79,8 @@ impl Tile {
 	pub fn new_wall() -> Tile {
 		Tile {
 			ttype: TileType::Wall,
-			glyph: "+".to_string(),
-			fg: 4,
+			glyph: "╳".to_string(),
+			fg: 7,
 			bg: 0,
 			mods: "".to_string(),
 		}
@@ -95,6 +95,7 @@ impl Tile {
 			mods: "".to_string(),
 		}
 	}
+	// Produces a default 'doorway' 
 }
 ///Represents a single layer of physical space in the game world
 #[derive(Reflect, Clone, Debug, Resource, Default, FromReflect)]
