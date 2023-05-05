@@ -25,7 +25,7 @@ use crate::app::image_loader::load_rex_pgraph;
 use crate::app::menu::{MainMenuItems, MenuSelector};
 use crate::item_builders::{ItemBuilder, ItemType};
 use crate::components::*;
-use crate::components::Name;
+use crate::components::{Name, GameEventType};
 use crate::camera_system::CameraView;
 use bevy::ecs::entity::*;
 use bevy::prelude::*;
@@ -36,6 +36,7 @@ pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 pub struct GameEngine {
 	pub running: bool, // control flag for the game loop as started in main()
 	pub standby: bool, // if true, the game itself is not yet loaded/has ended
+	pub mode: EngineMode, // sets the engine's runtime context: paused, item selection, &c
 	pub app: App, // bevy::app::App, contains all of the ECS bits
 	pub artificer: ItemBuilder,
 	pub recalculate_layout: bool,
@@ -44,8 +45,11 @@ pub struct GameEngine {
 	pub main_menu: MenuSelector<MainMenuItems>,
 	pub item_chooser_is_visible: bool,
 	pub item_chooser: MenuSelector<Entity>, // provides the menu for item pickup from World
+	pub target_chooser_is_visible: bool,
+	pub target_chooser: MenuSelector<Entity>, // provides the menu for target selection from World
 	// see the planq obj for the planq_chooser's visibility setting
 	pub planq_chooser: MenuSelector<Entity>, // provides a generic menu selector via the Planq
+	pub player_action: GameEventType, // in practice only a subset of types will be used
 }
 impl GameEngine {
 	/// Constructs a new instance of [`GameEngine`].
@@ -54,6 +58,7 @@ impl GameEngine {
 			// Set standby to true and main_menu_is_visible to true to restore the proto-start screen
 			running: true,
 			standby: false,
+			mode: EngineMode::Running,
 			app: App::new(),
 			artificer: ItemBuilder { spawn_count: 0 },
 			recalculate_layout: false,
@@ -62,7 +67,10 @@ impl GameEngine {
 			main_menu: MenuSelector::with_items(Vec::new()),
 			item_chooser_is_visible: false,
 			item_chooser: MenuSelector::with_items(Vec::new()),
+			target_chooser_is_visible: false,
+			target_chooser: MenuSelector::with_items(Vec::new()),
 			planq_chooser: MenuSelector::with_items(Vec::new()),
+			player_action: GameEventType::NullEvent,
 		};
 		new_eng.ui_grid.calc_layout(max_area);
 		return new_eng;
@@ -266,7 +274,7 @@ impl GameEngine {
 			}
 			*/
 		}
-		if self.item_chooser_is_visible {
+		else if self.item_chooser_is_visible {
 			let mut item_list = Vec::new();
 			for item in self.item_chooser.list.iter() {
 				let name = self.app.world.get::<Name>(*item);
@@ -281,7 +289,24 @@ impl GameEngine {
 			frame.render_widget(Clear, area);
 			frame.render_stateful_widget(menu, area, &mut self.item_chooser.state);
 		}
+		else if self.target_chooser_is_visible {
+			let mut target_list = Vec::new();
+			for target in self.target_chooser.list.iter() {
+				let name = self.app.world.get::<Name>(*target);
+				target_list.push(ListItem::new(name.unwrap().name.clone()));
+			}
+			let menu = List::new(target_list)
+				.block(Block::default().title("Target:").borders(Borders::ALL))
+				.style(Style::default())
+				.highlight_style(Style::default().fg(Color::Black).bg(Color::White))
+				.highlight_symbol("->");
+			let area = Rect::new(40, 12, 23, 10); // WARN: magic numbers, see above as well
+			frame.render_widget(Clear, area);
+			frame.render_stateful_widget(menu, area, &mut self.target_chooser.state);
+			// FIXME: find a way to draw a target reticle here
+		}
 		// Display the fancy "PAUSED" banner if the game is paused
+		// FIXME: this should probably just use the eng.mode property to avoid making a world call
 		let eng_settings = self.app.world.get_resource::<GameSettings>().unwrap();
 		if eng_settings.mode == EngineMode::Paused {
 			let xpfile = &XpFile::from_resource("../resources/big_pause.xp").unwrap();
@@ -303,11 +328,14 @@ impl GameEngine {
 		if self.main_menu_is_visible == false { self.main_menu_is_visible = true; }
 		else { self.main_menu_is_visible = false; }
 	}
-	/// Toggles the item chooser menu
-	pub fn item_chooser_toggle(&mut self) {
-		if self.item_chooser_is_visible == false { self.item_chooser_is_visible = true; }
-		else { self.item_chooser_is_visible = false; }
-	}
+	/// Shows the item chooser menu
+	pub fn show_item_chooser(&mut self) { self.item_chooser_is_visible = true; }
+	/// Hides the item chooser menu
+	pub fn hide_item_chooser(&mut self) { self.item_chooser_is_visible = false; }
+	/// Shows the targeting menu
+	pub fn show_target_chooser(&mut self) { self.target_chooser_is_visible = true; }
+	/// Hides the targeting menu
+	pub fn hide_target_chooser(&mut self) { self.target_chooser_is_visible = false; }
 	/// Requests a recalculation of the GameEngine.ui_grid object based on the given area
 	pub fn calc_layout(&mut self, area: Rect) {
 		//eprintln!("calc_layout() called"); // DEBUG:
@@ -322,6 +350,24 @@ impl GameEngine {
 	/// Handles a call to stop the game and exit
 	pub fn quit(&mut self) {
 		self.running = false;
+	}
+	/// Changes the pause-state of the game, ie transition between Running/Paused modes
+	pub fn pause_game(&mut self, state: bool) {
+		if state {
+			self.mode = EngineMode::Paused;
+		} else {
+			self.mode = EngineMode::Running;
+		}
+		// FIXME: dispatch event?
+	}
+	/// Toggles between Running/Paused depending on last mode
+	pub fn pause_toggle(&mut self) {
+		if self.mode == EngineMode::Paused {
+			self.mode = EngineMode::Running;
+		} else {
+			self.mode = EngineMode::Paused;
+		}
+		// FIXME: dispatch event?
 	}
 	/// Handles a call to save the game
 	pub fn save_game(&mut self) {
@@ -340,6 +386,14 @@ impl GameEngine {
 	pub fn make_item(&mut self, new_type: ItemType, location: Position) {
 		self.artificer.spawn(&mut self.app.world, new_type, location);
 	}
+	/// Sets the engine's mode; requires the event controller so it can dispatch a game event
+	pub fn set_mode(&mut self, new_mode: EngineMode) {
+		self.mode = new_mode; // Update the setting at the outer layer
+		// Dispatch an event through the inner layers
+		let game_events: &mut Events<GameEvent> = &mut self.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
+		game_events.send(GameEvent::new(GameEventType::ModeSwitch(new_mode), None));
+	}
+
 }
 
 #[derive(Resource, FromReflect, Reflect, Copy, Clone, PartialEq, Eq, Default)]

@@ -41,12 +41,13 @@ pub struct Snack {
 pub struct Fixture {
 	pub item:       Item,
 	pub obstructs:  Obstructive,
+	pub opaque:     Opaque,
 }
 /// Defines the class of objects that allow/obstruct entity movement across a threshold
 #[derive(Bundle)]
 pub struct Door {
 	pub item:       Fixture,
-	pub door:       Openable
+	pub door:       Openable,
 }
 
 /// Provides a facility for creating items during gameplay
@@ -83,6 +84,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 						render: Renderable { glyph: "#".to_string(), fg: 4, bg: 0 },
 					},
 					obstructs: Obstructive { },
+					opaque:    Opaque { opaque: true },
 				})
 			}
 			ItemType::Door      => {
@@ -94,6 +96,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 							render: Renderable { glyph: "█".to_string(), fg: 4, bg: 0 },
 						},
 						obstructs: Obstructive { },
+						opaque:    Opaque { opaque: true },
 					},
 					door: Openable {
 						is_open: false,

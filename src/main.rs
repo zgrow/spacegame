@@ -87,6 +87,7 @@ fn main() -> AppResult<()> {
 		.add_system(visibility_system)
 		.add_system(camera_update_sys)
 		.add_system(item_collection_system)
+		.add_system(door_system)
 		.add_system(planq_system)
 	;
 	// Build the game world

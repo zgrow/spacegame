@@ -107,6 +107,7 @@ pub struct Map {
 	pub revealed_tiles: Vec<bool>,
 	pub visible_tiles: Vec<bool>,
 	pub blocked_tiles: Vec<bool>,
+	pub opaque_tiles: Vec<bool>,
 }
 impl Map {
 	/// Generates a map from the default settings
@@ -119,6 +120,7 @@ impl Map {
 			revealed_tiles: vec![false; map_size],
 			visible_tiles: vec![false; map_size],
 			blocked_tiles: vec![false; map_size],
+			opaque_tiles: vec![false; map_size],
 		}
 	}
 	/// Converts an x, y pair into a tilemap index using the given map's width
@@ -132,10 +134,11 @@ impl Map {
 		if self.tiles[index].ttype == TileType::Wall { return true }
 		false
 	}
-	/// Walks through the map and populates the blocked_tiles map according to the TileTypes
-	pub fn update_blocked_tiles(&mut self) {
+	/// Walks through the map and populates the blocked_tiles and opaque_tiles maps according to the TileTypes
+	pub fn update_tilemaps(&mut self) {
 		for (index, tile) in self.tiles.iter_mut().enumerate() {
 			self.blocked_tiles[index] = tile.ttype == TileType::Wall;
+			self.opaque_tiles[index] = tile.ttype == TileType::Wall;
 		}
 	}
 	//  PRIVATE METHODS
@@ -185,8 +188,15 @@ impl Algorithm2D for Map {
 // bracket-lib uses the BaseMap trait to do FOV calculation and pathfinding
 impl BaseMap for Map {
 	fn is_opaque(&self, index: usize) -> bool {
-		self.tiles[index].ttype == TileType::Wall
+		self.opaque_tiles[index]
 	}
+	//fn get_available_exits(&self, index: usize) -> SmallVec<[(usize, f32); 10]> {
+		// "Returns a vector of tile indices to which one can path from the index"
+		// "Does not need to be contiguous (teleports OK); do NOT return current tile as an exit"
+	//}
+	//fn get_pathing_distance(&self, indexStart: usize, indexFinish: usize) _> f32 {
+		// "Return the distance you would like to use for path-finding"
+	//}
 }
 
 // EOF

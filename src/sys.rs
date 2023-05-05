@@ -19,6 +19,10 @@ use bevy::ecs::query::{With, Without};
 use bevy::ecs::entity::Entity;
 use bracket_pathfinding::prelude::*;
 
+// TODO: Need to implement change detection on the following:
+// map_indexing_system
+// visibility_system
+
 //  UTILITIES
 /// Converts a spacegame::Position into a bracket_pathfinding::Point
 pub fn posn_to_point(input: &Position) -> Point { Point { x: input.x, y: input.y } }
@@ -47,6 +51,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Mobile      { },
 		Obstructive { },
 		Container   { contents: Vec::new() },
+		Opaque      { opaque: true },
 	));
 	msglog.add("WELCOME TO SPACEGAME".to_string(), "world".to_string(), 1, 1);
 }
@@ -61,6 +66,7 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 		Viewshed    {visible_tiles: Vec::new(), range: 5, dirty: true},
 		Mobile      { },
 		Obstructive { },
+		Opaque      { opaque: true },
 	));
 	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0), "debug".to_string(), 1, 1);
 }
@@ -84,13 +90,13 @@ pub fn new_planq_spawn(mut commands:    Commands,
 
 //  CONTINUOUS SYSTEMS (run frequently)
 /// Runs assessment of the game state for things like victory/defeat conditions, &c
-pub fn engine_system(mut _commands:      Commands,
-	                 mut state:         ResMut<GameSettings>,
+pub fn engine_system(mut state:         ResMut<GameSettings>,
 	                 mut ereader:       EventReader<GameEvent>,
 	                 p_query:           Query<(Entity, &Position), With<Player>>,
 	                 q_query:           Query<(Entity, &Portable), With<Planq>>,
 	                 p_items_query:     Query<(Entity, &Portable), Without<Position>>,
 ) {
+	// Respond to any events in the queue
 	for event in ereader.iter() {
 		match event.etype {
 			ModeSwitch(mode) => {// Immediately switch to the specified mode
@@ -105,7 +111,6 @@ pub fn engine_system(mut _commands:      Commands,
 			_ => { } // Throw out all other event types
 		}
 	}
-	// TODO: the gameover conditions are somewhat protracted, not sure yet on health model
 	// Check for the victory state
 	let player = p_query.get_single().unwrap();
 	let planq = q_query.get_single().unwrap();
@@ -127,7 +132,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	                   mut p_posn_res:  ResMut<Position>,
 	                   mut p_query:     Query<(&mut Position, &mut Viewshed), With<Player>>,
 	                   enty_query:      Query<(&Position, &Name, Option<&mut Viewshed>), Without<Player>>,
-) { // NOTE: these Events are custom jobbers, see the GameEvent enum in the components
+) {
     // NOTE: the enty_query doesn't need to include Obstructive component because the map's
 	// blocked_tiles sub-map already includes that information in an indexed vector
 	// This allows us to only worry about consulting the query when we know we need it, as it is
@@ -233,28 +238,30 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 		}
 	}
 }
-/// Provides a map of blocked tiles, among other things, to the pathfinding systems
+/// Handles updates to the 'meta' maps, ie the blocked and opaque tilemaps
 pub fn map_indexing_system(_ereader:    EventReader<GameEvent>,
 	                       mut model:   ResMut<Model>,
 	                       mut blocker_query: Query<&Position, With<Obstructive>>,
-	                       _enty_query:  Query<(Entity, &Position)>
+	                       mut opaque_query: Query<(&Position, &Opaque)>,
 ) {
 	// TODO: consider possible optimization for not updating levels that the player is not on?
 	// might require some extra smartness to allow updates if the LMR does something out of sight
 	// First, rebuild the blocking map by the map tiles
 	let mut f_index = 0;
+	let mut index;
 	for floor in model.levels.iter_mut() {
-		floor.update_blocked_tiles();
-		for guy in blocker_query.iter_mut() {
-			if guy.z != f_index { continue; }
-			let index = floor.to_index(guy.x, guy.y);
-			floor.blocked_tiles[index] = true;
-		}
+		floor.update_tilemaps(); // Update tilemaps based on their tiletypes
 		// Then, step through all blocking entities and flag their locations on the map as well
 		for guy in blocker_query.iter_mut() {
 			if guy.z != f_index { continue; }
-			let index = floor.to_index(guy.x, guy.y);
+			index = floor.to_index(guy.x, guy.y);
 			floor.blocked_tiles[index] = true;
+		}
+		// Do the same for the opaque entities
+		for guy in opaque_query.iter_mut() {
+			if guy.0.z != f_index { continue; }
+			index = floor.to_index(guy.0.x, guy.0.y);
+			floor.opaque_tiles[index] = guy.1.opaque;
 		}
 		f_index += 1;
 	}
@@ -265,10 +272,14 @@ pub fn door_system(mut commands:    Commands,
                    mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, Option<&Obstructive>)>,
 ) {
 	for event in ereader.iter() {
-		if event.context.is_none() { return; }
+		if event.etype != ActorOpen
+		&& event.etype != ActorClose { continue; }
+		if event.context.is_none() { continue; }
+		eprintln!("Picked up a Door____ event");
 		let econtext = event.context.as_ref().unwrap();
 		match event.etype {
-			GameEventType::DoorOpen => {
+			GameEventType::ActorOpen => {
+				eprintln!("Trying to open a door");
 				for mut door in door_query.iter_mut() {
 					if door.0 == econtext.object {
 						door.2.is_open = true;
@@ -277,7 +288,8 @@ pub fn door_system(mut commands:    Commands,
 					}
 				}
 			}
-			GameEventType::DoorClose => {
+			GameEventType::ActorClose => {
+				eprintln!("Trying to close a door");
 				for mut door in door_query.iter_mut() {
 					if door.0 == econtext.object {
 						door.2.is_open = false;
@@ -328,7 +340,10 @@ pub fn item_collection_system(mut commands: Commands,
 	                          p_query:      Query<(Entity, &Name, &Position, &Container), With<Player>>
 ) {
 	for event in ereader.iter() {
-		if event.context.is_none() { return; } // All these actions require context info
+		if event.etype != ItemDrop
+		|| event.etype != ItemMove
+		|| event.etype != ItemKILL { continue; }
+		if event.context.is_none() { continue; } // All these actions require context info
 		let econtext = event.context.as_ref().unwrap();
 		let message: String;
 		let item_name = i_query.get(econtext.object).unwrap().1.to_string();

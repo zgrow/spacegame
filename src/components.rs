@@ -33,16 +33,44 @@ impl Position {
 	pub fn new(new_x: i32, new_y: i32, new_z: i32) -> Position {
 		Position{ x: new_x, y: new_y, z: new_z }
 	}
+	/// This is just a naive calculator for when all the variables can be obtained easily
+	/// Thus it runs very quickly by virtue of not needing to call into the ECS
+	/// Returns true if distance == range (ie is inclusive)
+	pub fn in_range_of(&self, target: Position, range: i32) -> bool {
+		if self.z != target.z { return false; } // z-levels must match (ie on same floor)
+		if range == 0 {
+			// This case is provided against errors; it's often faster/easier to just compare
+			// positions directly in the situation where this method would be called
+			if *self == target { return true; }
+		} else {
+			let mut d_x = f32::powi((target.y - self.y) as f32, 2);
+			let mut d_y = f32::powi((target.x - self.x) as f32, 2);
+			//eprintln!("dx: {}, dy: {}", d_x, d_y); // DEBUG:
+			if d_x.signum() != 1.0 { d_x *= -1.0; }
+			if d_y.signum() != 1.0 { d_y *= -1.0; }
+			//eprintln!("dx: {}, dy: {}", d_x, d_y); // DEBUG:
+			let distance = f32::sqrt(d_x + d_y).round();
+			eprintln!("* calculated distance: {self:?} to {target:?}: {}", distance); // DEBUG:
+			if distance as i32 <= range { return true; }
+		}
+		return false;
+	}
 }
 impl fmt::Display for Position {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "{}, {}, {}", self.x, self.y, self.z)
 	}
 }
-impl PartialEq<(i32, i32, i32)> for Position {
-	fn eq(&self, other: &(i32, i32, i32)) -> bool {
-		if self.x == other.0 && self.y == other.1 && self.z == other.2 { true }
-		else { false }
+//impl<'a, 'b> PartialEq<&'b Position> for &'a Position {
+//	fn eq(self, other: &'b Position) -> bool {
+//		if self.x == other.x && self.y == other.y && self.z == other.z { true }
+//		false
+//	}
+//}
+impl<'a> PartialEq<&(i32, i32, i32)> for &'a Position {
+	fn eq(&self, other: &&(i32, i32, i32)) -> bool {
+		if self.x == other.0 && self.y == other.1 && self.z == other.2 { return true; }
+		else { return false; }
 	}
 }
 /// Makes the entity available to be rendered on the viewport
@@ -75,6 +103,10 @@ impl FromWorld for Portable {
 		}
 	}
 }
+/// Describes an entity that blocks line of sight; comes with an internal state for temp use
+#[derive(Reflect, Component, Default)]
+#[reflect(Component)]
+pub struct Opaque { pub opaque: bool }
 /// Describes an entity with an operable barrier of some kind: a container's lid, or a door, &c
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
@@ -83,6 +115,9 @@ pub struct Openable {
 	pub open_glyph: String,
 	pub closed_glyph: String,
 }
+/// Describes an entity that can operate lids/doors/&c
+#[derive(Component)]
+pub struct CanOpen { }
 /// Describes an entity with something concealed behind a lock; uses an i32 value as a keyval
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
@@ -172,6 +207,8 @@ pub enum GameEventType {
 	PauseToggle, // specifically causes a mode switch between Running <-> Paused
 	ModeSwitch(EngineMode), // switches the engine to the specified mode
 	PlayerMove(Direction),
+	ActorOpen,
+	ActorClose,
 	ItemUse,
 	ItemMove,
 	ItemDrop,
@@ -179,6 +216,27 @@ pub enum GameEventType {
 	DoorOpen,
 	DoorClose,
 	PlanqEvent(PlanqEventType),
+}
+impl fmt::Display for GameEventType {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let output;
+		match self {
+			GameEventType::NullEvent => { output = "etype::NullEvent" }
+			GameEventType::PauseToggle => { output = "etype::PauseToggle" }
+			GameEventType::ModeSwitch(_) => { output = "etype::ModeSwitch" }
+			GameEventType::PlayerMove(_) => { output = "etype::PlayerMove" }
+			GameEventType::ActorOpen => { output = "etype::ActorOpen" }
+			GameEventType::ActorClose => { output = "etype::ActorClose" }
+			GameEventType::ItemUse => { output = "etype::ItemUse" }
+			GameEventType::ItemMove => { output = "etype::ItemMove" }
+			GameEventType::ItemDrop => { output = "etype::ItemDrop" }
+			GameEventType::ItemKILL => { output = "etype::ItemKILL" }
+			GameEventType::DoorOpen => { output = "etype::DoorOpen" }
+			GameEventType::DoorClose => { output = "etype::DoorClose" }
+			GameEventType::PlanqEvent(_) => { output = "etype::PlanqEvent" }
+		}
+		write!(f, "{}", output)
+	}
 }
 /// Custom interface obj for passing data from ratatui to Bevy
 #[derive(Resource, Default)]
