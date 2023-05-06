@@ -38,8 +38,8 @@ pub fn new_camera_system(mut commands: Commands) {
 }
 /// Spawns a new player, including their subsystems and default values
 pub fn new_player_spawn(mut commands: Commands,
-	                    spawnpoint: Res<Position>,
 	                    mut msglog: ResMut<MessageLog>,
+	                    spawnpoint: Res<Position>,
 ) {
 	commands.spawn((
 		// this is the player's collection of components and their initial values
@@ -52,6 +52,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Obstructive { },
 		Container   { contents: Vec::new() },
 		Opaque      { opaque: true },
+		CanOpen     { },
 	));
 	msglog.add("WELCOME TO SPACEGAME".to_string(), "world".to_string(), 1, 1);
 }
@@ -67,6 +68,7 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 		Mobile      { },
 		Obstructive { },
 		Opaque      { opaque: true },
+		CanOpen     { },
 	));
 	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0), "debug".to_string(), 1, 1);
 }
@@ -93,10 +95,9 @@ pub fn new_planq_spawn(mut commands:    Commands,
 pub fn engine_system(mut state:         ResMut<GameSettings>,
 	                 mut ereader:       EventReader<GameEvent>,
 	                 p_query:           Query<(Entity, &Position), With<Player>>,
-	                 q_query:           Query<(Entity, &Portable), With<Planq>>,
 	                 p_items_query:     Query<(Entity, &Portable), Without<Position>>,
+	                 q_query:           Query<(Entity, &Portable), With<Planq>>,
 ) {
-	// Respond to any events in the queue
 	for event in ereader.iter() {
 		match event.etype {
 			ModeSwitch(mode) => {// Immediately switch to the specified mode
@@ -119,21 +120,23 @@ pub fn engine_system(mut state:         ResMut<GameSettings>,
 		if item.1.carrier == player.0 { p_inventory.push(item.0); }
 	}
 	// version 0.1: Player must be standing in the specified Position
-	//if *player.1 == Position::new(28, 1, 1) { state.mode = EngineMode::GoodEnd; } // FIXME: partialeq?
+	//if *player.1 == Position::new(28, 1, 1) { state.mode = EngineMode::GoodEnd; }
 	// version 0.2: v0.1 AND Player.has == planq
-	if *player.1 == Position::new(28, 1, 1)
-	&& p_inventory.contains(&planq.0)
-	{ state.mode = EngineMode::GoodEnd; }
+	if *player.1 == Position::new(28, 1, 1) && p_inventory.contains(&planq.0) {
+		// FIXME: this state change is not propagating up to the actual engine mode variable
+		eprintln!("VICTORY condition achieved!"); // DEBUG:
+		state.mode = EngineMode::GoodEnd;
+	}
 }
 /// Handles entities that can move around the map
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
-	                   model:           Res<Model>,
 	                   mut msglog:      ResMut<MessageLog>,
 	                   mut p_posn_res:  ResMut<Position>,
 	                   mut p_query:     Query<(&mut Position, &mut Viewshed), With<Player>>,
+	                   model:           Res<Model>,
 	                   enty_query:      Query<(&Position, &Name, Option<&mut Viewshed>), Without<Player>>,
 ) {
-    // NOTE: the enty_query doesn't need to include Obstructive component because the map's
+	// NOTE: the enty_query doesn't need to include Obstructive component because the map's
 	// blocked_tiles sub-map already includes that information in an indexed vector
 	// This allows us to only worry about consulting the query when we know we need it, as it is
 	// much more expensive to iterate a query than to generate it
@@ -239,8 +242,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	}
 }
 /// Handles updates to the 'meta' maps, ie the blocked and opaque tilemaps
-pub fn map_indexing_system(_ereader:    EventReader<GameEvent>,
-	                       mut model:   ResMut<Model>,
+pub fn map_indexing_system(mut model:   ResMut<Model>,
 	                       mut blocker_query: Query<&Position, With<Obstructive>>,
 	                       mut opaque_query: Query<(&Position, &Opaque)>,
 ) {
@@ -266,39 +268,61 @@ pub fn map_indexing_system(_ereader:    EventReader<GameEvent>,
 		f_index += 1;
 	}
 }
-/// Handles DoorOpen/Close events
+/// Handles ActorOpen/Close events
 pub fn door_system(mut commands:    Commands,
-                   mut ereader:     EventReader<GameEvent>,
-                   mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, Option<&Obstructive>)>,
+	               mut ereader:     EventReader<GameEvent>,
+	               mut msglog:      ResMut<MessageLog>,
+	               mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
+	               mut e_query:     Query<(Entity, &Position, &Name, Option<&Player>, Option<&mut Viewshed>), With<CanOpen>>,
 ) {
 	for event in ereader.iter() {
 		if event.etype != ActorOpen
 		&& event.etype != ActorClose { continue; }
 		if event.context.is_none() { continue; }
-		eprintln!("Picked up a Door____ event");
 		let econtext = event.context.as_ref().unwrap();
+		eprintln!("actor opening door {0:?}", econtext.object); // DEBUG:
+		let actor = e_query.get_mut(econtext.subject).unwrap();
+		let player_action = actor.3.is_some();
+		let mut message: String = "".to_string();
 		match event.etype {
 			GameEventType::ActorOpen => {
-				eprintln!("Trying to open a door");
+				//eprintln!("Trying to open a door"); // DEBUG:
 				for mut door in door_query.iter_mut() {
 					if door.0 == econtext.object {
 						door.2.is_open = true;
 						door.3.glyph = door.2.open_glyph.clone();
+						door.4.opaque = false;
 						commands.entity(door.0).remove::<Obstructive>();
 					}
 				}
+				if player_action {
+					message = "The door slides open at your touch.".to_string();
+				} else {
+					message = format!("The {} opens a door.", actor.2.name.clone());
+				}
+				if actor.4.is_some() { actor.4.unwrap().dirty = true; }
 			}
 			GameEventType::ActorClose => {
-				eprintln!("Trying to close a door");
+				//eprintln!("Trying to close a door"); // DEBUG:
 				for mut door in door_query.iter_mut() {
 					if door.0 == econtext.object {
 						door.2.is_open = false;
 						door.3.glyph = door.2.closed_glyph.clone();
+						door.4.opaque = true;
 						commands.entity(door.0).insert(Obstructive {});
 					}
 				}
+				if player_action {
+					message = "The door slides shut.".to_string();
+				} else {
+					message = format!("The {} closes a door.", actor.2.name.clone());
+				}
+				if actor.4.is_some() { actor.4.unwrap().dirty = true; }
 			}
 			_ => { }
+		}
+		if !message.is_empty() {
+			msglog.tell_player(message);
 		}
 	}
 }
@@ -330,83 +354,64 @@ pub fn visibility_system(mut model: ResMut<Model>,
 /// Handles pickup/drop/destroy requests for Items
 pub fn item_collection_system(mut commands: Commands,
 	                          mut ereader:  EventReader<GameEvent>,
-	                          mut _model:    ResMut<Model>,
 	                          mut msglog:   ResMut<MessageLog>,
-	                          // The list of every Item that is in a container
+	                          // The list of Entities that also have Containers
+	                          e_query:      Query<(Entity, &Name, &Position, &Container, Option<&Player>)>,
+	                          // The list of every Item that may or may not be in a container
 	                          i_query:      Query<(Entity, &Name, &Portable, Option<&Position>)>,
-	                          // The list of every non-player Container
-	                          e_query:      Query<(Entity, &Name, &Position, &Container), Without<Player>>,
-	                          // The player
-	                          p_query:      Query<(Entity, &Name, &Position, &Container), With<Player>>
 ) {
 	for event in ereader.iter() {
-		if event.etype != ItemDrop
-		|| event.etype != ItemMove
-		|| event.etype != ItemKILL { continue; }
-		if event.context.is_none() { continue; } // All these actions require context info
+		if event.etype != ItemMove
+		&& event.etype != ItemDrop
+		&& event.etype != ItemKILL { continue; }
+		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
-		let message: String;
-		let item_name = i_query.get(econtext.object).unwrap().1.to_string();
-		let player = p_query.get_single().unwrap();
-		// assume this was a player action by arbitrary default
-		let mut subject = player.0;
-		let mut location = player.2;
-		let mut subject_name = player.1.name.clone();
-		let mut player_action = true;
-		if econtext.subject != player.0 { // but in case it wasn't, set the subject accordingly
-			for enty in e_query.iter() {
-				if enty.0 == econtext.subject {
-					subject = enty.0;
-					location = enty.2;
-					subject_name = enty.1.name.clone();
-					player_action = false;
-					break; // Entity IDs are guaranteed to be unique, therefore stop at first match
-				}
-			}
-		}
-		// Prefer to dispatch the message immediately when it is finished, as not every branch
-		// in this logic should actually generate a message (ie ItemKILL)
+		if econtext.is_invalid() { continue; } // TODO: consider renaming this function...
+		let mut message: String = "".to_string();
+		let subject = e_query.get(econtext.subject).unwrap();
+		let subject_name = subject.1.name.clone();
+		let player_action = subject.4.is_some();
+		let object = i_query.get(econtext.object).unwrap();
+		let item_name = object.1.name.clone();
 		match event.etype {
-			// An Item is moving from the World into an entity's Container: "pick up"
-			// or is moving between possession of entities: "give"
-			ItemMove => {
+			ItemMove => { // Move an Item into an Entity's possession
+				commands.entity(object.0)
+				.insert(Portable{carrier: subject.0}) // put the container's ID to the target's Portable component
+				.remove::<Position>(); // remove the Position component from the target
+				// note that the above simply does nothing if it doesn't exist,
+				// and inserting a Component that already exists overwrites the previous one,
+				// so it's safe to call even on enty -> enty transfers
 				if player_action {
 					message = format!("Obtained a {}.", item_name);
 				} else {
 					message = format!("The {} takes a {}.", subject_name, item_name);
 				}
-				msglog.tell_player(message);
-				commands.entity(econtext.object)
-				.insert(Portable{carrier: subject}) // put the container's ID to the target's Portable component
-				.remove::<Position>(); // remove the Position component from the target
-				// note that the above simply does nothing if it doesn't exist
-				// so it's safe to call on enty -> enty transfers
 			}
-			// An Item is being dropped from an Entity to the World
-			ItemDrop => {
+			ItemDrop => { // Remove an Item and place it into the World
+				let location = subject.2;
+				commands.entity(object.0)
+				.insert(Portable{carrier: Entity::PLACEHOLDER}) // still portable but not carried
+				.insert(Position{x: location.x, y: location.y, z: location.z});
 				if player_action {
 					message = format!("Dropped a {}.", item_name);
 				} else {
 					message = format!("The {} drops a {}.", subject_name, item_name);
 				}
-				msglog.tell_player(message);
-				commands.entity(econtext.object)
-				.insert(Portable{carrier: Entity::PLACEHOLDER}) // still portable but not carried
-				.insert(Position{x: location.x, y: location.y, z: location.z});
 			}
-			// Permanently removes an Item from the game
-			ItemKILL => {
+			ItemKILL => { // DESTROY an Item entirely, ie remove it from the game
 				commands.entity(econtext.object).despawn();
 			}
-			// NOTE: this system does not (yet?) handle item creation requests
-			_ => { }
+			_ => { /* do nothing */ }
+		}
+		if !message.is_empty() {
+			msglog.tell_player(message);
 		}
 	}
 }
 /// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
 pub fn planq_system(mut ereader: EventReader<GameEvent>, // subject to change
-	                p_query: Query<(Entity, &Position), With<Player>>, // provides interface to player data
 	                mut planq: ResMut<PlanqSettings>, // contains the PLANQ's settings and data storage
+	                p_query: Query<(Entity, &Position), With<Player>>, // provides interface to player data
 	                i_query: Query<(Entity, &Portable), Without<Position>>,
 ) {
 	/* TODO: Implement level generation such that the whole layout can be created at startup from a

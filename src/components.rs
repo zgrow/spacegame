@@ -261,6 +261,14 @@ pub struct GameEventContext {
 	pub subject: Entity, // the entity performing the action; by defn, only one
 	pub object: Entity, // the entity upon which the subject will perform the action
 }
+impl GameEventContext {
+	/// Returns true if either of the context elements are set to the Placeholder
+	pub fn is_invalid(&self) -> bool {
+		if self.subject == Entity::PLACEHOLDER { return true; }
+		if self.object == Entity::PLACEHOLDER { return true; }
+		false
+	}
+}
 /// Defines the set of control and input events that the Planq needs to handle
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Resource)]
 pub enum PlanqEventType {

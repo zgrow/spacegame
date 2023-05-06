@@ -114,11 +114,12 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 				// ... THEN put together the displayed tile from various input sources:
 				// First, obtain the background
 				new_tile = world_map.tiles[map_index].clone();
+				new_tile.bg = 8; // DEBUG: force an 'illuminated' background color
 				if target_x == player.2.x && target_y == player.2.y {
 					// If this tile is where the player's standing, draw the player and move on
 					new_tile.glyph = player.3.glyph.clone();
 					new_tile.fg = player.3.fg;
-					new_tile.bg = player.3.bg;
+					//new_tile.bg = player.3.bg; // DEBUG: use bg above
 					new_tile.mods = "".to_string();
 				} else if player.1.visible_tiles.contains(&Point::new(target_x, target_y)) {
 					// Else, render everything the player can see that isn't the player itself
@@ -127,7 +128,7 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 							if (posn.x, posn.y, posn.z) == (target_x, target_y, player.2.z) {
 								new_tile.glyph = rendee.glyph.clone();
 								new_tile.fg = rendee.fg;
-								new_tile.bg = rendee.bg;
+								//new_tile.bg = rendee.bg; // DEBUG: use bg above
 								new_tile.mods = "".to_string();
 							}
 						}

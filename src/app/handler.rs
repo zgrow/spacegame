@@ -26,8 +26,8 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	 * has so far been too difficult to finish, if not outright impossible
 	 * The game_events object below will monopolize the mutable ref to the game world
 	 * Therefore, do not try to extract and send info from here; defer to Bevy's event handling
-	 * *** DEBUG KEY HANDLING
 	 */
+	// *** DEBUG KEY HANDLING
 	if (key_event.code == KeyCode::Char('c') || key_event.code == KeyCode::Char('C'))
 	&& key_event.modifiers == KeyModifiers::CONTROL {
 		// Always allow the program to be closed via Ctrl-C
@@ -37,11 +37,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	// Extract entity ids for the player and the player's planq
 	let mut player_query = eng.app.world.query_filtered::<Entity, With<Player>>();
 	let player = player_query.get_single(&eng.app.world).unwrap();
-	let planq = &mut eng.app.world.get_resource_mut::<PlanqSettings>().unwrap();
 	// *** MENU CONTROL HANDLING
 	if eng.main_menu_is_visible
 	|| eng.item_chooser_is_visible
-	|| eng.target_chooser_is_visible {
+	|| eng.target_chooser_is_visible
+	{
 		// use the meta mappings
 		match key_event.code {
 			// Only handle these keys if the game's actually in-progress
@@ -54,8 +54,6 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				eng.target_chooser_is_visible = false;
 				// Dispatch immediately
 				eng.pause_game(false);
-				let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
-				game_events.send(GameEvent::new(ModeSwitch(EngineMode::Running), None));
 				return Ok(())
 			}
 			// Scroll the menu
@@ -103,9 +101,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						// Then clear off the screen and return to the game
 						eng.main_menu_toggle();
 						eng.main_menu.deselect();
-						// Immediate dispatch due to return requirement
-						let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
-						game_events.send(GameEvent::new(ModeSwitch(EngineMode::Running), None));
+						eng.pause_game(false);
 						return Ok(())
 					}
 				}
@@ -113,14 +109,14 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					let choice = eng.item_chooser.state.selected();
 					if choice.is_some() {
 						let choice_val = &eng.item_chooser.list[choice.unwrap_or_default()];
-						// FIXME: it might be possible for choice_val to be a Placeholder entity!
+						if *choice_val == Entity::PLACEHOLDER { return Ok(()); }
 						let context = Some(GameEventContext{subject: player, object: *choice_val});
 						eng.hide_item_chooser(); // close the chooser
 						eng.item_chooser.deselect();
 						// Immediate dispatch due to return requirement
 						let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
 						game_events.send(GameEvent::new(eng.player_action, context));
-						eng.pause_toggle();
+						eng.pause_game(false);
 						return Ok(())
 					}
 				}
@@ -128,13 +124,14 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					let choice = eng.target_chooser.state.selected();
 					if choice.is_some() {
 						let choice_val = &eng.target_chooser.list[choice.unwrap_or_default()];
-						// FIXME: it might be possible for choice_val to be a Placeholder entity!
+						if *choice_val == Entity::PLACEHOLDER { return Ok(()); }
 						let context = Some(GameEventContext{subject: player, object: *choice_val});
 						eng.hide_target_chooser();
 						eng.target_chooser.deselect();
+						// Immediate dispatch due to return requirement
 						let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
 						game_events.send(GameEvent::new(eng.player_action, context));
-						eng.pause_toggle();
+						eng.pause_game(false);
 						return Ok(())
 					}
 				}
@@ -145,37 +142,40 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	}
 	// *** GAME CONTROL HANDLING
 	else { // this is the 'default' game interaction mode
-		// use the literal mappings
-		let mut new_event = GameEvent::default(); // type will be GameEventType::NullEvent
+		// If the game is paused, don't accept any other key inputs
+		if eng.mode == EngineMode::Paused
+		&& key_event.code != KeyCode::Char('p')
+		&& key_event.code != KeyCode::Char('Q')
+		&& key_event.code != KeyCode::Esc
+		{ return Ok(()) }
+		let mut new_event = GameEvent::default(); // etype will be GameEventType::NullEvent
+		let planq = &mut eng.app.world.get_resource_mut::<PlanqSettings>().unwrap();
 		match key_event.code {
-			// META actions
-			// Pause key toggle
-			KeyCode::Char('p') => {
-				// FIXME: does this allow unpausing the main menu? CHECK
+			// Meta actions
+			KeyCode::Char('p') => { // Pause key toggle
 				// Dispatch immediately, do not defer
-				let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
-				game_events.send(GameEvent::new(PauseToggle, None));
+				eng.pause_toggle();
 				return Ok(())
 			}
-			// Pause and show main menu on `ESC` or `Q`
-			KeyCode::Esc | KeyCode::Char('Q') => {
+			KeyCode::Esc | KeyCode::Char('Q') => { // Pause and show main menu on `ESC` or `Q`
 				// Close the planq chooser if it's open, cancel any in-progress action
 				if planq.action_mode != PlanqActionMode::Default {
 					eng.planq_chooser.deselect();
 					planq.show_inventory = false; // close the inventory prompt if it's open
 					planq.action_mode = PlanqActionMode::Default; // exit Drop or Item request
-				} else if eng.item_chooser_is_visible {// Close the item chooser if it's open
+/*				} else if eng.item_chooser_is_visible {// Close the item chooser if it's open
 					eng.item_chooser.deselect();
 					eng.item_chooser_is_visible = false;
-					// Dispatch immediately, do not defer
-					let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
-					game_events.send(GameEvent::new(ModeSwitch(EngineMode::Running), None));
+					eng.pause_game(false);
 					return Ok(())
+				} else if eng.target_chooser_is_visible {// Close the target chooser if it's open
+					eng.target_chooser.deselect();
+					eng.item_chooser_is_visible = false;
+					eng.pause_game(false); */
 				} else {// Player must be trying to open the main menu
 					eng.main_menu_is_visible = true;
 					// Dispatch immediately, do not defer
-					let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
-					game_events.send(GameEvent::new(ModeSwitch(EngineMode::Paused), None));
+					eng.pause_game(true);
 					return Ok(())
 				}
 			}
@@ -197,7 +197,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				let mut open_names = Vec::new();
 				let mut open_query = eng.app.world.query::<(Entity, &Position, &Name, &Openable)>();
 				let p_posn = *eng.app.world.get_resource::<Position>().unwrap();
-				eprintln!("attempted to OPEN at posn {p_posn:?}"); // DEBUG:
+				//eprintln!("attempted to OPEN at posn {p_posn:?}"); // DEBUG:
 				eng.target_chooser.list.clear();
 				for target in open_query.iter(&eng.app.world) {
 					if target.1.in_range_of(p_posn, 1)
@@ -213,7 +213,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						let choice_val = eng.target_chooser.list[0];
 						new_event.etype = ActorOpen;
 						new_event.context = Some(GameEventContext { subject: player, object: choice_val });
-						eprintln!("new event: {}, {choice_val:?}", new_event.etype);
+						//eprintln!("new event: {}, {choice_val:?}", new_event.etype); // DEBUG:
 					} else {
 						eng.pause_game(true);
 						eng.player_action = ActorOpen;
@@ -264,14 +264,15 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						let choice_val = eng.item_chooser.list[0];
 						new_event.etype = ItemMove;
 						new_event.context = Some(GameEventContext{ subject: player, object: choice_val });
-					} else { // YES: 2+, so ask the player to clarify 
+						eprintln!("attempted to pick up {choice_val:?}");
+					} else { // YES: 2+, so ask the player to clarify
 						eng.pause_game(true);
 						eng.player_action = ItemMove;
 						eng.show_item_chooser();
 					}
 				}
 			}
-			// PLANQ 'sidebar'/ambient control mode
+			// PLANQ 'sidebar'/ambient controls
 			KeyCode::Left   => {if planq.show_inventory{eng.planq_chooser.deselect();}}
 			KeyCode::Right  => { /* does nothing in this context */ }
 			KeyCode::Up     => {if planq.show_inventory{eng.planq_chooser.prev();}}
@@ -293,7 +294,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					eng.planq_chooser.deselect();
 				}
 			}
-			// DEBUG: keys
+			// Debug keys and other tools
 			KeyCode::Char('s') => { // DEBUG: drops a snack for testing
 				eng.make_item(crate::item_builders::ItemType::Snack, Position::new(30, 20, 0));
 			}

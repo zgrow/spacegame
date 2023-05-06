@@ -86,7 +86,7 @@ impl PlanqSettings {
 	pub fn new() -> PlanqSettings {
 		PlanqSettings {
 			is_running: true,
-			is_carried: true, // FIXME: set this to detect actual carried status
+			is_carried: true, // TODO: set this to detect actual carried status
 			action_mode: PlanqActionMode::Default,
 			output_1_enabled: true,
 			output_2_enabled: false,

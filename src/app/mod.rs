@@ -85,6 +85,7 @@ impl GameEngine {
 		// self.main_menu.list is what holds the backing values
 		// this mm_items list holds the matching list of display values
 		let mut mm_items = Vec::new();
+		self.main_menu.list.clear();
 		for item in MainMenuItems::to_list().iter() {
 			match item {
 				MainMenuItems::NULL => { /* do nothing, ofc */ }
@@ -175,7 +176,7 @@ impl GameEngine {
 		let ppos = self.app.world.get_resource::<Position>().unwrap(); // DEBUG:
 		let mut planq_text = vec!["test string".to_string()]; // DEBUG:
 		planq_text.push(format!("*D* x: {}, y: {}, z: {}", ppos.x, ppos.y, ppos.z)); // DEBUG:
-		// FIXME: only draw the regular Planq bar if the Planq is actually on the player and running
+		// TODO: only draw the regular Planq bar if the Planq is actually on the player and running
 		let planq = self.app.world.get_resource::<PlanqSettings>().unwrap();
 		if planq.is_carried {
 			// Always draw the Planq's status output
@@ -303,19 +304,17 @@ impl GameEngine {
 			let area = Rect::new(40, 12, 23, 10); // WARN: magic numbers, see above as well
 			frame.render_widget(Clear, area);
 			frame.render_stateful_widget(menu, area, &mut self.target_chooser.state);
-			// FIXME: find a way to draw a target reticle here
+			// TODO: find a way to draw a target reticle here
 		}
 		// Display the fancy "PAUSED" banner if the game is paused
-		// FIXME: this should probably just use the eng.mode property to avoid making a world call
-		let eng_settings = self.app.world.get_resource::<GameSettings>().unwrap();
-		if eng_settings.mode == EngineMode::Paused {
+		if self.mode == EngineMode::Paused {
 			let xpfile = &XpFile::from_resource("../resources/big_pause.xp").unwrap();
 			let graphic = load_rex_pgraph(xpfile);
 			let banner_area = Rect::new(10, 5, graphic.width() as u16, (graphic.height() + 2) as u16);
 			let banner_img = Paragraph::new(graphic).block(Block::default().borders(Borders::TOP | Borders::BOTTOM));
 			frame.render_widget(Clear, banner_area);
 			frame.render_widget(banner_img, banner_area);
-		} else if eng_settings.mode == EngineMode::GoodEnd {
+		} else if self.mode == EngineMode::GoodEnd {
 			eprintln!("*************************");
 			eprintln!("*** Victory detected! ***");
 			eprintln!("*************************");
@@ -354,20 +353,18 @@ impl GameEngine {
 	/// Changes the pause-state of the game, ie transition between Running/Paused modes
 	pub fn pause_game(&mut self, state: bool) {
 		if state {
-			self.mode = EngineMode::Paused;
+			self.set_mode(EngineMode::Paused);
 		} else {
-			self.mode = EngineMode::Running;
+			self.set_mode(EngineMode::Running);
 		}
-		// FIXME: dispatch event?
 	}
 	/// Toggles between Running/Paused depending on last mode
 	pub fn pause_toggle(&mut self) {
 		if self.mode == EngineMode::Paused {
-			self.mode = EngineMode::Running;
+			self.pause_game(false);
 		} else {
-			self.mode = EngineMode::Paused;
+			self.pause_game(true);
 		}
-		// FIXME: dispatch event?
 	}
 	/// Handles a call to save the game
 	pub fn save_game(&mut self) {
