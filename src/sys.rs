@@ -122,6 +122,7 @@ pub fn engine_system(mut state:         ResMut<GameSettings>,
 	// version 0.1: Player must be standing in the specified Position
 	//if *player.1 == Position::new(28, 1, 1) { state.mode = EngineMode::GoodEnd; }
 	// version 0.2: v0.1 AND Player.has == planq
+	// version 0.3: constraint: the Door to the Elevator is stuck shut, the Planq can reboot it
 	if *player.1 == Position::new(28, 1, 1) && p_inventory.contains(&planq.0) {
 		// FIXME: this state change is not propagating up to the actual engine mode variable
 		eprintln!("VICTORY condition achieved!"); // DEBUG:
