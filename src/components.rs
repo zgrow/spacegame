@@ -50,7 +50,7 @@ impl Position {
 			if d_y.signum() != 1.0 { d_y *= -1.0; }
 			//eprintln!("dx: {}, dy: {}", d_x, d_y); // DEBUG:
 			let distance = f32::sqrt(d_x + d_y).round();
-			eprintln!("* calculated distance: {self:?} to {target:?}: {}", distance); // DEBUG:
+			//eprintln!("* calculated distance: {self:?} to {target:?}: {}", distance); // DEBUG:
 			if distance as i32 <= range { return true; }
 		}
 		return false;

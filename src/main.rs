@@ -44,7 +44,7 @@ fn main() -> AppResult<()> {
 	let tsize = terminal.size().unwrap();
 	if tsize.width < 80 || tsize.height < 40 {
 		// throw a bigtime error and bailout if the terminal is too small
-		eprintln!("Terminal size: {}, {}", tsize.width, tsize.height);
+		eprintln!("Terminal size: {}, {}", tsize.width, tsize.height); // DEBUG:
 		return Err("Terminal size is too small (must be 80x40 minimum)".into());
 	}
 	// Finish setup of ratatui
@@ -100,7 +100,7 @@ fn main() -> AppResult<()> {
 	let mut worldmap = builder.get_map();
 	// build all of the furniture, backdrops, and so on for this level
 	let mut item_spawns = builder.get_item_spawn_list();
-	eprintln!("item_spawns.len: {}", item_spawns.len());
+	eprintln!("item_spawns.len: {}", item_spawns.len()); // DEBUG:
 	eng.artificer.spawn_batch(&mut eng.app.world, &mut item_spawns, cur_floor);
 	model.levels.push(worldmap);
 	// build the dev map and drop a portal to it

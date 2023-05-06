@@ -57,7 +57,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 	/// Spawns an Item Entity in the World, ie at a map Position, and returns a ref to it
 	pub fn spawn(&'b mut self, world: &'a mut World, new_type: ItemType, location: Position) -> EntityMut<'b> {
 		self.spawn_count += 1;
-		eprintln!("* spawning object {new_type:?} at {}", location);
+		//eprintln!("* spawning object {new_type:?} at {}", location); // DEBUG:
 		match new_type {
 			ItemType::Simple    => {
 				world.spawn( Item {
@@ -124,7 +124,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 	//pub fn give(&self, new_item: String, target: ResMut<Entity>) { } // TODO:
 	/// Calls spawn on the given list of new item prototypes
 	pub fn spawn_batch(&'b mut self, world: &'a mut World, items: &mut Vec<(ItemType, Position)>, z_level: i32) {
-		eprintln!("* spawning batch: {} items", items.len());
+		eprintln!("* spawning batch: {} items", items.len()); // DEBUG:
 		for item in items {
 			item.1.z = z_level;
 			self.spawn(world, item.0, item.1);

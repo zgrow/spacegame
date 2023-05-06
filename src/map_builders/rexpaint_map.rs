@@ -15,13 +15,13 @@ pub struct RexMapBuilder {
 impl MapBuilder for RexMapBuilder {
 	fn build_map(&mut self) {
 		RexMapBuilder::load_test_map(self);
-		eprintln!("build_map::new_entys: {}", self.new_entys.len());
+		eprintln!("* build_map::new_entys: {}", self.new_entys.len()); // DEBUG:
 	}
 	fn get_map(&self) -> Map {
 		self.map.clone()
 	}
 	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
-		eprintln!("dispatching new_entys");
+		eprintln!("* dispatching new_entys"); // DEBUG:
 		self.new_entys.clone()
 	}
 }
@@ -35,7 +35,7 @@ impl RexMapBuilder {
 	}
 	fn load_test_map(&mut self) {
 		(self.map, self.new_entys) = load_rex_map(&XpFile::from_resource("../resources/test_ship.xp").unwrap());
-		eprintln!("load_test_map::new_entys: {}", self.new_entys.len());
+		eprintln!("* load_test_map::new_entys: {}", self.new_entys.len()); // DEBUG:
 	}
 }
 

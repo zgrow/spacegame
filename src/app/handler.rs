@@ -203,7 +203,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					if target.1.in_range_of(p_posn, 1)
 					&& !target.3.is_open
 					{
-						eprintln!("Found a door to open: {}", target.2.name.clone());
+						//eprintln!("Found a door to open: {}", target.2.name.clone()); // DEBUG:
 						open_names.push(ListItem::new(target.2.name.clone())); // display list
 						eng.target_chooser.list.push(target.0);
 					}
@@ -222,7 +222,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 			}
 			KeyCode::Char('c') => { // CLOSE an Openable nearby
-				eprintln!("attempted to CLOSE something!"); // DEBUG:
+				//eprintln!("attempted to CLOSE something!"); // DEBUG:
 				let mut close_names = Vec::new();
 				let mut close_query = eng.app.world.query::<(Entity, &Position, &Name, &Openable)>();
 				let p_posn = *eng.app.world.get_resource::<Position>().unwrap();
@@ -264,7 +264,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						let choice_val = eng.item_chooser.list[0];
 						new_event.etype = ItemMove;
 						new_event.context = Some(GameEventContext{ subject: player, object: choice_val });
-						eprintln!("attempted to pick up {choice_val:?}");
+						//eprintln!("attempted to pick up {choice_val:?}"); // DEBUG:
 					} else { // YES: 2+, so ask the player to clarify
 						eng.pause_game(true);
 						eng.player_action = ItemMove;
@@ -282,7 +282,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					let choice = eng.planq_chooser.state.selected();
 					if choice.is_some() {
 						let choice_val = &eng.planq_chooser.list[choice.unwrap()];
-						eprintln!("drop choice: {choice_val:?}"); // DEBUG:
+						//eprintln!("drop choice: {choice_val:?}"); // DEBUG:
 						new_event.context = Some(GameEventContext{subject: player, object: *choice_val});
 					}
 					match planq.action_mode {

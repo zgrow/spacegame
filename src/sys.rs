@@ -101,11 +101,11 @@ pub fn engine_system(mut state:         ResMut<GameSettings>,
 	for event in ereader.iter() {
 		match event.etype {
 			ModeSwitch(mode) => {// Immediately switch to the specified mode
-				eprintln!("Switching engine mode: {mode:?}"); // DEBUG:
+				//eprintln!("Switching engine mode: {mode:?}"); // DEBUG:
 				state.mode = mode;
 			}
 			PauseToggle => {
-				eprintln!("Pause toggled"); // DEBUG:
+				//eprintln!("Pause toggled"); // DEBUG:
 				if state.mode == EngineMode::Running { state.mode = EngineMode::Paused; }
 				else if state.mode == EngineMode::Paused { state.mode = EngineMode::Running; }
 			}
@@ -280,7 +280,7 @@ pub fn door_system(mut commands:    Commands,
 		&& event.etype != ActorClose { continue; }
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
-		eprintln!("actor opening door {0:?}", econtext.object); // DEBUG:
+		//eprintln!("actor opening door {0:?}", econtext.object); // DEBUG:
 		let actor = e_query.get_mut(econtext.subject).unwrap();
 		let player_action = actor.3.is_some();
 		let mut message: String = "".to_string();
