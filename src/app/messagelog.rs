@@ -4,12 +4,12 @@
 use ratatui::text::Spans;
 
 use bevy::prelude::*;
-#[derive(PartialEq, Clone, Reflect, FromReflect)]
+#[derive(PartialEq, Eq, Clone, Reflect, FromReflect, Debug)]
 pub struct Message {
-	timestamp: i32,
-	priority: i32,
-	channel: String,
-	text: String,
+	pub timestamp: i32,
+	pub priority: i32,
+	pub channel: String,
+	pub text: String,
 }
 impl Message {
 	pub fn new(time: i32, level: i32, chan: String, msg: String) -> Message {
@@ -23,8 +23,8 @@ impl Message {
 }
 #[derive(PartialEq, Clone, Reflect, FromReflect)]
 pub struct MessageChannel {
-	name: String,
-	contents: Vec<Message>,
+	pub name: String,
+	pub contents: Vec<Message>,
 }
 impl MessageChannel {
 	pub fn new(new_name: &String) -> MessageChannel {
@@ -40,7 +40,7 @@ impl MessageChannel {
 #[derive(PartialEq, Clone, Resource, Reflect, Default)]
 #[reflect(Resource)]
 pub struct MessageLog {
-	logs: Vec<MessageChannel>
+	pub logs: Vec<MessageChannel>
 }
 impl MessageLog {
 	/// Creates a new MessageLog with the preset channels
@@ -51,6 +51,7 @@ impl MessageLog {
 		}
 		MessageLog{ logs: new_logs }
 	}
+	//  * TOOLS
 	/// Adds a new message to the given channel; if the channel does not exist it will be made
 	/// # Arguments
 	/// * `msg_text` - The text of the message
@@ -72,14 +73,24 @@ impl MessageLog {
 		new_channel.add(Message::new(msg_time, msg_prio, msg_chan, msg_text));
 		self.logs.push(new_channel);
 	}
+	/// Counts the number of messages in the specified channel; RETURNS 0 if channel not found!
+	pub fn channel_len(&self, req_channel: String) -> usize {
+		for channel in &self.logs {
+			if channel.name == req_channel { return channel.contents.len(); }
+		}
+		0
+	}
 	/// Helper method: adds a new message directly to the "world" channel [TODO: with an immediate timestamp]
 	pub fn tell_player(&mut self, msg_text: String) {
 		self.add(msg_text, "world".to_string(), 0, 0);
 	}
-	/// Retrieves the set of log messages from a specified channel
+	/// Retrieves a set of log messages from a specified channel as ratatui::Spans
+	/// This means the text will be formatted for display in a ratatui::Paragraph!
 	/// If the given channel does not exist, an empty vector will be returned
-	pub fn get_log(&self, req_channel: String) -> Vec<Spans> {
-		let mut backlog = Vec::new();
+	/// Specify a count of 0 to obtain the full log for that channel
+	pub fn get_log_as_spans(&self, req_channel: String, count: usize) -> Vec<Spans> {
+		// TODO: See if possible to optimize this by not building the whole list each time
+		let mut backlog: Vec<Spans> = Vec::new();
 		if self.logs.is_empty() { return backlog; }
 		for channel in &self.logs {
 			if channel.name == req_channel {
@@ -88,7 +99,35 @@ impl MessageLog {
 				}
 			}
 		}
+		if count != 0 {
+			let offset = backlog.len() - count;
+			backlog = backlog[offset..].to_vec();
+		}
 		backlog
+	}
+	/// Retrieves a set of log messages from a specified channel as my Message object
+	/// This preserves the log message metadata
+	/// If the given channel does not exist, an empty vector will be returned
+	/// Specify a count of 0 to obtain the full log for that channel
+	pub fn get_log_as_messages(&self, req_channel: String, count: usize) -> Vec<Message> {
+		if self.logs.is_empty() { return Vec::new(); }
+		for channel in &self.logs {
+			if channel.name == req_channel {
+				if count == 0 { return channel.contents.clone(); }
+				let offset = channel.contents.len() - count;
+				return channel.contents[offset..].to_vec();
+			}
+		}
+		Vec::new()
+	}
+}
+/// Implements the Default trait for the reference type
+impl<'a> Default for &'a MessageLog {
+	fn default() -> &'a MessageLog {
+		static VALUE: MessageLog = MessageLog {
+			logs: Vec::new(),
+		};
+		&VALUE
 	}
 }
 
