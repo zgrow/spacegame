@@ -53,6 +53,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Container   { contents: Vec::new() },
 		Opaque      { opaque: true },
 		CanOpen     { },
+		CanOperate  { },
 	));
 	msglog.add("WELCOME TO SPACEGAME".to_string(), "world".to_string(), 1, 1);
 }
@@ -69,6 +70,7 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 		Obstructive { },
 		Opaque      { opaque: true },
 		CanOpen     { },
+		CanOperate  { },
 	));
 	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0), "debug".to_string(), 1, 1);
 }
@@ -85,7 +87,8 @@ pub fn new_planq_spawn(mut commands:    Commands,
 				render: Renderable { glyph: "¶".to_string(), fg: 3, bg: 0 },
 			},
 			portable: Portable { carrier: Entity::PLACEHOLDER },
-		}
+		},
+		ToggleSwitch { state: false, },
 	));
 	msglog.add(format!("planq spawned at {}, {}, {}", 25, 30, 0), "debug".to_string(), 1, 1);
 }
@@ -269,8 +272,8 @@ pub fn map_indexing_system(mut model:   ResMut<Model>,
 		f_index += 1;
 	}
 }
-/// Handles ActorOpen/Close events
-pub fn door_system(mut commands:    Commands,
+/// Handles CanOpen component action via ActorOpen/Close events
+pub fn openable_system(mut commands:    Commands,
 	               mut ereader:     EventReader<GameEvent>,
 	               mut msglog:      ResMut<MessageLog>,
 	               mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
@@ -326,6 +329,70 @@ pub fn door_system(mut commands:    Commands,
 			msglog.tell_player(message);
 		}
 	}
+}
+/// Handles ActorLock/Unlock events
+pub fn lock_system(mut _commands:    Commands,
+                   mut ereader:     EventReader<GameEvent>,
+                   mut msglog:      ResMut<MessageLog>,
+                   mut lock_query:  Query<(Entity, &Position, &Name, &mut Lockable)>,
+                   mut e_query:     Query<(Entity, &Position, &Name, Option<&Player>), With<CanOpen>>,
+                   key_query:       Query<(Entity, &Portable, &Name, &Key), Without<Position>>,
+) {
+	for event in ereader.iter() {
+		if event.context.is_none() { continue; }
+		let econtext = event.context.as_ref().unwrap();
+		let actor = e_query.get_mut(econtext.subject).unwrap();
+		let player_action = actor.3.is_some();
+		let mut target = lock_query.get_mut(econtext.object).unwrap();
+		let mut message: String = "".to_string();
+		match event.etype {
+			ActorLock => {
+				// TODO: obtain the new key value and apply it to the lock
+				target.3.is_locked = true;
+				if player_action {
+					message = format!("You tap the LOCK button on the {}.", target.2.name.clone());
+				} else {
+					message = format!("The {} locks the {}.", actor.2.name.clone(), target.2.name.clone());
+				}
+			}
+			ActorUnlock => {
+				// Obtain the set of keys that the actor is carrying
+				let mut carried_keys: Vec<(Entity, i32, String)> = Vec::new();
+				for key in key_query.iter() {
+					if key.1.carrier == actor.0 { carried_keys.push((key.0, key.3.key_id, key.2.name.clone())); }
+				}
+				if carried_keys.is_empty() { continue; } // no keys to try!
+				// The actor has at least one key to try in the lock
+				for key in carried_keys.iter() {
+					if key.1 == target.3.key {
+						// the subject has the right key, unlock the lock
+						target.3.is_locked = false;
+						if player_action {
+							message = format!("Your {} unlocks the {}.", key.2, target.2.name.clone());
+						} else {
+							message = format!("The {} unlocks the {}.", actor.2.name.clone(), target.2.name.clone());
+						}
+					} else {
+						// none of the keys worked, report a failure
+						if player_action {
+							message = format!("You don't seem to have the right key.");
+						}
+					}
+				}
+			}
+			_ => { }
+		}
+		if !message.is_empty() {
+			msglog.tell_player(message);
+		}
+	}
+}
+/// Handles anything related to the CanOpen component: ActorUse, ToggleSwitch, &c
+pub fn operable_system(mut ereader: EventReader<GameEvent>,
+                       mut o_query: Query<(Entity, &Position, &Name), With<CanOperate>>,
+                       mut d_query: Query<(Entity, &Name), With<Device>>,
+) {
+
 }
 /// Handles entities that can see physical light
 pub fn visibility_system(mut model: ResMut<Model>,
@@ -410,10 +477,12 @@ pub fn item_collection_system(mut commands: Commands,
 	}
 }
 /// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
-pub fn planq_system(mut ereader: EventReader<GameEvent>, // subject to change
-	                mut planq: ResMut<PlanqSettings>, // contains the PLANQ's settings and data storage
+pub fn planq_system(mut ereader:    EventReader<GameEvent>, // subject to change
+	                msglog:     ResMut<MessageLog>,
+	                mut planq:      ResMut<PlanqData>, // contains the PLANQ's settings and data storage
 	                p_query: Query<(Entity, &Position), With<Player>>, // provides interface to player data
 	                i_query: Query<(Entity, &Portable), Without<Position>>,
+	                q_query: Query<(Entity, &Planq)>,
 ) {
 	/* TODO: Implement level generation such that the whole layout can be created at startup from a
 	 * tree of rooms, rather than by directly loading a REXPaint map; by retaining this tree-list
@@ -421,13 +490,25 @@ pub fn planq_system(mut ereader: EventReader<GameEvent>, // subject to change
 	 */
 	// Update the planq's settings if there are any changes queued up
 	let player = p_query.get_single().unwrap();
+	let planq_enty = q_query.get_single().unwrap();
+	let mut refresh_inventory = false;
+	// Handle any new comms
 	for event in ereader.iter() {
 		match event.etype {
+			// PLANQ system commands
 			PlanqEvent(p_cmd) => {
 				match p_cmd {
-					Startup => { planq.is_running = true; } // TODO: convert field to planq.state
-					Shutdown => { planq.is_running = false; }
+					Startup => { planq.power_is_on = true; }
+					Shutdown => { planq.power_is_on = false; }
 					Reboot => { }
+					CliOpen => {
+						planq.show_cli_input = true;
+						planq.action_mode = PlanqActionMode::CliInput;
+					}
+					CliClose => {
+						planq.show_cli_input = false;
+						planq.action_mode = PlanqActionMode::Default; // FIXME: this might be a bad choice
+					}
 					InventoryUse => {
 						planq.inventory_toggle(); // display the inventory menu
 						planq.action_mode = PlanqActionMode::UseItem;
@@ -438,11 +519,27 @@ pub fn planq_system(mut ereader: EventReader<GameEvent>, // subject to change
 					}
 				}
 			}
+			// Player interaction events that need to be monitored
+			ItemMove => {
+				let econtext = event.context.as_ref().unwrap();
+				if econtext.subject == player.0 {
+					refresh_inventory = true;
+					if econtext.object == planq_enty.0 {
+						planq.is_carried = true;
+					}
+				}
+			}
+			ItemDrop => {
+				let econtext = event.context.as_ref().unwrap();
+				if econtext.subject == player.0 { refresh_inventory = true; }
+				if econtext.object == planq_enty.0 { planq.is_carried = false; }
+			}
 			_ => { }
 		}
 	}
-	if planq.show_inventory {
-		// fill the planq's inventory list
+	// Update the PLANQData resources:
+	// - Refill the planq's inventory list
+	if refresh_inventory {
 		planq.inventory_list = Vec::new();
 		for item in i_query.iter().enumerate() {
 			if item.1.1.carrier == player.0 {
@@ -450,6 +547,11 @@ pub fn planq_system(mut ereader: EventReader<GameEvent>, // subject to change
 			}
 		}
 	}
+	// - Refresh the planq's scrollback
+	// TODO: optimize this to avoid doing a full copy of the log every single time
+	planq.stdout = msglog.get_log_as_messages("planq".to_string(), 0);
+	// - Get the player's location
+	planq.player_loc = *player.1;
 }
 
 /* TODO: "memory_system":

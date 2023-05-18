@@ -75,7 +75,7 @@ fn main() -> AppResult<()> {
 		.insert_resource(Position{x: 35, y: 20, z: 0}) // The player's position/starting spawn point
 		.insert_resource(Events::<GameEvent>::default()) // The Bevy handler for inter-system comms
 		.insert_resource(MessageLog::new(chanlist))
-		.insert_resource(PlanqSettings::new())
+		.insert_resource(PlanqData::new())
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
 		.add_event::<crossterm::event::KeyEvent>()
 		.add_startup_system(new_player_spawn) // depends on having player_spawn inserted prior
@@ -87,7 +87,9 @@ fn main() -> AppResult<()> {
 		.add_system(visibility_system)
 		.add_system(camera_update_sys)
 		.add_system(item_collection_system)
-		.add_system(door_system)
+		.add_system(openable_system)
+		.add_system(lock_system)
+		.add_system(operable_system)
 		.add_system(planq_system)
 	;
 	// Build the game world

@@ -26,7 +26,7 @@ impl fmt::Display for Name {
 	}
 }
 /// Represents a point on a 2d grid as an xy pair
-#[derive(Reflect, Component, Resource, Copy, Clone, Eq, PartialEq, Default, Debug)]
+#[derive(Reflect, FromReflect, Component, Resource, Copy, Clone, Eq, PartialEq, Default, Debug)]
 #[reflect(Component)]
 pub struct Position { pub x: i32, pub y: i32, pub z: i32 }
 impl Position {
@@ -103,6 +103,10 @@ impl FromWorld for Portable {
 		}
 	}
 }
+/// Describes an entity which may contain entities tagged with the Portable Component
+#[derive(Reflect, Component, Default)]
+#[reflect(Component)]
+pub struct Container { pub contents: Vec<String> }
 /// Describes an entity that blocks line of sight; comes with an internal state for temp use
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
@@ -122,10 +126,54 @@ pub struct CanOpen { }
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
 pub struct Lockable { pub is_locked: bool, pub key: i32 }
-/// Describes an entity which may contain entities tagged with the Portable Component
+impl Lockable {
+	// Unlocks, given the correct key value as input
+	pub fn unlock(&mut self, test_key: i32) -> bool {
+		if test_key == self.key {
+			self.is_locked = false;
+			return true;
+		}
+		false
+	}
+	// Locks when called; if a key is given, it will overwrite the previous key-value
+	// Specify a value of 0 to obtain the existing key-value instead
+	pub fn lock(&mut self, new_key: i32) -> i32 {
+		self.is_locked = true;
+		if new_key != 0 { self.key = new_key; }
+		return self.key;
+	}
+}
+/// Describes an entity that can lock or unlock a Lockable object
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
-pub struct Container { pub contents: Vec<String> }
+pub struct Key { pub key_id: i32 }
+/// Describes an entity that can be Used by an entity with the CanOperate component
+pub trait Operable {
+	fn operate(&self);
+}
+pub struct Device { }
+impl Operable for Device {
+	fn operate(&self) {
+
+	}
+}
+/// Describes an entity with a two-state switch
+#[derive(Reflect, Component, Default)]
+#[reflect(Component)]
+pub struct ToggleSwitch { pub state: bool }
+impl ToggleSwitch {
+	pub fn switch_on(&mut self) { self.state = true; }
+	pub fn switch_off(&mut self) { self.state = false; }
+	pub fn toggle(&mut self) { self.state = !self.state; }
+}
+impl Operable for ToggleSwitch {
+	fn operate(&self) {
+		self.state = !self.state;
+	}
+}
+/// Describes an entity that can manipulate the controls of another entity
+#[derive(Component)]
+pub struct CanOperate { }
 
 //  *** PRIMITIVES AND COMPUTED VALUES (ie no save/load)
 /// Sets the current run mode of the GameEngine
@@ -209,6 +257,8 @@ pub enum GameEventType {
 	PlayerMove(Direction),
 	ActorOpen,
 	ActorClose,
+	ActorLock,
+	ActorUnlock,
 	ItemUse,
 	ItemMove,
 	ItemDrop,
@@ -227,6 +277,8 @@ impl fmt::Display for GameEventType {
 			GameEventType::PlayerMove(_) => { output = "etype::PlayerMove" }
 			GameEventType::ActorOpen => { output = "etype::ActorOpen" }
 			GameEventType::ActorClose => { output = "etype::ActorClose" }
+			GameEventType::ActorLock => { output = "etype::ActorLock" }
+			GameEventType::ActorUnlock => { output = "etype::ActorUnlock" }
 			GameEventType::ItemUse => { output = "etype::ItemUse" }
 			GameEventType::ItemMove => { output = "etype::ItemMove" }
 			GameEventType::ItemDrop => { output = "etype::ItemDrop" }
@@ -275,6 +327,8 @@ pub enum PlanqEventType {
 	Startup,
 	Shutdown,
 	Reboot,
+	CliOpen,
+	CliClose,
 	InventoryUse,
 	InventoryDrop,
 }

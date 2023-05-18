@@ -7,7 +7,7 @@ use bevy::ecs::event::Events;
 use bevy::ecs::entity::*;
 use bevy::ecs::query::*;
 
-use crate::app::{AppResult, GameEngine, MainMenuItems};
+use crate::app::{AppResult, GameEngine, MainMenuItems, MessageLog};
 use crate::app::planq::*;
 use crate::app::planq::PlanqActionMode::*;
 use crate::components::*;
@@ -149,7 +149,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 		&& key_event.code != KeyCode::Esc
 		{ return Ok(()) }
 		let mut new_event = GameEvent::default(); // etype will be GameEventType::NullEvent
-		let planq = &mut eng.app.world.get_resource_mut::<PlanqSettings>().unwrap();
+		let planq = &mut eng.app.world.get_resource_mut::<PlanqData>().unwrap();
 		match key_event.code {
 			// Meta actions
 			KeyCode::Char('p') => { // Pause key toggle
@@ -190,7 +190,25 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('n') => {new_event.etype = PlayerMove(Direction::SE);}
 			KeyCode::Char('>') => {new_event.etype = PlayerMove(Direction::DOWN);}
 			KeyCode::Char('<') => {new_event.etype = PlayerMove(Direction::UP);}
-			KeyCode::Char('i') => {new_event.etype = PlanqEvent(InventoryUse);}
+			KeyCode::Char('i') => {
+				if planq.is_carried && planq.power_is_on {new_event.etype = PlanqEvent(InventoryUse);}
+				else {
+					let mut item_names = Vec::new();
+					let mut backpack_query = eng.app.world.query_filtered::<(Entity, &Name, &Portable), Without<Position>>();
+					eng.item_chooser.list.clear();
+					for item in backpack_query.iter(&eng.app.world) {
+						if item.2.carrier == player {
+							item_names.push(ListItem::new(item.1.name.clone()));
+							eng.item_chooser.list.push(item.0);
+						}
+					}
+					if item_names.len() == 0 {
+						let mut msglog = eng.app.world.get_resource_mut::<MessageLog>().unwrap();
+						msglog.tell_player(format!("You have nothing in your pockets."));
+						return Ok(())
+					}
+				}
+			}
 			KeyCode::Char('d') => {new_event.etype = PlanqEvent(InventoryDrop);}
 			// Compound actions, context required: may require secondary inputs from player
 			KeyCode::Char('o') => { // OPEN an Openable nearby
@@ -272,7 +290,63 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					}
 				}
 			}
+			KeyCode::Char('L') => { // LOCK a Lockable item
+				let mut lock_names = Vec::new();
+				let mut lock_query = eng.app.world.query::<(Entity, &Position, &Name, &Lockable)>();
+				let p_posn = *eng.app.world.get_resource::<Position>().unwrap();
+				eng.target_chooser.list.clear();
+				for target in lock_query.iter(&eng.app.world) {
+					if target.1.in_range_of(p_posn, 1)
+					&& target.3.is_locked
+					{
+						lock_names.push(ListItem::new(target.2.name.clone()));
+						eng.target_chooser.list.push(target.0);
+					}
+				}
+				if lock_names.len() > 0 {
+					if lock_names.len() == 1 {
+						let choice_val = eng.target_chooser.list[0];
+						new_event.etype = ActorLock;
+						new_event.context = Some(GameEventContext { subject: player, object: choice_val });
+					} else {
+						eng.pause_game(true);
+						eng.player_action = ActorLock;
+						eng.show_target_chooser();
+					}
+				}
+			}
+			KeyCode::Char('U') => { // UNLOCK a Lockable item
+				let mut lock_names = Vec::new();
+				let mut lock_query = eng.app.world.query::<(Entity, &Position, &Name, &Lockable)>();
+				let p_posn = *eng.app.world.get_resource::<Position>().unwrap();
+				eng.target_chooser.list.clear();
+				for target in lock_query.iter(&eng.app.world) {
+					if target.1.in_range_of(p_posn, 1)
+					&& !target.3.is_locked
+					{
+						lock_names.push(ListItem::new(target.2.name.clone()));
+						eng.target_chooser.list.push(target.0);
+					}
+				}
+				if lock_names.len() > 0 {
+					if lock_names.len() == 1 {
+						let choice_val = eng.target_chooser.list[0];
+						new_event.etype = ActorLock;
+						new_event.context = Some(GameEventContext { subject: player, object: choice_val });
+					} else {
+						eng.pause_game(true);
+						eng.player_action = ActorLock;
+						eng.show_target_chooser();
+					}
+				}
+			}
+			KeyCode::Char('a') => { // APPLY (use) a Functional item
+				// Get a list of all Functional items in the player's pack
+				// Drop them into one of the choosers
+				// Invoke the chooser and set the eng.player_action
+			}
 			// PLANQ 'sidebar'/ambient controls
+			KeyCode::Char('P') => {new_event.etype = PlanqEvent(CliOpen);}
 			KeyCode::Left   => {if planq.show_inventory{eng.planq_chooser.deselect();}}
 			KeyCode::Right  => { /* does nothing in this context */ }
 			KeyCode::Up     => {if planq.show_inventory{eng.planq_chooser.prev();}}
@@ -286,12 +360,14 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						new_event.context = Some(GameEventContext{subject: player, object: *choice_val});
 					}
 					match planq.action_mode {
-						Default =>  { /* do nothing, there shouldn't even be an open menu */ }
 						DropItem => {new_event.etype = ItemDrop;}
 						UseItem =>  {new_event.etype = ItemUse;}
+						_ =>  { /* do nothing, there shouldn't even be an open menu */ }
 					}
 					planq.show_inventory = false;
 					eng.planq_chooser.deselect();
+				} else if planq.show_cli_input {
+					// send the contents of the text input to the command module
 				}
 			}
 			// Debug keys and other tools
