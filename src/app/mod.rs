@@ -6,7 +6,7 @@ use bevy_save::prelude::*;
 use bevy::app::App;
 use bracket_rex::prelude::XpFile;
 use ratatui::backend::Backend;
-use ratatui::layout::{Alignment, Rect, Layout, Direction, Constraint};
+use ratatui::layout::{Rect, Layout, Direction, Constraint};
 use ratatui::style::{Color, Style};
 use ratatui::terminal::Frame;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Clear, List, ListItem};
@@ -110,6 +110,40 @@ impl GameEngine {
 		frame.render_widget(Clear, area);
 		frame.render_stateful_widget(menu, area, &mut self.main_menu.state);
 	}
+	/// Renders the PLANQ sidebar object
+	pub fn render_planq<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
+		let mut planq = self.app.world.get_resource_mut::<PlanqData>().unwrap();
+		// Display some kind of 'planq offline' state if not carried
+		if !planq.is_carried { // Player is not carrying a planq
+			frame.render_widget(
+				Paragraph::new("\n\n [no PLANQ detected] ").block(
+					Block::default().borders(Borders::NONE)
+				),
+				self.ui_grid.planq_status,
+			);
+			return;
+		}
+		else if !planq.power_is_on {
+			frame.render_widget(
+				Paragraph::new("\n\n [PLANQ offline]").block(
+					Block::default()
+					.borders(Borders::ALL)
+					.border_type(BorderType::Thick)
+					.border_style(Style::default().fg(Color::Gray).bg(Color::Black))
+				),
+				self.ui_grid.planq_status,
+			);
+			return;
+		}
+		// Always render the status widgets if there's power
+		planq.render_status_bars(frame, self.ui_grid.planq_status);
+		if planq.output_1_enabled {
+			planq.render_planq_stdout_1(frame, self.ui_grid.planq_output_1);
+		}
+		if planq.output_2_enabled {
+			planq.render_planq_stdout_2(frame, self.ui_grid.planq_output_2);
+		}
+	}
 	/// Renders the game and its GUI.
 	pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
 		// If the engine is still in standby mode, defer to that immediately
@@ -149,9 +183,9 @@ impl GameEngine {
 		// Render the main message log pane
 		// Obtain a slice of the message log here and feed to the next widget
 		let msglog_ref = self.app.world.get_resource::<MessageLog>();
+		let msglog = msglog_ref.unwrap_or_default(); // get a handle on the msglog service
 		if msglog_ref.is_some() {
-			let msglog = msglog_ref.unwrap(); // get a handle on the msglog service
-			let worldmsg = msglog.get_log("world".to_string()); // get the full backlog
+			let worldmsg = msglog.get_log_as_spans("world".to_string(), 0); // get the full backlog
 			//eprintln!("*** worldmsg.len {}, ui_grid.msg_world.height {}", worldmsg.len() as i32, self.ui_grid.msg_world.height as i32); // DEBUG:
 			/* FIXME: magic number offset for window borders
 			 * NOTE: it would be possible to 'reserve' space here by setting the magic num offset
@@ -172,84 +206,7 @@ impl GameEngine {
 				self.ui_grid.msg_world,
 			);
 		}
-		// Draw the PLANQ
-		let ppos = self.app.world.get_resource::<Position>().unwrap(); // DEBUG:
-		let mut planq_text = vec!["test string".to_string()]; // DEBUG:
-		planq_text.push(format!("*D* x: {}, y: {}, z: {}", ppos.x, ppos.y, ppos.z)); // DEBUG:
-		// TODO: only draw the regular Planq bar if the Planq is actually on the player and running
-		let planq = self.app.world.get_resource::<PlanqSettings>().unwrap();
-		if planq.is_carried {
-			// Always draw the Planq's status output
-			frame.render_widget(
-				// if planq.is_running ... TODO:
-				PlanqStatus::new(&planq_text).block(
-					Block::default()
-					.title("PLANQ OUTPUT")
-					.title_alignment(Alignment::Center)
-					.borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
-					.border_type(BorderType::Thick)
-					.border_style(Style::default().fg(Color::White)),
-				),
-				self.ui_grid.planq_status,
-			);
-			// Display output #1 if enabled
-			if planq.output_1_enabled {
-				// match planq.output_1_mode { ... (build an enum?) TODO:
-				if planq.show_inventory {
-					if planq.inventory_list.len() > 0 {
-						let mut item_list = Vec::new();
-						self.planq_chooser.list.clear();
-						for item in &planq.inventory_list {
-							self.planq_chooser.list.push(*item);
-							let mut name = self.app.world.get::<Name>(*item).unwrap().name.clone();
-							name.push_str(&String::from(format!("-{item:?}")));
-							item_list.push(ListItem::new(name.clone()));
-						}
-						let inventory_menu = List::new(item_list)
-							.block(Block::default().title("Inventory").borders(Borders::ALL))
-							.style(Style::default())
-							.highlight_style(Style::default().fg(Color::Black).bg(Color::White))
-							.highlight_symbol("->");
-						frame.render_stateful_widget(inventory_menu, self.ui_grid.planq_output_1, &mut self.planq_chooser.state);
-					} else {
-						frame.render_widget(
-							Paragraph::new("inventory is empty").block(
-								Block::default()
-								.borders(Borders::ALL)
-								.border_type(BorderType::Thick)
-								.border_style(Style::default().fg(Color::White)),
-							),
-							self.ui_grid.planq_output_1,
-						);
-					}
-				}
-			}
-			// Display output #2 if enabled
-			if planq.output_2_enabled {
-				// TODO: figure out which output to display here
-				frame.render_widget(
-					Block::default()
-					.title("output_2 test")
-					.title_alignment(Alignment::Left)
-					.borders(Borders::ALL)
-					.border_type(BorderType::Thick)
-					.border_style(Style::default().fg(Color::White)),
-					self.ui_grid.planq_output_2,
-				);
-			}
-		}
-		// Display some kind of 'planq offline' state if not carried
-		else { // Player is not carrying a planq
-			frame.render_widget(
-				Paragraph::new("\n\n no PLANQ detected ").block(
-					Block::default()
-					.borders(Borders::NONE)
-					.border_type(BorderType::Thick)
-					.border_style(Style::default().fg(Color::Gray).bg(Color::Black))
-				),
-				self.ui_grid.planq_status,
-			);
-		}
+		self.render_planq(frame);
 		// Render any optional menus and layers, ie main menu
 		if self.main_menu_is_visible {
 			/*
