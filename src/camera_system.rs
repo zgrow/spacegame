@@ -1,6 +1,7 @@
 /// camera_system.rs
 /// Provides implementation for the CameraView component, including refresh/update logic
 
+use crate::app::event::*;
 use crate::components::*;
 use crate::map::*;
 use bevy::ecs::system::*;

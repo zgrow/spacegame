@@ -8,12 +8,12 @@ use bevy::ecs::entity::*;
 use bevy::ecs::query::*;
 
 use crate::app::{AppResult, GameEngine, MainMenuItems, MessageLog};
+use crate::app::event::*;
+use crate::app::event::{GameEventType::*, PlanqEventType};
 use crate::app::planq::*;
 use crate::app::planq::PlanqActionMode::*;
 use crate::components::*;
 use crate::components::Direction;
-use crate::components::GameEventType::*;
-use crate::components::PlanqEventType::*;
 use crate::components::Name;
 
 /// Parses the player inputs coming from ratatui and turns them into game logic
@@ -148,7 +148,8 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 		&& key_event.code != KeyCode::Char('Q')
 		&& key_event.code != KeyCode::Esc
 		{ return Ok(()) }
-		let mut new_event = GameEvent::default(); // etype will be GameEventType::NullEvent
+		let mut new_game_event = GameEvent::default(); // etype will be GameEventType::NullEvent
+		let mut new_planq_event = PlanqEvent::default(); // etype will be PlanqEventType::NullEvent
 		let planq = &mut eng.app.world.get_resource_mut::<PlanqData>().unwrap();
 		match key_event.code {
 			// Meta actions
@@ -180,18 +181,20 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 			}
 			// Simple actions, no context required
-			KeyCode::Char('h') => {new_event.etype = PlayerMove(Direction::W);}
-			KeyCode::Char('l') => {new_event.etype = PlayerMove(Direction::E);}
-			KeyCode::Char('k') => {new_event.etype = PlayerMove(Direction::N);}
-			KeyCode::Char('j') => {new_event.etype = PlayerMove(Direction::S);}
-			KeyCode::Char('y') => {new_event.etype = PlayerMove(Direction::NW);}
-			KeyCode::Char('u') => {new_event.etype = PlayerMove(Direction::NE);}
-			KeyCode::Char('b') => {new_event.etype = PlayerMove(Direction::SW);}
-			KeyCode::Char('n') => {new_event.etype = PlayerMove(Direction::SE);}
-			KeyCode::Char('>') => {new_event.etype = PlayerMove(Direction::DOWN);}
-			KeyCode::Char('<') => {new_event.etype = PlayerMove(Direction::UP);}
+			KeyCode::Char('h') => {new_game_event.etype = PlayerMove(Direction::W);}
+			KeyCode::Char('l') => {new_game_event.etype = PlayerMove(Direction::E);}
+			KeyCode::Char('k') => {new_game_event.etype = PlayerMove(Direction::N);}
+			KeyCode::Char('j') => {new_game_event.etype = PlayerMove(Direction::S);}
+			KeyCode::Char('y') => {new_game_event.etype = PlayerMove(Direction::NW);}
+			KeyCode::Char('u') => {new_game_event.etype = PlayerMove(Direction::NE);}
+			KeyCode::Char('b') => {new_game_event.etype = PlayerMove(Direction::SW);}
+			KeyCode::Char('n') => {new_game_event.etype = PlayerMove(Direction::SE);}
+			KeyCode::Char('>') => {new_game_event.etype = PlayerMove(Direction::DOWN);}
+			KeyCode::Char('<') => {new_game_event.etype = PlayerMove(Direction::UP);}
 			KeyCode::Char('i') => {
-				if planq.is_carried && planq.power_is_on {new_event.etype = PlanqEvent(InventoryUse);}
+				if planq.is_carried && planq.cpu_mode != PlanqCPUMode::Offline {
+					new_planq_event.etype = PlanqEventType::InventoryUse;
+				}
 				else {
 					let mut item_names = Vec::new();
 					let mut backpack_query = eng.app.world.query_filtered::<(Entity, &Name, &Portable), Without<Position>>();
@@ -206,10 +209,14 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						let mut msglog = eng.app.world.get_resource_mut::<MessageLog>().unwrap();
 						msglog.tell_player(format!("You have nothing in your pockets."));
 						return Ok(())
+					} else {
+						eng.pause_game(true);
+						// FIXME: need a placeholder action here to indicate 'no action choice yet'
+						eng.show_item_chooser();
 					}
 				}
 			}
-			KeyCode::Char('d') => {new_event.etype = PlanqEvent(InventoryDrop);}
+			KeyCode::Char('d') => {new_planq_event.etype = PlanqEventType::InventoryDrop;} // FIXME: needs non-planq mode
 			// Compound actions, context required: may require secondary inputs from player
 			KeyCode::Char('o') => { // OPEN an Openable nearby
 				let mut open_names = Vec::new();
@@ -229,9 +236,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if open_names.len() > 0 {
 					if open_names.len() == 1 {
 						let choice_val = eng.target_chooser.list[0];
-						new_event.etype = ActorOpen;
-						new_event.context = Some(GameEventContext { subject: player, object: choice_val });
-						//eprintln!("new event: {}, {choice_val:?}", new_event.etype); // DEBUG:
+						new_game_event.etype = ActorOpen;
+						new_game_event.context = Some(GameEventContext { subject: player, object: choice_val });
+						//eprintln!("new event: {}, {choice_val:?}", new_game_event.etype); // DEBUG:
 					} else {
 						eng.pause_game(true);
 						eng.player_action = ActorOpen;
@@ -256,8 +263,8 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if close_names.len() > 0 {
 					if close_names.len() == 1 {
 						let choice_val = eng.target_chooser.list[0];
-						new_event.etype = ActorClose;
-						new_event.context = Some(GameEventContext { subject: player, object: choice_val });
+						new_game_event.etype = ActorClose;
+						new_game_event.context = Some(GameEventContext { subject: player, object: choice_val });
 					} else {
 						eng.pause_game(true);
 						eng.player_action = ActorClose;
@@ -280,8 +287,8 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if item_names.len() > 0 { // Were any items found?
 					if item_names.len() == 1 { // YES: exactly 1, so use it in the action
 						let choice_val = eng.item_chooser.list[0];
-						new_event.etype = ItemMove;
-						new_event.context = Some(GameEventContext{ subject: player, object: choice_val });
+						new_game_event.etype = ItemMove;
+						new_game_event.context = Some(GameEventContext{ subject: player, object: choice_val });
 						//eprintln!("attempted to pick up {choice_val:?}"); // DEBUG:
 					} else { // YES: 2+, so ask the player to clarify
 						eng.pause_game(true);
@@ -306,8 +313,8 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if lock_names.len() > 0 {
 					if lock_names.len() == 1 {
 						let choice_val = eng.target_chooser.list[0];
-						new_event.etype = ActorLock;
-						new_event.context = Some(GameEventContext { subject: player, object: choice_val });
+						new_game_event.etype = ActorLock;
+						new_game_event.context = Some(GameEventContext { subject: player, object: choice_val });
 					} else {
 						eng.pause_game(true);
 						eng.player_action = ActorLock;
@@ -331,8 +338,8 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if lock_names.len() > 0 {
 					if lock_names.len() == 1 {
 						let choice_val = eng.target_chooser.list[0];
-						new_event.etype = ActorLock;
-						new_event.context = Some(GameEventContext { subject: player, object: choice_val });
+						new_game_event.etype = ActorLock;
+						new_game_event.context = Some(GameEventContext { subject: player, object: choice_val });
 					} else {
 						eng.pause_game(true);
 						eng.player_action = ActorLock;
@@ -340,13 +347,39 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					}
 				}
 			}
-			KeyCode::Char('a') => { // APPLY (use) a Functional item
-				// Get a list of all Functional items in the player's pack
+			KeyCode::Char('a') => { // APPLY (use) an Operable item
+				// Get a list of all Operable items in the player's vicinity
+				let mut device_names = Vec::new();
+				let mut device_query = eng.app.world.query::<(Entity, Option<&Position>, &Name, Option<&Portable>, &Device)>();
+				let p_posn = *eng.app.world.get_resource::<Position>().unwrap();
+				eng.item_chooser.list.clear();
 				// Drop them into one of the choosers
+				for device in device_query.iter(&eng.app.world) {
+					if device.3.is_some() { // Is the player carrying it?
+						if device.3.unwrap().carrier == player {
+							device_names.push(ListItem::new(device.2.name.clone()));
+							eng.item_chooser.list.push(device.0);
+						}
+					} else if device.1.is_some() { // Is the player near it?
+						if p_posn.in_range_of(*device.1.unwrap(), 1) {
+							device_names.push(ListItem::new(device.2.name.clone()));
+							eng.item_chooser.list.push(device.0);
+						}
+					}
+				}
+				if device_names.len() == 0 {
+					let mut msglog = eng.app.world.get_resource_mut::<MessageLog>().unwrap();
+					msglog.tell_player(format!("There's nothing nearby to use."));
+					return Ok(())
+				} else {
+					eng.pause_game(true);
+					eng.player_action = ItemUse;
+					eng.show_item_chooser();
+				}
 				// Invoke the chooser and set the eng.player_action
 			}
 			// PLANQ 'sidebar'/ambient controls
-			KeyCode::Char('P') => {new_event.etype = PlanqEvent(CliOpen);}
+			KeyCode::Char('P') => {new_planq_event.etype = PlanqEventType::CliOpen;}
 			KeyCode::Left   => {if planq.show_inventory{eng.planq_chooser.deselect();}}
 			KeyCode::Right  => { /* does nothing in this context */ }
 			KeyCode::Up     => {if planq.show_inventory{eng.planq_chooser.prev();}}
@@ -357,11 +390,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					if choice.is_some() {
 						let choice_val = &eng.planq_chooser.list[choice.unwrap()];
 						//eprintln!("drop choice: {choice_val:?}"); // DEBUG:
-						new_event.context = Some(GameEventContext{subject: player, object: *choice_val});
+						new_game_event.context = Some(GameEventContext{subject: player, object: *choice_val});
 					}
 					match planq.action_mode {
-						DropItem => {new_event.etype = ItemDrop;}
-						UseItem =>  {new_event.etype = ItemUse;}
+						DropItem => {new_game_event.etype = ItemDrop;}
+						UseItem =>  {new_game_event.etype = ItemUse;}
 						_ =>  { /* do nothing, there shouldn't even be an open menu */ }
 					}
 					planq.show_inventory = false;
@@ -378,10 +411,14 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			_ => {}
 		}
 		// If an event was generated, send it off for processing
-		if new_event.etype != GameEventType::NullEvent {
+		if new_game_event.etype != GameEventType::NullEvent {
 			// Get a linkage to the game event distribution system
 			let game_events: &mut Events<GameEvent> = &mut eng.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
-			game_events.send(new_event);
+			game_events.send(new_game_event);
+		}
+		if new_planq_event.etype != PlanqEventType::NullEvent {
+			let planq_events: &mut Events<PlanqEvent> = &mut eng.app.world.get_resource_mut::<Events<PlanqEvent>>().unwrap();
+			planq_events.send(new_planq_event);
 		}
 	}
 	Ok(())

@@ -147,28 +147,54 @@ impl Lockable {
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
 pub struct Key { pub key_id: i32 }
-/// Describes an entity that can be Used by an entity with the CanOperate component
-pub trait Operable {
-	fn operate(&self);
-}
-pub struct Device { }
-impl Operable for Device {
-	fn operate(&self) {
-
-	}
-}
-/// Describes an entity with a two-state switch
+/// Describes an entity with behavior that can be applied/used/manipulated by an entity
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
-pub struct ToggleSwitch { pub state: bool }
-impl ToggleSwitch {
-	pub fn switch_on(&mut self) { self.state = true; }
-	pub fn switch_off(&mut self) { self.state = false; }
-	pub fn toggle(&mut self) { self.state = !self.state; }
+pub struct Device {
+	pub pw_switch: bool,
+	pub batt_voltage: i32,
+	pub batt_discharge: i32,
 }
-impl Operable for ToggleSwitch {
-	fn operate(&self) {
-		self.state = !self.state;
+impl Device {
+	/// Creates a new Device; set the batt_discharge param to -1 to disable battery use
+	pub fn new(discharge_rate: i32) -> Device {
+		Device {
+			pw_switch: false,
+			batt_voltage: 0, // BATTERIES NOT INCLUDED LMAOOO
+			batt_discharge: discharge_rate
+		}
+	}
+	/// Turns on the device, if there's any power remaining. Returns false if no power left.
+	pub fn power_on(&mut self) -> bool {
+		if self.batt_voltage > 0 {
+			self.pw_switch = true;
+		}
+		self.pw_switch
+	}
+	/// Turns off the device.
+	pub fn power_off(&mut self) {
+		self.pw_switch = false;
+	}
+	/// Discharges battery power according to the specified duration, returns current power level
+	pub fn discharge(&mut self, duration: i32) -> i32 {
+		if self.batt_discharge < 0 {
+			// This item does not need a battery/has infinite power, so no discharge can occur
+			return self.batt_voltage;
+		}
+		self.batt_voltage = self.batt_voltage - (self.batt_discharge * duration);
+		if self.batt_voltage < 0 { self.batt_voltage = 0; }
+		self.batt_voltage
+	}
+	/// Recharges the battery to the given percentage
+	pub fn recharge(&mut self, charge_level: i32) -> i32 {
+		self.batt_voltage += charge_level;
+		self.batt_voltage
+	}
+	/// power toggle
+	pub fn power_toggle(&mut self) -> bool {
+		if self.pw_switch == false { self.pw_switch = true; }
+		else { self.pw_switch = false; }
+		self.pw_switch
 	}
 }
 /// Describes an entity that can manipulate the controls of another entity
@@ -241,96 +267,6 @@ pub struct Viewshed {
 	pub visible_tiles: Vec<Point>, //bracket_lib::pathfinding::field_of_view
 	pub range: i32,
 	pub dirty: bool, // indicates whether this viewshed needs to be updated from world data
-}
-
-//  *** GAME EVENTS
-/// Provides the descriptors for GameEvents
-/// Unless otherwise noted, any relevant event info will be included as a GameEventContext
-/// TODO: optimize this to break up the events into different classes/groups so that the event
-/// readers in the various subsystems only have to worry about their specific class of events
-#[derive(Copy, Clone, Eq, PartialEq, Default)]
-pub enum GameEventType {
-	#[default]
-	NullEvent,
-	PauseToggle, // specifically causes a mode switch between Running <-> Paused
-	ModeSwitch(EngineMode), // switches the engine to the specified mode
-	PlayerMove(Direction),
-	ActorOpen,
-	ActorClose,
-	ActorLock,
-	ActorUnlock,
-	ItemUse,
-	ItemMove,
-	ItemDrop,
-	ItemKILL,
-	DoorOpen,
-	DoorClose,
-	PlanqEvent(PlanqEventType),
-}
-impl fmt::Display for GameEventType {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let output;
-		match self {
-			GameEventType::NullEvent => { output = "etype::NullEvent" }
-			GameEventType::PauseToggle => { output = "etype::PauseToggle" }
-			GameEventType::ModeSwitch(_) => { output = "etype::ModeSwitch" }
-			GameEventType::PlayerMove(_) => { output = "etype::PlayerMove" }
-			GameEventType::ActorOpen => { output = "etype::ActorOpen" }
-			GameEventType::ActorClose => { output = "etype::ActorClose" }
-			GameEventType::ActorLock => { output = "etype::ActorLock" }
-			GameEventType::ActorUnlock => { output = "etype::ActorUnlock" }
-			GameEventType::ItemUse => { output = "etype::ItemUse" }
-			GameEventType::ItemMove => { output = "etype::ItemMove" }
-			GameEventType::ItemDrop => { output = "etype::ItemDrop" }
-			GameEventType::ItemKILL => { output = "etype::ItemKILL" }
-			GameEventType::DoorOpen => { output = "etype::DoorOpen" }
-			GameEventType::DoorClose => { output = "etype::DoorClose" }
-			GameEventType::PlanqEvent(_) => { output = "etype::PlanqEvent" }
-		}
-		write!(f, "{}", output)
-	}
-}
-/// Custom interface obj for passing data from ratatui to Bevy
-#[derive(Resource, Default)]
-pub struct GameEvent {
-	pub etype: GameEventType,
-	pub context: Option<GameEventContext>,
-}
-impl GameEvent {
-	pub fn new(new_type: GameEventType, new_context: Option<GameEventContext>) -> GameEvent {
-		GameEvent {
-			etype: new_type,
-			context: new_context,
-		}
-	}
-}
-
-/// Friendly bucket for holding contextual information about game actions
-/// Note that this expresses a 1:1 relation: this preserves the atomic nature of the event
-/// If an event occurs with multiple objects, then that event should be broken into multiple
-#[derive(Resource)]
-pub struct GameEventContext {
-	pub subject: Entity, // the entity performing the action; by defn, only one
-	pub object: Entity, // the entity upon which the subject will perform the action
-}
-impl GameEventContext {
-	/// Returns true if either of the context elements are set to the Placeholder
-	pub fn is_invalid(&self) -> bool {
-		if self.subject == Entity::PLACEHOLDER { return true; }
-		if self.object == Entity::PLACEHOLDER { return true; }
-		false
-	}
-}
-/// Defines the set of control and input events that the Planq needs to handle
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Resource)]
-pub enum PlanqEventType {
-	Startup,
-	Shutdown,
-	Reboot,
-	CliOpen,
-	CliClose,
-	InventoryUse,
-	InventoryDrop,
 }
 
 // EOF

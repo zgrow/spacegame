@@ -7,16 +7,17 @@ use crate::components::*;
 use crate::camera_system::CameraView;
 use crate::map::*;
 use crate::components::{Name, Position, Renderable, Player, Mobile};
-use crate::components::PlanqEventType::*;
-use crate::sys::GameEventType::*; // Required to avoid having to specify the enum path every time
+use crate::sys::event::*;
+use crate::sys::{GameEventType::*, PlanqEventType::*};
 use crate::app::messagelog::MessageLog;
 use crate::app::planq::*;
 use crate::app::*;
 use crate::item_builders::*;
 use bevy::ecs::system::{Commands, Res, Query, ResMut};
 use bevy::ecs::event::EventReader;
-use bevy::ecs::query::{With, Without};
+use bevy::ecs::query::{With, Without, QueryEntityError};
 use bevy::ecs::entity::Entity;
+use bevy::time::Time;
 use bracket_pathfinding::prelude::*;
 
 // TODO: Need to implement change detection on the following:
@@ -88,7 +89,11 @@ pub fn new_planq_spawn(mut commands:    Commands,
 			},
 			portable: Portable { carrier: Entity::PLACEHOLDER },
 		},
-		ToggleSwitch { state: false, },
+		Device {
+			pw_switch: false,
+			batt_voltage: 0,
+			batt_discharge: -1, // TODO: implement battery charge loss
+		},
 	));
 	msglog.add(format!("planq spawned at {}, {}, {}", 25, 30, 0), "debug".to_string(), 1, 1);
 }
@@ -339,6 +344,8 @@ pub fn lock_system(mut _commands:    Commands,
                    key_query:       Query<(Entity, &Portable, &Name, &Key), Without<Position>>,
 ) {
 	for event in ereader.iter() {
+		if event.etype != ActorLock
+		&& event.etype != ActorUnlock { continue; }
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
 		let actor = e_query.get_mut(econtext.subject).unwrap();
@@ -387,12 +394,21 @@ pub fn lock_system(mut _commands:    Commands,
 		}
 	}
 }
-/// Handles anything related to the CanOpen component: ActorUse, ToggleSwitch, &c
+/// Handles anything related to the CanOperate component: ActorUse, ToggleSwitch, &c
 pub fn operable_system(mut ereader: EventReader<GameEvent>,
-                       mut o_query: Query<(Entity, &Position, &Name), With<CanOperate>>,
-                       mut d_query: Query<(Entity, &Name), With<Device>>,
+                       //mut o_query: Query<(Entity, &Position, &Name), With<CanOperate>>,
+                       mut d_query: Query<(Entity, &Name, &mut Device)>,
 ) {
-
+	for event in ereader.iter() {
+		if event.etype != ItemUse { continue; }
+		let econtext = event.context.as_ref().unwrap();
+		if econtext.is_invalid() { continue; }
+		//let operator = o_query.get(econtext.subject).unwrap();
+		let mut device = d_query.get_mut(econtext.object).unwrap();
+		if device.2.pw_switch == false { // If it's not powered on, assume that function first
+			device.2.power_toggle();
+		}
+	}
 }
 /// Handles entities that can see physical light
 pub fn visibility_system(mut model: ResMut<Model>,
@@ -477,12 +493,16 @@ pub fn item_collection_system(mut commands: Commands,
 	}
 }
 /// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
-pub fn planq_system(mut ereader:    EventReader<GameEvent>, // subject to change
-	                msglog:     ResMut<MessageLog>,
+pub fn planq_system(mut commands: Commands,
+	                mut ereader:    EventReader<GameEvent>,
+	                mut preader:    EventReader<PlanqEvent>,
+	                mut msglog:     ResMut<MessageLog>,
+	                time:       Res<Time>,
 	                mut planq:      ResMut<PlanqData>, // contains the PLANQ's settings and data storage
 	                p_query: Query<(Entity, &Position), With<Player>>, // provides interface to player data
 	                i_query: Query<(Entity, &Portable), Without<Position>>,
-	                q_query: Query<(Entity, &Planq)>,
+	                q_query: Query<(Entity, &Planq, &Device)>, // contains the PLANQ's component data
+	                mut t_query: Query<(Entity, &mut PlanqProcess)>, // contains the set of all PlanqTimers
 ) {
 	/* TODO: Implement level generation such that the whole layout can be created at startup from a
 	 * tree of rooms, rather than by directly loading a REXPaint map; by retaining this tree-list
@@ -495,32 +515,8 @@ pub fn planq_system(mut ereader:    EventReader<GameEvent>, // subject to change
 	// Handle any new comms
 	for event in ereader.iter() {
 		match event.etype {
-			// PLANQ system commands
-			PlanqEvent(p_cmd) => {
-				match p_cmd {
-					Startup => { planq.power_is_on = true; }
-					Shutdown => { planq.power_is_on = false; }
-					Reboot => { }
-					CliOpen => {
-						planq.show_cli_input = true;
-						planq.action_mode = PlanqActionMode::CliInput;
-					}
-					CliClose => {
-						planq.show_cli_input = false;
-						planq.action_mode = PlanqActionMode::Default; // FIXME: this might be a bad choice
-					}
-					InventoryUse => {
-						planq.inventory_toggle(); // display the inventory menu
-						planq.action_mode = PlanqActionMode::UseItem;
-					}
-					InventoryDrop => {
-						planq.inventory_toggle(); // display the inventory menu
-						planq.action_mode = PlanqActionMode::DropItem;
-					}
-				}
-			}
 			// Player interaction events that need to be monitored
-			ItemMove => {
+			ItemMove => { // The player (g)ot the PLANQ from somewhere external
 				let econtext = event.context.as_ref().unwrap();
 				if econtext.subject == player.0 {
 					refresh_inventory = true;
@@ -529,15 +525,178 @@ pub fn planq_system(mut ereader:    EventReader<GameEvent>, // subject to change
 					}
 				}
 			}
-			ItemDrop => {
+			ItemDrop => { // The player (d)ropped the PLANQ
 				let econtext = event.context.as_ref().unwrap();
 				if econtext.subject == player.0 { refresh_inventory = true; }
 				if econtext.object == planq_enty.0 { planq.is_carried = false; }
 			}
+			ItemUse => { // The player (a)pplied the PLANQ
+				let econtext = event.context.as_ref().unwrap();
+				if econtext.subject == player.0
+				&& econtext.object == planq_enty.0 {
+					// Note that the Operable system already handles the ItemUse action for the
+					// PLANQ: it allows the player to operate the power switch
+					// This seems likely to change in the future to allow some better service
+					// commands, like battery swaps or peripheral attachment
+				}
+			}
 			_ => { }
 		}
 	}
+	for event in preader.iter() {
+		match event.etype {
+			// PLANQ system commands
+			PlanqEventType::NullEvent => { /* do nothing */ }
+			Startup => { planq.cpu_mode = PlanqCPUMode::Startup; } // covers the entire boot stage
+			BootStage(lvl) => {
+				planq.boot_stage = lvl;
+			}
+			Shutdown => { planq.cpu_mode = PlanqCPUMode::Shutdown; }
+			Reboot => { /* do a Shutdown, then a Startup */ }
+			GoIdle => { planq.cpu_mode = PlanqCPUMode::Idle; }
+			CliOpen => {
+				planq.show_cli_input = true;
+				planq.action_mode = PlanqActionMode::CliInput;
+			}
+			CliClose => {
+				planq.show_cli_input = false;
+				planq.action_mode = PlanqActionMode::Default; // FIXME: this might be a bad choice
+			}
+			InventoryUse => {
+				planq.inventory_toggle(); // display the inventory menu
+				planq.action_mode = PlanqActionMode::UseItem;
+			}
+			InventoryDrop => {
+				planq.inventory_toggle(); // display the inventory menu
+				planq.action_mode = PlanqActionMode::DropItem;
+			}
+		}
+	}
 	// Update the PLANQData resources:
+	// - Get the device hardware info
+	if !planq.power_is_on && planq_enty.2.pw_switch {
+		planq.power_is_on = planq_enty.2.pw_switch; // Update the power switch setting
+		planq.output_1_enabled = true; // DEBUG:
+		planq.cpu_mode = PlanqCPUMode::Startup; // Begin booting the PLANQ's OS
+	}
+	if planq.power_is_on && !planq_enty.2.pw_switch {
+		planq.power_is_on = planq_enty.2.pw_switch; // Update the power switch setting
+		planq.cpu_mode = PlanqCPUMode::Shutdown; // Initiate a shutdown
+	}
+	// HINT: Get the current battery voltage with planq_enty.2.batt_voltage
+	// - Iterate any active PlanqProcesses
+	for mut pq_timer in t_query.iter_mut() {
+		if !pq_timer.1.timer.finished() {
+			pq_timer.1.timer.tick(time.delta());
+		}
+	}
+	// - Handle the Planq's CPU mode logic
+	match planq.cpu_mode {
+		PlanqCPUMode::Error(_) => { /* TODO: implement Error modes */ }
+		PlanqCPUMode::Offline => { /* do nothing */ }
+		PlanqCPUMode::Startup => {
+			// do the boot process: send outputs, progress bars, the works
+			// then kick over to PAM::Idle
+			if !planq.proc_table.is_empty() {
+				// if there are any running processes, check to see if they're done
+				for id in planq.proc_table.clone() {
+					let enty = t_query.get(id).unwrap();
+					if enty.1.timer.just_finished() {
+						match enty.1.outcome.etype {
+							BootStage(lvl) => {
+								planq.boot_stage = lvl;
+							}
+							PlanqEventType::GoIdle => { planq.cpu_mode = PlanqCPUMode::Idle; }
+							_ => { }
+						}
+					}
+				}
+			}
+			// Get proc 0, aka the boot process
+			let proc_ref;
+			if !planq.proc_table.is_empty() {
+				proc_ref = t_query.get_mut(planq.proc_table[0]);
+			} else {
+				proc_ref = Err(QueryEntityError::NoSuchEntity(Entity::PLACEHOLDER));
+			}
+			match planq.boot_stage {
+				0 => {
+					if planq.proc_table.is_empty() {
+						eprintln!("running boot stage 0");
+						msglog.tell_planq(format!("GRAIN v17.6.823 'Cedar'"));
+						// kick off boot stage 1
+						planq.proc_table.push(commands.spawn(
+								PlanqProcess::new()
+								.time(3)
+								.event(PlanqEvent::new(PlanqEventType::BootStage(1))))
+							.id()
+						);
+					}
+				}
+				1 => {
+					if let Ok(mut proc) = proc_ref {
+						if proc.1.timer.just_finished() {
+							eprintln!("running boot stage 1");
+							msglog.tell_planq(format!("Hardware Status ... [OK]"));
+							// set its duration, if needed
+							//proc.1.timer.set_duration(Duration::from_secs(5));
+							// reset it
+							proc.1.timer.reset(); // will be iterated on at next system run
+							proc.1.outcome = PlanqEvent::new(PlanqEventType::BootStage(2));
+						}
+					}
+				}
+				2 => {
+					if let Ok(mut proc) = proc_ref {
+						if proc.1.timer.just_finished() {
+							eprintln!("running boot stage 2");
+							msglog.tell_planq(format!("Firmware Status ... [OK]"));
+							// set its duration, if needed
+							//proc.1.timer.set_duration(Duration::from_secs(5));
+							// reset it and start it
+							proc.1.timer.reset(); // will be iterated on at next system run
+							proc.1.outcome = PlanqEvent::new(PlanqEventType::BootStage(3));
+						}
+					}
+				}
+				3 => {
+					if let Ok(mut proc) = proc_ref {
+						if proc.1.timer.just_finished() {
+							eprintln!("running boot stage 3");
+							msglog.tell_planq(format!("Bootloader Status ... [OK]"));
+							// set its duration, if needed
+							//proc.1.timer.set_duration(Duration::from_secs(5));
+							// reset it and start it
+							proc.1.timer.reset(); // will be iterated on at next system run
+							proc.1.outcome = PlanqEvent::new(PlanqEventType::BootStage(4));
+						}
+					}
+				}
+				4 => {
+					if let Ok(mut proc) = proc_ref {
+						if proc.1.timer.just_finished() {
+							eprintln!("running boot stage 4");
+							msglog.tell_planq(format!("CellulOS 5 (v1992.26.619_revB)"));
+							proc.1.outcome = PlanqEvent::new(PlanqEventType::NullEvent);
+							planq.cpu_mode = PlanqCPUMode::Idle;
+						}
+					}
+				}
+				_ => { }
+			}
+		}
+		PlanqCPUMode::Shutdown => {
+			// Make sure the proc_table is clear
+			// Set the CPU's mode
+			// When finished, set the power_is_on AND planq_enty.2.pw_switch to false
+		}
+		PlanqCPUMode::Idle => {
+			// Display a cute graphic
+		}
+		PlanqCPUMode::Working => {
+			// Display the outputs from the workloads
+		}
+	}
 	// - Refill the planq's inventory list
 	if refresh_inventory {
 		planq.inventory_list = Vec::new();

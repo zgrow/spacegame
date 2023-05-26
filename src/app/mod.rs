@@ -11,21 +11,23 @@ use ratatui::style::{Color, Style};
 use ratatui::terminal::Frame;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Clear, List, ListItem};
 pub mod handler;
-pub mod event;
+pub mod tui_event;
 pub mod viewport;
 pub mod planq;
 pub mod tui;
 pub mod messagelog;
 pub mod image_loader;
 pub mod menu;
+pub mod event;
 use viewport::Viewport;
 use crate::app::planq::*;
 use crate::app::messagelog::MessageLog;
 use crate::app::image_loader::load_rex_pgraph;
 use crate::app::menu::{MainMenuItems, MenuSelector};
+use crate::app::event::{GameEvent, GameEventType};
 use crate::item_builders::{ItemBuilder, ItemType};
 use crate::components::*;
-use crate::components::{Name, GameEventType};
+use crate::components::Name;
 use crate::camera_system::CameraView;
 use bevy::ecs::entity::*;
 use bevy::prelude::*;
@@ -123,7 +125,7 @@ impl GameEngine {
 			);
 			return;
 		}
-		else if !planq.power_is_on {
+		else if planq.cpu_mode == PlanqCPUMode::Offline {
 			frame.render_widget(
 				Paragraph::new("\n\n [PLANQ offline]").block(
 					Block::default()

@@ -84,6 +84,10 @@ impl MessageLog {
 	pub fn tell_player(&mut self, msg_text: String) {
 		self.add(msg_text, "world".to_string(), 0, 0);
 	}
+	/// Helper method: adds a new message directly to the "planq" channel (aka 'stdout')
+	pub fn tell_planq(&mut self, msg_text: String) {
+		self.add(msg_text, "planq".to_string(), 0, 0);
+	}
 	/// Retrieves a set of log messages from a specified channel as ratatui::Spans
 	/// This means the text will be formatted for display in a ratatui::Paragraph!
 	/// If the given channel does not exist, an empty vector will be returned

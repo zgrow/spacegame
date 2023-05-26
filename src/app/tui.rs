@@ -2,7 +2,7 @@
 // generated using orhun/rust-tui-template via cargo-generate
 
 use crate::app::{AppResult, GameEngine};
-use super::event::EventHandler;
+use super::tui_event::EventHandler;
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use std::io;

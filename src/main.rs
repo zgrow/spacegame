@@ -24,9 +24,10 @@ use bevy_save::prelude::*;
 use spacegame::app::*;
 use spacegame::app::tui::Tui;
 use spacegame::app::handler::key_parser;
-use spacegame::app::event::{Event, EventHandler};
+use spacegame::app::tui_event::{Event, EventHandler};
 use spacegame::app::messagelog::MessageLog;
 use spacegame::app::planq::*;
+use spacegame::app::event::*;
 use spacegame::components::*;
 use spacegame::rex_assets::RexAssets;
 use spacegame::map::Model;
@@ -74,6 +75,7 @@ fn main() -> AppResult<()> {
 		.insert_resource(RexAssets::new())
 		.insert_resource(Position{x: 35, y: 20, z: 0}) // The player's position/starting spawn point
 		.insert_resource(Events::<GameEvent>::default()) // The Bevy handler for inter-system comms
+		.insert_resource(Events::<PlanqEvent>::default())
 		.insert_resource(MessageLog::new(chanlist))
 		.insert_resource(PlanqData::new())
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
