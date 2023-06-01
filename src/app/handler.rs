@@ -205,9 +205,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 							eng.item_chooser.list.push(item.0);
 						}
 					}
-					if item_names.len() == 0 {
+					if item_names.is_empty() {
 						let mut msglog = eng.app.world.get_resource_mut::<MessageLog>().unwrap();
-						msglog.tell_player(format!("You have nothing in your pockets."));
+						msglog.tell_player("You have nothing in your pockets.".to_string());
 						return Ok(())
 					} else {
 						eng.pause_game(true);
@@ -233,7 +233,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						eng.target_chooser.list.push(target.0);
 					}
 				}
-				if open_names.len() > 0 {
+				if !open_names.is_empty() {
 					if open_names.len() == 1 {
 						let choice_val = eng.target_chooser.list[0];
 						new_game_event.etype = ActorOpen;
@@ -260,7 +260,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						eng.target_chooser.list.push(target.0);
 					}
 				}
-				if close_names.len() > 0 {
+				if !close_names.is_empty() {
 					if close_names.len() == 1 {
 						let choice_val = eng.target_chooser.list[0];
 						new_game_event.etype = ActorClose;
@@ -284,7 +284,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						eng.item_chooser.list.push(item.0);
 					}
 				}
-				if item_names.len() > 0 { // Were any items found?
+				if !item_names.is_empty() { // Were any items found?
 					if item_names.len() == 1 { // YES: exactly 1, so use it in the action
 						let choice_val = eng.item_chooser.list[0];
 						new_game_event.etype = ItemMove;
@@ -310,7 +310,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						eng.target_chooser.list.push(target.0);
 					}
 				}
-				if lock_names.len() > 0 {
+				if !lock_names.is_empty() {
 					if lock_names.len() == 1 {
 						let choice_val = eng.target_chooser.list[0];
 						new_game_event.etype = ActorLock;
@@ -335,7 +335,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						eng.target_chooser.list.push(target.0);
 					}
 				}
-				if lock_names.len() > 0 {
+				if !lock_names.is_empty() {
 					if lock_names.len() == 1 {
 						let choice_val = eng.target_chooser.list[0];
 						new_game_event.etype = ActorLock;
@@ -367,9 +367,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						}
 					}
 				}
-				if device_names.len() == 0 {
+				if device_names.is_empty() {
 					let mut msglog = eng.app.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player(format!("There's nothing nearby to use."));
+					msglog.tell_player("There's nothing nearby to use.".to_string());
 					return Ok(())
 				} else {
 					eng.pause_game(true);
@@ -386,11 +386,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Down   => {if planq.show_inventory{eng.planq_chooser.next();}}
 			KeyCode::Enter  => {
 				if planq.show_inventory {
-					let choice = eng.planq_chooser.state.selected();
-					if choice.is_some() {
-						let choice_val = &eng.planq_chooser.list[choice.unwrap()];
+					let choice_ref = eng.planq_chooser.state.selected();
+					if let Some(choice_val) = choice_ref {
+						let choice = &eng.planq_chooser.list[choice_val];
 						//eprintln!("drop choice: {choice_val:?}"); // DEBUG:
-						new_game_event.context = Some(GameEventContext{subject: player, object: *choice_val});
+						new_game_event.context = Some(GameEventContext{subject: player, object: *choice});
 					}
 					match planq.action_mode {
 						DropItem => {new_game_event.etype = ItemDrop;}

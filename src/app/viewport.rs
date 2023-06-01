@@ -34,7 +34,7 @@ impl<'a> Widget for Viewport<'a> {
 		};
 		// Don't continue if the area inside the border is too small
 		if area.width < 1 || area.height < 1
-		|| self.source.map.len() == 0 {
+		|| self.source.map.is_empty() {
 			return;
 		}
 		// We are certain of a valid drawing area, so let's gooooo

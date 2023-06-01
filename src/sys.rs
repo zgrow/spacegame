@@ -1,5 +1,8 @@
 // sys.rs
 // Defines the various subsystems we'll be running on the GameEngine
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::single_match)]
 
 // NOTE: see bevy/examples/games/alien_cake_addict.rs for example on handling the Player entity
 
@@ -189,8 +192,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					// If we arrived here, then all's good; get the destination coords
 					let possible = model.portals.get(&(p_pos.x, p_pos.y, p_pos.z));
 					//eprintln!("poss: {possible:?}"); // DEBUG:
-					if possible.is_some() {
-						let actual = possible.unwrap();
+					if let Some(actual) = possible {
 						target.x = actual.0;
 						target.y = actual.1;
 						target.z = actual.2;
@@ -228,20 +230,20 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 						contents.push(&enty.1.name);
 					}
 				}
-				if contents.len() >= 1 {
+				if !contents.is_empty() {
 					if contents.len() <= 3 {
 						// Use a short summary
 						let mut text = "There's a ".to_string();
 						loop {
 							text.push_str(contents.pop().unwrap());
-							if contents.len() == 0 { break; }
+							if contents.is_empty() { break; }
 							else { text.push_str(", and a "); }
 						}
 					text.push_str(" here.");
 					msglog.tell_player(text);
 					} else {
 						// Use a long summary
-						msglog.tell_player(format!("There's some stuff here on the ground."));
+						msglog.tell_player("There's some stuff here on the ground.".to_string());
 					}
 				}
 			}
@@ -382,7 +384,7 @@ pub fn lock_system(mut _commands:    Commands,
 					} else {
 						// none of the keys worked, report a failure
 						if player_action {
-							message = format!("You don't seem to have the right key.");
+							message = "You don't seem to have the right key.".to_string();
 						}
 					}
 				}
@@ -405,7 +407,7 @@ pub fn operable_system(mut ereader: EventReader<GameEvent>,
 		if econtext.is_invalid() { continue; }
 		//let operator = o_query.get(econtext.subject).unwrap();
 		let mut device = d_query.get_mut(econtext.object).unwrap();
-		if device.2.pw_switch == false { // If it's not powered on, assume that function first
+		if !device.2.pw_switch { // If it's not powered on, assume that function first
 			device.2.power_toggle();
 		}
 	}
@@ -538,6 +540,7 @@ pub fn planq_system(mut commands: Commands,
 					// PLANQ: it allows the player to operate the power switch
 					// This seems likely to change in the future to allow some better service
 					// commands, like battery swaps or peripheral attachment
+					msglog.tell_player("There is a faint 'click' as you press the PLANQ's power button.".to_string());
 				}
 			}
 			_ => { }
@@ -613,17 +616,16 @@ pub fn planq_system(mut commands: Commands,
 				}
 			}
 			// Get proc 0, aka the boot process
-			let proc_ref;
-			if !planq.proc_table.is_empty() {
-				proc_ref = t_query.get_mut(planq.proc_table[0]);
+			let proc_ref = if !planq.proc_table.is_empty() {
+				t_query.get_mut(planq.proc_table[0])
 			} else {
-				proc_ref = Err(QueryEntityError::NoSuchEntity(Entity::PLACEHOLDER));
-			}
+				Err(QueryEntityError::NoSuchEntity(Entity::PLACEHOLDER))
+			};
 			match planq.boot_stage {
 				0 => {
 					if planq.proc_table.is_empty() {
 						eprintln!("running boot stage 0");
-						msglog.tell_planq(format!("GRAIN v17.6.823 'Cedar'"));
+						msglog.tell_planq("GRAIN v17.6.823 'Cedar'".to_string());
 						// kick off boot stage 1
 						planq.proc_table.push(commands.spawn(
 								PlanqProcess::new()
@@ -637,7 +639,7 @@ pub fn planq_system(mut commands: Commands,
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
 							eprintln!("running boot stage 1");
-							msglog.tell_planq(format!("Hardware Status ... [OK]"));
+							msglog.tell_planq("Hardware Status ... [OK]".to_string());
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it
@@ -650,7 +652,7 @@ pub fn planq_system(mut commands: Commands,
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
 							eprintln!("running boot stage 2");
-							msglog.tell_planq(format!("Firmware Status ... [OK]"));
+							msglog.tell_planq("Firmware Status ... [OK]".to_string());
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it and start it
@@ -663,7 +665,7 @@ pub fn planq_system(mut commands: Commands,
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
 							eprintln!("running boot stage 3");
-							msglog.tell_planq(format!("Bootloader Status ... [OK]"));
+							msglog.tell_planq("Bootloader Status ... [OK]".to_string());
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it and start it
@@ -676,7 +678,7 @@ pub fn planq_system(mut commands: Commands,
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
 							eprintln!("running boot stage 4");
-							msglog.tell_planq(format!("CellulOS 5 (v1992.26.619_revB)"));
+							msglog.tell_planq("CellulOS 5 (v1992.26.619_revB)".to_string());
 							proc.1.outcome = PlanqEvent::new(PlanqEventType::NullEvent);
 							planq.cpu_mode = PlanqCPUMode::Idle;
 						}

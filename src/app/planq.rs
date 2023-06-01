@@ -52,7 +52,7 @@ pub struct PlanqStatus<'a> {
 	align: Alignment,
 }
 impl<'a> PlanqStatus<'a> {
-	pub fn new(new_data: &'a Vec<String>) -> PlanqStatus<'a> {
+	pub fn new(new_data: &'a [String]) -> PlanqStatus<'a> {
 		PlanqStatus {
 			data: new_data.to_vec(),
 			block: None,
@@ -185,7 +185,7 @@ impl PlanqData {
 		}
 	}
 	pub fn inventory_toggle(&mut self) {
-		if self.show_inventory == false { self.show_inventory = true; }
+		if !self.show_inventory { self.show_inventory = true; }
 		else { self.show_inventory = false; }
 	}
 	/// Renders the status bars of the PLANQ

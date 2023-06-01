@@ -44,23 +44,22 @@ pub enum GameEventType {
 }
 impl fmt::Display for GameEventType {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let output;
-		match self {
-			GameEventType::NullEvent => { output = "etype::NullEvent" }
-			GameEventType::PauseToggle => { output = "etype::PauseToggle" }
-			GameEventType::ModeSwitch(_) => { output = "etype::ModeSwitch" }
-			GameEventType::PlayerMove(_) => { output = "etype::PlayerMove" }
-			GameEventType::ActorOpen => { output = "etype::ActorOpen" }
-			GameEventType::ActorClose => { output = "etype::ActorClose" }
-			GameEventType::ActorLock => { output = "etype::ActorLock" }
-			GameEventType::ActorUnlock => { output = "etype::ActorUnlock" }
-			GameEventType::ItemUse => { output = "etype::ItemUse" }
-			GameEventType::ItemMove => { output = "etype::ItemMove" }
-			GameEventType::ItemDrop => { output = "etype::ItemDrop" }
-			GameEventType::ItemKILL => { output = "etype::ItemKILL" }
-			GameEventType::DoorOpen => { output = "etype::DoorOpen" }
-			GameEventType::DoorClose => { output = "etype::DoorClose" }
-		}
+		let output = match self {
+			GameEventType::NullEvent => { "etype::NullEvent" }
+			GameEventType::PauseToggle => { "etype::PauseToggle" }
+			GameEventType::ModeSwitch(_) => { "etype::ModeSwitch" }
+			GameEventType::PlayerMove(_) => { "etype::PlayerMove" }
+			GameEventType::ActorOpen => { "etype::ActorOpen" }
+			GameEventType::ActorClose => { "etype::ActorClose" }
+			GameEventType::ActorLock => { "etype::ActorLock" }
+			GameEventType::ActorUnlock => { "etype::ActorUnlock" }
+			GameEventType::ItemUse => { "etype::ItemUse" }
+			GameEventType::ItemMove => { "etype::ItemMove" }
+			GameEventType::ItemDrop => { "etype::ItemDrop" }
+			GameEventType::ItemKILL => { "etype::ItemKILL" }
+			GameEventType::DoorOpen => { "etype::DoorOpen" }
+			GameEventType::DoorClose => { "etype::DoorClose" }
+		};
 		write!(f, "{}", output)
 	}
 }

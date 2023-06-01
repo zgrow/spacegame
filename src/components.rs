@@ -53,7 +53,7 @@ impl Position {
 			//eprintln!("* calculated distance: {self:?} to {target:?}: {}", distance); // DEBUG:
 			if distance as i32 <= range { return true; }
 		}
-		return false;
+		false
 	}
 }
 impl fmt::Display for Position {
@@ -69,8 +69,7 @@ impl fmt::Display for Position {
 //}
 impl<'a> PartialEq<&(i32, i32, i32)> for &'a Position {
 	fn eq(&self, other: &&(i32, i32, i32)) -> bool {
-		if self.x == other.0 && self.y == other.1 && self.z == other.2 { return true; }
-		else { return false; }
+		self.x == other.0 && self.y == other.1 && self.z == other.2
 	}
 }
 /// Makes the entity available to be rendered on the viewport
@@ -140,7 +139,7 @@ impl Lockable {
 	pub fn lock(&mut self, new_key: i32) -> i32 {
 		self.is_locked = true;
 		if new_key != 0 { self.key = new_key; }
-		return self.key;
+		self.key
 	}
 }
 /// Describes an entity that can lock or unlock a Lockable object
@@ -181,7 +180,7 @@ impl Device {
 			// This item does not need a battery/has infinite power, so no discharge can occur
 			return self.batt_voltage;
 		}
-		self.batt_voltage = self.batt_voltage - (self.batt_discharge * duration);
+		self.batt_voltage -= self.batt_discharge * duration;
 		if self.batt_voltage < 0 { self.batt_voltage = 0; }
 		self.batt_voltage
 	}
@@ -192,7 +191,7 @@ impl Device {
 	}
 	/// power toggle
 	pub fn power_toggle(&mut self) -> bool {
-		if self.pw_switch == false { self.pw_switch = true; }
+		if !self.pw_switch { self.pw_switch = true; }
 		else { self.pw_switch = false; }
 		self.pw_switch
 	}
@@ -245,19 +244,18 @@ pub enum Direction {
 }
 impl fmt::Display for Direction {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let text: String;
-		match self {
-			Direction::N    => { text = "north".to_string(); }
-			Direction::NW   => { text = "northwest".to_string(); }
-			Direction::W    => { text = "west".to_string(); }
-			Direction::SW   => { text = "southwest".to_string(); }
-			Direction::S    => { text = "south".to_string(); }
-			Direction::SE   => { text = "southeast".to_string(); }
-			Direction::E    => { text = "east".to_string(); }
-			Direction::NE   => { text = "northeast".to_string(); }
-			Direction::UP   => { text = "up".to_string(); }
-			Direction::DOWN => { text = "down".to_string(); }
-		}
+		let text: String = match self {
+			Direction::N    => { "north".to_string() }
+			Direction::NW   => { "northwest".to_string() }
+			Direction::W    => { "west".to_string() }
+			Direction::SW   => { "southwest".to_string() }
+			Direction::S    => { "south".to_string() }
+			Direction::SE   => { "southeast".to_string() }
+			Direction::E    => { "east".to_string() }
+			Direction::NE   => { "northeast".to_string() }
+			Direction::UP   => { "up".to_string() }
+			Direction::DOWN => { "down".to_string() }
+		};
 		write!(f, "{}", text)
 	}
 }

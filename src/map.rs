@@ -23,13 +23,12 @@ pub enum TileType {
 }
 impl Display for TileType {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let output;
-		match self {
-			TileType::Vacuum => { output = "vacuum" }
-			TileType::Floor => { output = "floor" }
-			TileType::Wall => { output = "wall" }
-			TileType::Stairway => { output = "stairway" }
-		}
+		let output = match self {
+			TileType::Vacuum => { "vacuum" }
+			TileType::Floor => { "floor" }
+			TileType::Wall => { "wall" }
+			TileType::Stairway => { "stairway" }
+		};
 		write!(f, "{}", output)
 	}
 }

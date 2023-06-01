@@ -91,19 +91,20 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 	//eprintln!("Updating CameraView from map at z-level {}", player.2.z); // DEBUG:
 	let world_map = &model.levels[player.2.z as usize];
 	// Absolutely positively do not try to do this if the camera or map are empty
-	assert!(camera.map.len() != 0, "camera.map has length 0!");
-	assert!(world_map.tiles.len() != 0, "world_map.tiles has length 0!");
+	assert!(!camera.map.is_empty(), "camera.map has length 0!");
+	assert!(!world_map.tiles.is_empty(), "world_map.tiles has length 0!");
 	let centerpoint = Position{x: camera.width / 2, y: camera.height / 2, z: 0};
 	let minima = Position{x: player.2.x - centerpoint.x, y: player.2.y - centerpoint.y, z: 0};
 	let maxima = Position{x: player.2.x + centerpoint.x, y: player.2.y + centerpoint.y, z: 0};
-	let mut screen_y = 0;
-	for target_y in minima.y..maxima.y {
-		let mut screen_x = 0;
-		for target_x in minima.x..maxima.x {
+	//let mut screen_y = 0;
+	//for target_y in minima.y..maxima.y {
+	for (screen_y, target_y) in (minima.y..maxima.y).enumerate() {
+		//let mut screen_x = 0;
+		for (screen_x, target_x) in (minima.x..maxima.x).enumerate() {
 			// We are iterating on target_x/y AND screen_x/y
 			// Update the world_map and buf indices at the same time to avoid confusion
 			let map_index = world_map.to_index(target_x, target_y);
-			let buf_index = xy_to_index(screen_x, screen_y, camera.width);
+			let buf_index = xy_to_index(screen_x as i32, screen_y as i32, camera.width);
 			let mut new_tile = default_tile();
 			// Check for an existing tile in the world_map
 			// Don't use map_index to perform the bounds check:
@@ -147,9 +148,9 @@ pub fn camera_update_sys(mut camera: ResMut<CameraView>,
 				new_tile.glyph = "░".to_string();
 			}
 			camera.map[buf_index] = new_tile;
-			screen_x += 1;
+			//screen_x += 1;
 		}
-		screen_y += 1;
+		//screen_y += 1;
 	}
 }
 /// Prototype that returns a 'blank' kind of tile. Planned to be replaced with logic that draw a

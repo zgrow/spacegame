@@ -75,7 +75,7 @@ impl GameEngine {
 			player_action: GameEventType::NullEvent,
 		};
 		new_eng.ui_grid.calc_layout(max_area);
-		return new_eng;
+		new_eng
 	}
 	/// Runs a single update cycle of the game state
 	pub fn tick(&mut self) {
@@ -283,7 +283,7 @@ impl GameEngine {
 	/// Toggles the main menu's visibility each time it is called
 	pub fn main_menu_toggle(&mut self) {
 		// sets the visibility state of the main menu popup
-		if self.main_menu_is_visible == false { self.main_menu_is_visible = true; }
+		if !self.main_menu_is_visible { self.main_menu_is_visible = true; }
 		else { self.main_menu_is_visible = false; }
 	}
 	/// Shows the item chooser menu
@@ -299,9 +299,10 @@ impl GameEngine {
 		//eprintln!("calc_layout() called"); // DEBUG:
 		self.ui_grid.calc_layout(area);
 		let camera_ref = self.app.world.get_resource_mut::<CameraView>();
-		if camera_ref.is_some() {
+		if let Some(mut camera) = camera_ref {
+		//if camera_ref.is_some() {
 			eprintln!("- resizing cameraview during call to calc_layout()");// DEBUG:
-			let mut camera = camera_ref.unwrap();
+			//let mut camera = camera_ref.unwrap();
 			camera.set_dims(self.ui_grid.camera_main.width as i32, self.ui_grid.camera_main.height as i32);
 		}
 	}
@@ -436,6 +437,11 @@ impl UIGrid {
 		self.planq_status = planq_splits[0];
 		self.planq_output_1 = planq_splits[1];
 		self.planq_output_2 = planq_splits[2];
+	}
+}
+impl Default for UIGrid {
+	fn default() -> UIGrid {
+		UIGrid::new()
 	}
 }
 

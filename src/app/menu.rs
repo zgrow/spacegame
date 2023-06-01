@@ -26,7 +26,7 @@ impl MainMenuItems {
 			if val == MainMenuItems::NULL { continue; } // Don't add NULL to lists
 			list.push(val);
 		}
-		return list;
+		list
 	}
 }
 impl fmt::Display for MainMenuItems {
@@ -54,7 +54,7 @@ impl<T> MenuSelector<T> {
 		}
 	}
 	pub fn next(&mut self) {
-		if self.list.len() != 0 {
+		if !self.list.is_empty() {
 			let index = match self.state.selected() {
 				Some(index) => {
 					if index >= (self.list.len() - 1) {
@@ -70,7 +70,7 @@ impl<T> MenuSelector<T> {
 		// simply do nothing at all if there's no list to traverse
 	}
 	pub fn prev(&mut self) {
-		if self.list.len() != 0 {
+		if !self.list.is_empty() {
 			let index = match self.state.selected() {
 				Some(index) => {
 					if index == 0 {

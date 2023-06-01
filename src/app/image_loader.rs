@@ -67,6 +67,11 @@ impl XpFileParser {
 		])
 	}
 }
+impl Default for XpFileParser {
+	fn default() -> XpFileParser {
+		XpFileParser::new()
+	}
+}
 /// Produces a Map object, complete with tilemap, from the specified REXPaint resource
 pub fn load_rex_map(xp_file: &XpFile) -> (Map, Vec<(ItemType, Position)>) {
 	let mut new_width: i32 = 1;
