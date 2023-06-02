@@ -54,8 +54,8 @@ fn main() -> AppResult<()> {
 	tui.init()?;
 	// Set the initial list of comms channels
 	let chanlist = vec!["world".to_string(),
-		                "planq".to_string(),
-		                "debug".to_string()];
+		                  "planq".to_string(),
+		                  "debug".to_string()];
 	// Build up the Bevy instance
 	let mut eng = GameEngine::new(tsize);
 	eng.app

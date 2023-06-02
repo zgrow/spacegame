@@ -138,6 +138,7 @@ pub fn engine_system(mut state:         ResMut<GameSettings>,
 		// FIXME: this state change is not propagating up to the actual engine mode variable
 		eprintln!("VICTORY condition achieved!"); // DEBUG:
 		state.mode = EngineMode::GoodEnd;
+		state.mode_changed = true;
 	}
 }
 /// Handles entities that can move around the map

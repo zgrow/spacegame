@@ -81,6 +81,12 @@ impl GameEngine {
 	pub fn tick(&mut self) {
 		//eprintln!("TICK"); // DEBUG:
 		self.app.update();
+		// check for any mode switches propagating up from a game event
+		let mut settings = self.app.world.get_resource_mut::<GameSettings>().unwrap();
+		if settings.mode_changed {
+			self.mode = settings.mode;
+			settings.mode_changed = false;
+		}
 	}
 	/// Renders the main menu, useful so that we can draw it by itself in standby mode
 	pub fn render_main_menu<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
@@ -357,11 +363,13 @@ impl GameEngine {
 #[reflect(Resource)]
 pub struct GameSettings {
 	pub mode: EngineMode,
+	pub mode_changed: bool,
 }
 impl GameSettings {
 	pub fn new() -> GameSettings {
 		GameSettings {
 			mode: EngineMode::Running,
+			mode_changed: false,
 		}
 	}
 }
