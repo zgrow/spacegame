@@ -35,7 +35,7 @@ use bevy::prelude::*;
 /// Application result type.
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 /// Contains all of the coordination and driver logic for the game itself
-pub struct GameEngine {
+pub struct GameEngine<'a> {
 	pub running: bool, // control flag for the game loop as started in main()
 	pub standby: bool, // if true, the game itself is not yet loaded/has ended
 	pub mode: EngineMode, // sets the engine's runtime context: paused, item selection, &c
@@ -52,8 +52,9 @@ pub struct GameEngine {
 	// see the planq obj for the planq_chooser's visibility setting
 	pub planq_chooser: MenuSelector<Entity>, // provides a generic menu selector via the Planq
 	pub player_action: GameEventType, // in practice only a subset of types will be used
+	pub planq_stdin: PlanqInput<'a>,
 }
-impl GameEngine {
+impl GameEngine<'_> {
 	/// Constructs a new instance of [`GameEngine`].
 	pub fn new(max_area: Rect) -> Self {
 		let mut new_eng = Self {
@@ -73,6 +74,7 @@ impl GameEngine {
 			target_chooser: MenuSelector::with_items(Vec::new()),
 			planq_chooser: MenuSelector::with_items(Vec::new()),
 			player_action: GameEventType::NullEvent,
+			planq_stdin: PlanqInput::new(),
 		};
 		new_eng.ui_grid.calc_layout(max_area);
 		new_eng
@@ -145,6 +147,7 @@ impl GameEngine {
 		}
 		// Always render the status widgets if there's power
 		planq.render_status_bars(frame, self.ui_grid.planq_status);
+		if planq.show_cli_input { planq.render_cli(frame, self.ui_grid.planq_input, &mut self.planq_stdin); }
 		if planq.output_1_enabled {
 			planq.render_planq_stdout_1(frame, self.ui_grid.planq_output_1);
 		}
@@ -300,6 +303,12 @@ impl GameEngine {
 	pub fn show_target_chooser(&mut self) { self.target_chooser_is_visible = true; }
 	/// Hides the targeting menu
 	pub fn hide_target_chooser(&mut self) { self.target_chooser_is_visible = false; }
+	/// Shows the PLANQ's cli input if it's running, &c
+	pub fn show_planq_cli(&mut self) {
+
+	}
+	/// Hides the PLANQ's cli
+	pub fn hide_planq_cli(&mut self) { /* this can always be executed */ }
 	/// Requests a recalculation of the GameEngine.ui_grid object based on the given area
 	pub fn calc_layout(&mut self, area: Rect) {
 		//eprintln!("calc_layout() called"); // DEBUG:
@@ -384,6 +393,8 @@ pub struct UIGrid {
 	pub planq_sidebar:  Rect,
 	/// Designates the space reserved for the Planq's stats: offline status, battery power, &c
 	pub planq_status:   Rect,
+	/// Designates the space for the CLI input
+	pub planq_input:    Rect,
 	/// Designates the first output screen of the Planq; user-configurable
 	pub planq_output_1: Rect,
 	/// Designates the second output screen of the Planq; user-configurable
@@ -396,6 +407,7 @@ impl UIGrid {
 			msg_world: Rect::default(),
 			planq_sidebar: Rect::default(),
 			planq_status: Rect::default(),
+			planq_input: Rect::default(),
 			planq_output_1: Rect::default(),
 			planq_output_2: Rect::default(),
 		}
@@ -426,23 +438,32 @@ impl UIGrid {
 		 * Cogmind uses a minimum 'grid' size of 80 wide by 60 high, seems legit
 		 */
 		// Recalculate everything given the new area
+		// Split the entire window between [1/2](0) and [3](1) horizontally
 		let main_horiz_split = Layout::default()
 			.direction(Direction::Horizontal)
-			.constraints([Constraint::Min(30), Constraint::Length(30)].as_ref())
+			.constraints([Constraint::Min(30), Constraint::Length(38)].as_ref())
 			.split(max_area).to_vec();
+		// Split [1](0) and [2](1) vertically
 		let camera_worldmsg_split = Layout::default()
 			.direction(Direction::Vertical)
 			.constraints([Constraint::Min(30), Constraint::Length(12)].as_ref())
 			.split(main_horiz_split[0]).to_vec();
+		// Split [3] into the PLANQ output sizes: [status](0), [stdout_1](1), [stdout_2](2), as a vertical stack
 		let planq_splits = Layout::default()
 			.direction(Direction::Vertical)
-			.constraints([Constraint::Min(3), Constraint::Length(20), Constraint::Length(20)].as_ref())
+			.constraints([Constraint::Min(3), Constraint::Length(22), Constraint::Length(22)].as_ref())
 			.split(main_horiz_split[1]).to_vec();
+		// Split the [planq_status](0) vertically to provide a height=1 area for the PLANQ's [CLI input](1)
+		let planq_status = Layout::default()
+			.direction(Direction::Vertical)
+			.constraints([Constraint::Min(1), Constraint::Max(1)].as_ref())
+			.split(planq_splits[0]).to_vec();
 		// Update the UIGrid itself to hold the new sizes
 		self.camera_main = camera_worldmsg_split[0];
 		self.msg_world = camera_worldmsg_split[1];
 		self.planq_sidebar = main_horiz_split[1];
-		self.planq_status = planq_splits[0];
+		self.planq_status = planq_status[0];
+		self.planq_input = planq_status[1];
 		self.planq_output_1 = planq_splits[1];
 		self.planq_output_2 = planq_splits[2];
 	}

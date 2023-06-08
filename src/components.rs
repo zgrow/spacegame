@@ -146,33 +146,38 @@ impl Lockable {
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
 pub struct Key { pub key_id: i32 }
-/// Describes an entity with behavior that can be applied/used/manipulated by an entity
+/// Describes an entity with behavior that can be applied/used/manipulated by another entity
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
 pub struct Device {
 	pub pw_switch: bool,
 	pub batt_voltage: i32,
 	pub batt_discharge: i32,
+	pub state: DeviceState,
 }
 impl Device {
-	/// Creates a new Device; set the batt_discharge param to -1 to disable battery use
+	/// Creates a new Device; set the batt_discharge param to 0 to disable battery use
 	pub fn new(discharge_rate: i32) -> Device {
 		Device {
 			pw_switch: false,
 			batt_voltage: 0, // BATTERIES NOT INCLUDED LMAOOO
-			batt_discharge: discharge_rate
+			batt_discharge: discharge_rate,
+			state: DeviceState::Offline,
 		}
 	}
 	/// Turns on the device, if there's any power remaining. Returns false if no power left.
 	pub fn power_on(&mut self) -> bool {
-		if self.batt_voltage > 0 {
+		if self.batt_voltage > 0
+		|| self.batt_discharge == 0 {
 			self.pw_switch = true;
+			self.state = DeviceState::Idle;
 		}
 		self.pw_switch
 	}
 	/// Turns off the device.
 	pub fn power_off(&mut self) {
 		self.pw_switch = false;
+		self.state = DeviceState::Offline;
 	}
 	/// Discharges battery power according to the specified duration, returns current power level
 	pub fn discharge(&mut self, duration: i32) -> i32 {
@@ -191,12 +196,23 @@ impl Device {
 	}
 	/// power toggle
 	pub fn power_toggle(&mut self) -> bool {
+		// NOTE: trying to invoke these methods doesn't seem to work here; not sure why
+		//if !self.pw_switch { self.power_on(); }
+		//else { self.power_off(); }
 		if !self.pw_switch { self.pw_switch = true; }
 		else { self.pw_switch = false; }
 		self.pw_switch
 	}
 }
-/// Describes an entity that can manipulate the controls of another entity
+#[derive(Reflect, Default, Copy, Clone, Eq, PartialEq)]
+pub enum DeviceState {
+	#[default]
+	Offline,
+	Idle,
+	Working,
+	Error(u32) // Takes an error code as a specifier
+}
+/// Describes an entity that can manipulate the controls of a Device
 #[derive(Component)]
 pub struct CanOperate { }
 

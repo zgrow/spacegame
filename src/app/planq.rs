@@ -15,6 +15,8 @@ use crate::app::messagelog::Message;
 use crate::components::Position;
 use crate::app::event::PlanqEvent;
 
+use tui_textarea::TextArea;
+
 /// Defines the Planq 'tag' component within Bevy
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
@@ -99,21 +101,24 @@ impl<'a> Widget for PlanqStatus<'a> {
 		}
 	}
 }
-/// Provides the logic for the human input interface, including the command parser
-/*
-#[derive(Resource, FromReflect, Reflect, Clone, Debug, Eq, PartialEq, Default)]
-#[reflect(Resource)]
-pub struct PlanqCmd {
-	// put its local vars first
-}
-impl PlanqCmd {
-	pub fn new() -> PlanqCmd {
-		PlanqCmd {
 
+/// Defines the CLI input system and its logic
+/// Note that tui-textarea is a part of the ratatui ecosystem, and therefore
+/// is ineligible by definition for addition to the Bevy ecosystem
+#[derive(Default, Clone)]
+pub struct PlanqInput<'a> {
+	//pub input: Input, // This cannot be added to anything with Reflect, nor can it have Reflect implemented for it because it is external
+	pub input: TextArea<'a>,
+	pub history: Vec<String>,
+}
+impl PlanqInput<'_> {
+	pub fn new() -> PlanqInput<'static> {
+		PlanqInput {
+			input: TextArea::default(),
+			history: Vec::new(),
 		}
 	}
 }
-*/
 
 /// Defines the set of output modes for the PLANQ's dual output windows
 #[derive(FromReflect, Reflect, Default, Eq, PartialEq, Clone, Debug)]
@@ -193,6 +198,7 @@ impl PlanqData {
 		let mut planq_text = vec!["test string".to_string()]; // DEBUG:
 		planq_text.push(format!("*D* x: {}, y: {}, z: {}",
 		                        self.player_loc.x, self.player_loc.y, self.player_loc.z)); // DEBUG:
+		planq_text.push("1234567890123456789012345678".to_string()); // DEBUG: ruler
 		frame.render_widget(
 			PlanqStatus::new(&planq_text)
 			.block(Block::default()
@@ -204,6 +210,18 @@ impl PlanqData {
 			),
 			area,
 		);
+	}
+	/// Renders the CLI input box
+	pub fn render_cli<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect, stdin: &mut PlanqInput) {
+		//let mut cli = TextArea::default();
+		//cli.set_block(
+		stdin.input.set_block(
+			Block::default()
+			.borders(Borders::LEFT | Borders::RIGHT)
+			.border_type(BorderType::Plain)
+		);
+		//frame.render_widget(cli.widget(), area);
+		frame.render_widget(stdin.input.widget(), area);
 	}
 	/// Provides the contents of the PLANQ's stdout as a set of formatted Spans for ratatui
 	pub fn get_stdout_as_spans(&self) -> Vec<Spans> {

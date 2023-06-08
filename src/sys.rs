@@ -96,6 +96,7 @@ pub fn new_planq_spawn(mut commands:    Commands,
 			pw_switch: false,
 			batt_voltage: 0,
 			batt_discharge: -1, // TODO: implement battery charge loss
+			state: DeviceState::Offline, // TODO: sync this to the PLANQ's mode, don't try to use it!
 		},
 	));
 	msglog.add(format!("planq spawned at {}, {}, {}", 25, 30, 0), "debug".to_string(), 1, 1);
@@ -135,7 +136,6 @@ pub fn engine_system(mut state:         ResMut<GameSettings>,
 	// version 0.2: v0.1 AND Player.has == planq
 	// version 0.3: constraint: the Door to the Elevator is stuck shut, the Planq can reboot it
 	if *player.1 == Position::new(28, 1, 1) && p_inventory.contains(&planq.0) {
-		// FIXME: this state change is not propagating up to the actual engine mode variable
 		eprintln!("VICTORY condition achieved!"); // DEBUG:
 		state.mode = EngineMode::GoodEnd;
 		state.mode_changed = true;
@@ -563,6 +563,7 @@ pub fn planq_system(mut commands: Commands,
 				planq.action_mode = PlanqActionMode::CliInput;
 			}
 			CliClose => {
+				// FIXME: need to clear the CLI's input buffer! might need to do this at the time of key input?
 				planq.show_cli_input = false;
 				planq.action_mode = PlanqActionMode::Default; // FIXME: this might be a bad choice
 			}
@@ -622,6 +623,7 @@ pub fn planq_system(mut commands: Commands,
 			} else {
 				Err(QueryEntityError::NoSuchEntity(Entity::PLACEHOLDER))
 			};
+			// TODO: rewrite these messages to appear as a ratatui::Table instead of a Paragraph
 			match planq.boot_stage {
 				0 => {
 					if planq.proc_table.is_empty() {
@@ -679,7 +681,8 @@ pub fn planq_system(mut commands: Commands,
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
 							eprintln!("running boot stage 4");
-							msglog.tell_planq("CellulOS 5 (v1992.26.619_revB)".to_string());
+							// HINT: p_ruler:  1234567890123456789012345678 -- currently 28 chars
+							msglog.tell_planq("CellulOS 5 (v19.26.619_revB)".to_string());
 							proc.1.outcome = PlanqEvent::new(PlanqEventType::NullEvent);
 							planq.cpu_mode = PlanqCPUMode::Idle;
 						}
