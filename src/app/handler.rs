@@ -198,7 +198,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				// TODO: set up the cursor dirs to allow movement? or reserve for planq menus?
 				the_input => {
 					// pass everything else to the CLI parser
-					//eng.planq_stdin.input.input(key_event.clone().into()); // START HERE ** not sure why rust refuses to let me use this type conversion
+					//eng.planq_stdin.input.input(key_event.clone().into()); // not sure why rust refuses to let me use this type conversion
 					eprintln!("attempting a translation");
 					let flag = eng.planq_stdin.input.input(
 						Input {

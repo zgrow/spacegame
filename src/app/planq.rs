@@ -21,28 +21,28 @@ use tui_textarea::TextArea;
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
 pub struct Planq { }
-/// Provides the Bevy-backed tools for doing things on the PLANQ involving time intervals
-#[derive(FromReflect, Reflect, Component, Clone, Default)]
-#[reflect(Component)]
-pub struct PlanqProcess {
-	pub timer: Timer,
-	pub outcome: PlanqEvent,
+
+/// Determines the type of status bar that will be displayed in the Planq
+#[derive(FromReflect, Reflect, Eq, PartialEq, Clone, Debug, Default)]
+pub enum PlanqStatusBarType {
+	#[default]
+	Null,         // Displays nothing, provided for compatibility
+	RawData(String),    // Paragraph (ie display data directly)
+	Gauge(u16),      // Gauge,LineGauge
+//	Sparkline,  // Sparkline
+//	Chart,      // Chart
+//	Graph,      // BarChart
+//	Canvas,     // Canvas
+//	Table,      // Table
 }
-impl PlanqProcess {
-	pub fn new() -> PlanqProcess {
-		PlanqProcess {
-			timer: Timer::default(),
-			outcome: PlanqEvent::default()
-		}
-	}
-	pub fn time(mut self, duration: u64) -> PlanqProcess {
-		self.timer = Timer::new(Duration::from_secs(duration), TimerMode::Once);
-		self
-	}
-	pub fn event(mut self, new_event: PlanqEvent) -> PlanqProcess {
-		self.outcome = new_event;
-		self
-	}
+#[derive(FromReflect, Reflect, Resource, Default, Eq, PartialEq, Clone, Debug)]
+#[reflect(Resource)]
+pub struct PlanqBar {
+	pub btype:  PlanqStatusBarType,
+	// -> START HERE: implement the first 'small' types of status bar, see the notes
+	// will probably want some kind of trait object as each status bar type takes a
+	// different kind of data as input: the 'render' call that receives the data should
+	// be generalized across the various specific types
 }
 
 /// Defines the Planq status widget for ratatui: provides outputs directly from the Planq
@@ -101,7 +101,6 @@ impl<'a> Widget for PlanqStatus<'a> {
 		}
 	}
 }
-
 /// Defines the CLI input system and its logic
 /// Note that tui-textarea is a part of the ratatui ecosystem, and therefore
 /// is ineligible by definition for addition to the Bevy ecosystem
@@ -149,7 +148,31 @@ pub enum PlanqActionMode {
 	UseItem,
 	CliInput,
 }
-/// Defines the Planq settings/controls (interface bwn my GameEngine class & Bevy)
+/// Provides the Bevy-backed tools for doing things on the PLANQ involving time intervals
+/// That is, this represents a 'process' or task within the PLANQ that needs processing time to complete
+#[derive(FromReflect, Reflect, Component, Clone, Default)]
+#[reflect(Component)]
+pub struct PlanqProcess {
+	pub timer: Timer,
+	pub outcome: PlanqEvent,
+}
+impl PlanqProcess {
+	pub fn new() -> PlanqProcess {
+		PlanqProcess {
+			timer: Timer::default(),
+			outcome: PlanqEvent::default()
+		}
+	}
+	pub fn time(mut self, duration: u64) -> PlanqProcess {
+		self.timer = Timer::new(Duration::from_secs(duration), TimerMode::Once);
+		self
+	}
+	pub fn event(mut self, new_event: PlanqEvent) -> PlanqProcess {
+		self.outcome = new_event;
+		self
+	}
+}
+/// Defines the Planq settings & controls (interface bwn my GameEngine class & Bevy)
 #[derive(Resource, FromReflect, Reflect, Eq, PartialEq, Clone, Debug, Default)]
 #[reflect(Resource)]
 pub struct PlanqData {
@@ -158,16 +181,21 @@ pub struct PlanqData {
 	pub is_carried: bool, // true if the planq is in the player's inventory
 	pub cpu_mode: PlanqCPUMode,
 	pub action_mode: PlanqActionMode, // Provides player action context for disambiguation
-	pub output_1_enabled: bool,
-	pub out1_mode: PlanqOutputMode,
-	pub output_2_enabled: bool,
-	pub out2_mode: PlanqOutputMode,
+	//pub output_1_enabled: bool,
+	//pub out1_mode: PlanqOutputMode,
+	//pub output_2_enabled: bool,
+	//pub out2_mode: PlanqOutputMode,
+	pub show_terminal: bool,
+	pub terminal_mode: PlanqOutputMode,
 	pub show_inventory: bool,
 	pub inventory_list: Vec<Entity>,
 	pub player_loc: Position,
 	pub show_cli_input: bool,
-	pub stdout: Vec<Message>,
+	pub stdout: Vec<Message>, // Contains the PLANQ's message backlog
 	pub proc_table: Vec<Entity>, // The list of PlanqProcesses running in the Planq
+	pub status_bars: Vec<PlanqBar>, // The list of active statusbar modules
+	// trying to maintain a vec of PlanqStatus objects would be tough because of lifetimes
+	// not sure yet what is required to help this work without storing a PlanqStatus directly
 }
 impl PlanqData {
 	pub fn new() -> PlanqData {
@@ -177,16 +205,19 @@ impl PlanqData {
 			is_carried: false,
 			cpu_mode: PlanqCPUMode::Offline,
 			action_mode: PlanqActionMode::Default,
-			output_1_enabled: false,
-			out1_mode: PlanqOutputMode::Terminal,
-			output_2_enabled: false,
-			out2_mode: PlanqOutputMode::Idle,
+			//output_1_enabled: false,
+			//out1_mode: PlanqOutputMode::Terminal,
+			//output_2_enabled: false,
+			//out2_mode: PlanqOutputMode::Idle,
+			show_terminal: false,
+			terminal_mode: PlanqOutputMode::Terminal,
 			show_inventory: false,
 			inventory_list: Vec::new(),
 			player_loc: Position::default(),
 			show_cli_input: false,
 			stdout: Vec::new(),
 			proc_table: Vec::new(),
+			status_bars: Vec::new(),
 		}
 	}
 	pub fn inventory_toggle(&mut self) {
@@ -194,22 +225,38 @@ impl PlanqData {
 		else { self.show_inventory = false; }
 	}
 	/// Renders the status bars of the PLANQ
-	pub fn render_status_bars<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		let mut planq_text = vec!["test string".to_string()]; // DEBUG:
-		planq_text.push(format!("*D* x: {}, y: {}, z: {}",
-		                        self.player_loc.x, self.player_loc.y, self.player_loc.z)); // DEBUG:
-		planq_text.push("1234567890123456789012345678".to_string()); // DEBUG: ruler
-		frame.render_widget(
-			PlanqStatus::new(&planq_text)
-			.block(Block::default()
-					.title("PLANQOS v29.3/rev30161124")
-					.title_alignment(Alignment::Center)
-					.borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
-					.border_type(BorderType::Thick)
-					.border_style(Style::default().fg(Color::White)),
-			),
-			area,
-		);
+	pub fn render_status_bars<B: Backend>(&mut self, frame: &mut Frame<'_, B>, mut area: Rect) {
+		//let mut planq_text = vec!["test string".to_string()]; // DEBUG:
+		//planq_text.push(format!("*D* x: {}, y: {}, z: {}",
+		//                        self.player_loc.x, self.player_loc.y, self.player_loc.z)); // DEBUG:
+		//planq_text.push("123456789_123456789_123456789_".to_string()); // DEBUG: ruler
+		//frame.render_widget(
+		//	PlanqStatus::new(&planq_text)
+		//	.block(Block::default()
+		//			.title("PLANQOS v29.3/rev30161124")
+		//			.title_alignment(Alignment::Right)
+		//			.borders(Borders::ALL)
+		//			.border_type(BorderType::Plain)
+		//			.border_style(Style::default().fg(Color::White)),
+		//	),
+		//	area,
+		//);
+		// ***
+		let sbar_block = Block::default().borders(Borders::LEFT | Borders::RIGHT)
+			.border_type(BorderType::Plain)
+			.border_style(Style::default().fg(Color::Gray));
+		for sbar in &self.status_bars {
+			match &sbar.btype {
+				PlanqStatusBarType::RawData(input) => {
+					frame.render_widget(Paragraph::new(input.clone()).block(sbar_block.clone()), area);
+				}
+				PlanqStatusBarType::Gauge(input) => {
+					frame.render_widget(Gauge::default().percent(*input).block(sbar_block.clone()), area);
+				}
+				_ => { }
+			}
+			area.y += 1;
+		}
 	}
 	/// Renders the CLI input box
 	pub fn render_cli<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect, stdin: &mut PlanqInput) {
@@ -223,6 +270,18 @@ impl PlanqData {
 		//frame.render_widget(cli.widget(), area);
 		frame.render_widget(stdin.input.widget(), area);
 	}
+	/// Renders the whole terminal window, including the backlog, leaving room for the CLI
+	pub fn render_terminal<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
+		frame.render_widget(
+			Paragraph::new("self.stdout")
+			.block(Block::default()
+			       .borders(Borders::ALL)
+			       .border_type(BorderType::Plain)
+			       .border_style(Style::default().fg(Color::Blue)),
+			),
+			area,
+		);
+	}
 	/// Provides the contents of the PLANQ's stdout as a set of formatted Spans for ratatui
 	pub fn get_stdout_as_spans(&self) -> Vec<Spans> {
 		let mut output: Vec<Spans> = Vec::new();
@@ -231,102 +290,6 @@ impl PlanqData {
 			output.push(msg.text.clone().into());
 		}
 		output
-	}
-	/// Renders the first (upper) PLANQ output window
-	pub fn render_planq_stdout_1<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		// Switch based on the planq's output mode for this screen
-		match self.out1_mode {
-			PlanqOutputMode::Idle => { self.render_idle_mode(frame, area); }
-			PlanqOutputMode::InventoryChooser => { self.render_item_chooser(frame, area); }
-			PlanqOutputMode::Terminal => { self.render_terminal_output(frame, area); }
-			PlanqOutputMode::Settings => { self.render_settings_menu(frame, area); }
-		}
-	}
-	/// Renders the second (lower) PLANQ output window
-	pub fn render_planq_stdout_2<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		// Switch based on the planq's output mode for this screen
-		match self.out2_mode {
-			PlanqOutputMode::Idle => { self.render_idle_mode(frame, area); }
-			PlanqOutputMode::InventoryChooser => { self.render_item_chooser(frame, area); }
-			PlanqOutputMode::Terminal => { self.render_terminal_output(frame, area); }
-			PlanqOutputMode::Settings => { self.render_settings_menu(frame, area); }
-		}
-	}
-	/*
-	// match planq.output_1_mode { ... (build an enum?) TODO:
-	if planq.show_inventory {
-		if planq.inventory_list.len() > 0 {
-			let mut item_list = Vec::new();
-			self.planq_chooser.list.clear();
-			for item in &planq.inventory_list {
-				self.planq_chooser.list.push(*item);
-				let mut name = self.app.world.get::<Name>(*item).unwrap().name.clone();
-				name.push_str(&String::from(format!("-{item:?}")));
-				item_list.push(ListItem::new(name.clone()));
-			}
-			let inventory_menu = List::new(item_list)
-				.block(Block::default().title("Inventory").borders(Borders::ALL))
-				.style(Style::default())
-				.highlight_style(Style::default().fg(Color::Black).bg(Color::White))
-				.highlight_symbol("->");
-			frame.render_stateful_widget(inventory_menu, self.ui_grid.planq_output_1, &mut self.planq_chooser.state);
-		} else {
-			frame.render_widget(
-				Paragraph::new("inventory is empty").block(
-					Block::default()
-					.borders(Borders::ALL)
-					.border_type(BorderType::Thick)
-					.border_style(Style::default().fg(Color::White)),
-				),
-				self.ui_grid.planq_output_1,
-			);
-		}
-	}
-	*/
-	/*
-	// TODO: figure out which output to display here
-	frame.render_widget(
-		Block::default()
-		.title("output_2 test")
-		.title_alignment(Alignment::Left)
-		.borders(Borders::ALL)
-		.border_type(BorderType::Thick)
-		.border_style(Style::default().fg(Color::White)),
-		self.ui_grid.planq_output_2,
-	);
-	*/
-	fn render_idle_mode<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		frame.render_widget(
-			Paragraph::new("\n\n  (idling)")
-			.block(Block::default()
-			       .borders(Borders::ALL)
-			       .border_style(Style::default().fg(Color::Green)),
-			),
-			area,
-		);
-	}
-	fn render_item_chooser<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		frame.render_widget(
-			Block::default(),
-			area,
-		);
-	}
-	fn render_settings_menu<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		frame.render_widget(
-			Block::default(),
-			area,
-		);
-	}
-	fn render_terminal_output<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		frame.render_widget(
-			Paragraph::new(self.get_stdout_as_spans())
-			.block(Block::default()
-			       .borders(Borders::ALL)
-			       .border_style(Style::default().fg(Color::Blue)))
-			.style(Style::default())
-			.wrap(Wrap { trim: true }),
-			area,
-		);
 	}
 }
 

@@ -123,19 +123,25 @@ impl GameEngine<'_> {
 	/// Renders the PLANQ sidebar object
 	pub fn render_planq<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
 		let mut planq = self.app.world.get_resource_mut::<PlanqData>().unwrap();
+		// TODO: optimize this to only fire if the number of status bars actually changes
+		self.ui_grid.p_status_height = planq.status_bars.len(); // WARN: assumes all status bars are h = 1!
+		self.ui_grid.calc_planq_layout(self.ui_grid.planq_sidebar);
 		// Display some kind of 'planq offline' state if not carried
+		// TODO: replace the 'no planq detected' message with something nicer
 		if !planq.is_carried { // Player is not carrying a planq
 			frame.render_widget(
-				Paragraph::new("\n\n [no PLANQ detected] ").block(
+				Paragraph::new("\n\n[no PLANQ detected] ").block(
 					Block::default().borders(Borders::NONE)
 				),
 				self.ui_grid.planq_status,
 			);
 			return;
 		}
+		// TODO: replace the 'planq offline' message with something nicer
+		// make sure it includes a battery readout: charge level, "NO BATT", &c
 		else if planq.cpu_mode == PlanqCPUMode::Offline {
 			frame.render_widget(
-				Paragraph::new("\n\n [PLANQ offline]").block(
+				Paragraph::new("\n\n[PLANQ offline]").block(
 					Block::default()
 					.borders(Borders::ALL)
 					.border_type(BorderType::Thick)
@@ -147,13 +153,19 @@ impl GameEngine<'_> {
 		}
 		// Always render the status widgets if there's power
 		planq.render_status_bars(frame, self.ui_grid.planq_status);
-		if planq.show_cli_input { planq.render_cli(frame, self.ui_grid.planq_input, &mut self.planq_stdin); }
-		if planq.output_1_enabled {
-			planq.render_planq_stdout_1(frame, self.ui_grid.planq_output_1);
+		if planq.show_terminal {
+			planq.render_terminal(frame, self.ui_grid.planq_stdout);
+			// Only display the CLI if there's a terminal visible to contain it
+			if planq.show_cli_input {
+				planq.render_cli(frame, self.ui_grid.planq_stdin, &mut self.planq_stdin);
+			}
 		}
-		if planq.output_2_enabled {
-			planq.render_planq_stdout_2(frame, self.ui_grid.planq_output_2);
-		}
+		//if planq.output_1_enabled {
+		//	planq.render_planq_stdout_1(frame, self.ui_grid.planq_output_1);
+		//}
+		//if planq.output_2_enabled {
+		//	planq.render_planq_stdout_2(frame, self.ui_grid.planq_output_2);
+		//}
 	}
 	/// Renders the game and its GUI.
 	pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
@@ -217,7 +229,7 @@ impl GameEngine<'_> {
 				self.ui_grid.msg_world,
 			);
 		}
-		self.render_planq(frame);
+		self.render_planq(frame); // The PLANQ can decide what it needs to render or not
 		// Render any optional menus and layers, ie main menu
 		if self.main_menu_is_visible {
 			/*
@@ -384,6 +396,16 @@ impl GameSettings {
 }
 
 /// Provides a bunch of named fields (rather than a tuple) of grid components
+/// # Fields
+/// * `camera_main`     Contains the player's view of the meatspace game world
+/// * `msg_world`       Contains the world-level message backlog
+/// * `planq_sidebar`   The *entire* PLANQ area, including borders, without subdivisions
+/// * `planq_status`    The PLANQ's status bars, at the top
+/// * `planq_screen`    The PLANQ's entire terminal view, dynamically sized to leave room for status bars
+/// * `planq_stdout`    The part of the _screen that contains the terminal's backscroll
+/// * `planq_stdin`     The PLANQ's CLI input box
+/// * 'p_status_height' Sets the height of the status bar widget
+/// * 'p_stdin_height'  Sets the height of the CLI input widget
 pub struct UIGrid {
 	/// Provides the main view onto the worldmap
 	pub camera_main:    Rect,
@@ -393,12 +415,16 @@ pub struct UIGrid {
 	pub planq_sidebar:  Rect,
 	/// Designates the space reserved for the Planq's stats: offline status, battery power, &c
 	pub planq_status:   Rect,
-	/// Designates the space for the CLI input
-	pub planq_input:    Rect,
-	/// Designates the first output screen of the Planq; user-configurable
-	pub planq_output_1: Rect,
-	/// Designates the second output screen of the Planq; user-configurable
-	pub planq_output_2: Rect,
+	/// Designates the space for the Planq's entire terminal
+	pub planq_screen:    Rect,
+	/// Designates the output screen of the Planq
+	pub planq_stdout: Rect,
+	/// Designates the CLI input of the Planq
+	pub planq_stdin: Rect,
+	/// Sets the height of the planq_status widget, will be updated during gameplay
+	pub p_status_height: usize,
+	/// Sets the height of the planq's CLI widget
+	pub p_stdin_height: usize
 }
 impl UIGrid {
 	pub fn new() -> UIGrid {
@@ -407,12 +433,49 @@ impl UIGrid {
 			msg_world: Rect::default(),
 			planq_sidebar: Rect::default(),
 			planq_status: Rect::default(),
-			planq_input: Rect::default(),
-			planq_output_1: Rect::default(),
-			planq_output_2: Rect::default(),
+			planq_screen: Rect::default(),
+			planq_stdout: Rect::default(),
+			planq_stdin: Rect::default(),
+			p_status_height: 0,
+			p_stdin_height: 1,
 		}
 	}
-	/// Recalculates the UI layout based on the given size
+	/// Recalculates the PLANQ's layout based on its stored size
+	/// Should take into account the dynamic modules, prevent overlap,
+	/// and writes its results to the planq_status, planq_screen,
+	/// planq_stdout, and planq_stdin fields of the UIGrid object.
+	pub fn calc_planq_layout(&mut self, max_area: Rect) {
+		// NEW METHOD for PLANQ splits
+		// (as a method call somewhere else, so that it can be redone outside of here
+		// given the full width W and height H of the render area,
+		// 1- obtain the height of the planq_status module(s), H
+		//    (this can be 0 but should be more as the planq_status has some builtins)
+		// 2- split H between Max(I) and Min(4) into planq_status and planq_screen,
+		//    so that the CLI's stdout will flow to fill the leftover space
+		// 3- split planq_screen along the vertical as Min(1), Max(J) where J is the height
+		//    of the PLANQ's stdin module, probably = 1 (but not guaranteed!)
+		// 4- store these splits on the UI grid:
+		//    planq - W, H
+		//    \_planq_status - I
+		//    \_planq_screen
+		//      \_planq_stdout
+		//      \_planq_stdin - J
+		// ---
+		// max_area provides the entire space allowed to this widget
+		let first_split = Layout::default()
+			.direction(Direction::Vertical)
+			.constraints([Constraint::Min(self.p_status_height as u16), Constraint::Min(4)].as_ref())
+			.split(max_area).to_vec();
+		let second_split = Layout::default()
+			.direction(Direction::Vertical)
+			.constraints([Constraint::Min(1), Constraint::Max(self.p_stdin_height as u16)].as_ref())
+			.split(first_split[1]).to_vec();
+		self.planq_status = first_split[0];
+		self.planq_screen = first_split[1];
+		self.planq_stdout = second_split[0];
+		self.planq_stdin = second_split[1];
+	}
+	/// Recalculates the UI layout based on the given size, to be invoked if the screen is resized
 	pub fn calc_layout(&mut self, max_area: Rect) {
 		/* Use the layout to build up the UI and its contents
 		 * - iterate through the layout stack
@@ -438,34 +501,33 @@ impl UIGrid {
 		 * Cogmind uses a minimum 'grid' size of 80 wide by 60 high, seems legit
 		 */
 		// Recalculate everything given the new area
-		// Split the entire window between [1/2](0) and [3](1) horizontally
+		// Split the entire window between (1/2)[0] and (3)[1] horizontally
 		let main_horiz_split = Layout::default()
 			.direction(Direction::Horizontal)
-			.constraints([Constraint::Min(30), Constraint::Length(38)].as_ref())
+			.constraints([Constraint::Min(30), Constraint::Length(32)].as_ref())
 			.split(max_area).to_vec();
-		// Split [1](0) and [2](1) vertically
+		// Split (1)[0] and (2)[1] vertically
 		let camera_worldmsg_split = Layout::default()
 			.direction(Direction::Vertical)
 			.constraints([Constraint::Min(30), Constraint::Length(12)].as_ref())
 			.split(main_horiz_split[0]).to_vec();
-		// Split [3] into the PLANQ output sizes: [status](0), [stdout_1](1), [stdout_2](2), as a vertical stack
-		let planq_splits = Layout::default()
-			.direction(Direction::Vertical)
-			.constraints([Constraint::Min(3), Constraint::Length(22), Constraint::Length(22)].as_ref())
-			.split(main_horiz_split[1]).to_vec();
-		// Split the [planq_status](0) vertically to provide a height=1 area for the PLANQ's [CLI input](1)
-		let planq_status = Layout::default()
-			.direction(Direction::Vertical)
-			.constraints([Constraint::Min(1), Constraint::Max(1)].as_ref())
-			.split(planq_splits[0]).to_vec();
+		// OLD METHOD
+		// Split (3) into the PLANQ output sizes: (status)[0], (stdout_1)[1], (stdout_2)[2], as a vertical stack
+		//let planq_splits = Layout::default()
+		//	.direction(Direction::Vertical)
+		//	.constraints([Constraint::Min(3), Constraint::Length(22), Constraint::Length(22)].as_ref())
+		//	.split(main_horiz_split[1]).to_vec();
+		// Split (planq_splits)[0] vertically to provide a height=1 area for the PLANQ's (CLI input)[1]
+		//let planq_status = Layout::default()
+		//	.direction(Direction::Vertical)
+		//	.constraints([Constraint::Min(1), Constraint::Max(1)].as_ref())
+		//	.split(planq_splits[0]).to_vec();
+		//  ****
 		// Update the UIGrid itself to hold the new sizes
 		self.camera_main = camera_worldmsg_split[0];
 		self.msg_world = camera_worldmsg_split[1];
 		self.planq_sidebar = main_horiz_split[1];
-		self.planq_status = planq_status[0];
-		self.planq_input = planq_status[1];
-		self.planq_output_1 = planq_splits[1];
-		self.planq_output_2 = planq_splits[2];
+		self.calc_planq_layout(self.planq_sidebar);
 	}
 }
 impl Default for UIGrid {

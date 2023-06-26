@@ -61,7 +61,7 @@ fn main() -> AppResult<()> {
 	eng.app
 		.register_saveable::<Player>()
 		.register_saveable::<Planq>()
-		.register_saveable::<spacegame::components::Name>() // needs full pathname
+		.register_saveable::<spacegame::components::Name>() // requires full pathname
 		.register_saveable::<Position>()
 		.register_saveable::<Renderable>()
 		.register_saveable::<Mobile>()
@@ -71,16 +71,16 @@ fn main() -> AppResult<()> {
 		.register_saveable::<Lockable>()
 		.register_saveable::<Container>()
 		.insert_resource(GameSettings::new())
-		.insert_resource(ScheduleRunnerSettings::run_once())
+		.insert_resource(ScheduleRunnerSettings::run_once()) // instructs Bevy that we'll advance the loop ourselves
 		.insert_resource(RexAssets::new())
 		.insert_resource(Position{x: 35, y: 20, z: 0}) // The player's position/starting spawn point
-		.insert_resource(Events::<GameEvent>::default()) // The Bevy handler for inter-system comms
-		.insert_resource(Events::<PlanqEvent>::default())
+		.insert_resource(Events::<GameEvent>::default()) // inter-System comms
+		.insert_resource(Events::<PlanqEvent>::default()) // inter-System comms
 		.insert_resource(MessageLog::new(chanlist))
-		.insert_resource(PlanqData::new())
+		.insert_resource(PlanqData::new()) // Contains the PLANQ's outputs, settings, &c
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
-		.add_event::<crossterm::event::KeyEvent>()
-		.add_startup_system(new_player_spawn) // depends on having player_spawn inserted prior
+		.add_event::<crossterm::event::KeyEvent>() // Allows us to plug the crossterm events into Bevy's parser
+		.add_startup_system(new_player_spawn) // depends on having the player's position inserted prior
 		.add_startup_system(new_planq_spawn)
 		.add_startup_system(new_lmr_spawn)
 		.add_system(engine_system)

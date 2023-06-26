@@ -11,7 +11,7 @@ use crate::camera_system::CameraView;
 use crate::map::*;
 use crate::components::{Name, Position, Renderable, Player, Mobile};
 use crate::sys::event::*;
-use crate::sys::{GameEventType::*, PlanqEventType::*};
+use crate::sys::{GameEventType::*, PlanqEventType::*, PlanqStatusBarType::*};
 use crate::app::messagelog::MessageLog;
 use crate::app::planq::*;
 use crate::app::*;
@@ -581,7 +581,8 @@ pub fn planq_system(mut commands: Commands,
 	// - Get the device hardware info
 	if !planq.power_is_on && planq_enty.2.pw_switch {
 		planq.power_is_on = planq_enty.2.pw_switch; // Update the power switch setting
-		planq.output_1_enabled = true; // DEBUG:
+		//planq.output_1_enabled = true; // DEBUG:
+		planq.show_terminal = true;
 		planq.cpu_mode = PlanqCPUMode::Startup; // Begin booting the PLANQ's OS
 	}
 	if planq.power_is_on && !planq_enty.2.pw_switch {
@@ -685,6 +686,10 @@ pub fn planq_system(mut commands: Commands,
 							msglog.tell_planq("CellulOS 5 (v19.26.619_revB)".to_string());
 							proc.1.outcome = PlanqEvent::new(PlanqEventType::NullEvent);
 							planq.cpu_mode = PlanqCPUMode::Idle;
+							let ruler = PlanqBar {btype: PlanqStatusBarType::RawData("123456789-123456789-123456789-".to_string())};
+							eprintln!("* Adding status bar to PLANQ");
+							planq.status_bars.push(ruler);
+							// TODO: ensure that the status bar stack is cleaned up on PLANQ shutdown
 						}
 					}
 				}
@@ -717,6 +722,7 @@ pub fn planq_system(mut commands: Commands,
 	planq.stdout = msglog.get_log_as_messages("planq".to_string(), 0);
 	// - Get the player's location
 	planq.player_loc = *player.1;
+	// - Update the status bar layout info
 }
 
 /* TODO: "memory_system":
