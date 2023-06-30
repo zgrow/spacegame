@@ -103,8 +103,8 @@ impl GameEngine<'_> {
 					mm_items.push(ListItem::new(item.to_string()));
 					self.main_menu.list.push(*item);
 				}
-				MainMenuItems::LOADGAME => { /* FIXME: only add LOADGAME if a save exists */ }
-				MainMenuItems::SAVEGAME => { /* FIXME: only add SAVEGAME if a game is going */ }
+				MainMenuItems::LOADGAME => { /* TODO: only add LOADGAME if a save exists */ }
+				MainMenuItems::SAVEGAME => { /* TODO: only add SAVEGAME if a game is going */ }
 				MainMenuItems::QUIT => {
 					mm_items.push(ListItem::new(item.to_string()));
 					self.main_menu.list.push(*item);
@@ -122,9 +122,12 @@ impl GameEngine<'_> {
 	}
 	/// Renders the PLANQ sidebar object
 	pub fn render_planq<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
+		{ // This has to be wrapped in a sub-scope to keep the borrow checker happy
+			let monitor = self.app.world.get_resource::<PlanqMonitor>().unwrap();
+			self.ui_grid.p_status_height = monitor.status_bars.len();
+		}
 		let mut planq = self.app.world.get_resource_mut::<PlanqData>().unwrap();
 		// TODO: optimize this to only fire if the number of status bars actually changes
-		self.ui_grid.p_status_height = planq.status_bars.len(); // WARN: assumes all status bars are h = 1!
 		self.ui_grid.calc_planq_layout(self.ui_grid.planq_sidebar);
 		// Display some kind of 'planq offline' state if not carried
 		// TODO: replace the 'no planq detected' message with something nicer
@@ -138,7 +141,7 @@ impl GameEngine<'_> {
 			return;
 		}
 		// TODO: replace the 'planq offline' message with something nicer
-		// make sure it includes a battery readout: charge level, "NO BATT", &c
+		//       make sure it includes a battery readout: charge level, "NO BATT", &c
 		else if planq.cpu_mode == PlanqCPUMode::Offline {
 			frame.render_widget(
 				Paragraph::new("\n\n[PLANQ offline]").block(
@@ -151,8 +154,6 @@ impl GameEngine<'_> {
 			);
 			return;
 		}
-		// Always render the status widgets if there's power
-		planq.render_status_bars(frame, self.ui_grid.planq_status);
 		if planq.show_terminal {
 			planq.render_terminal(frame, self.ui_grid.planq_stdout);
 			// Only display the CLI if there's a terminal visible to contain it
@@ -160,12 +161,9 @@ impl GameEngine<'_> {
 				planq.render_cli(frame, self.ui_grid.planq_stdin, &mut self.planq_stdin);
 			}
 		}
-		//if planq.output_1_enabled {
-		//	planq.render_planq_stdout_1(frame, self.ui_grid.planq_output_1);
-		//}
-		//if planq.output_2_enabled {
-		//	planq.render_planq_stdout_2(frame, self.ui_grid.planq_output_2);
-		//}
+		// Always render the status widgets if there's power
+		let mut monitor = self.app.world.get_resource_mut::<PlanqMonitor>().unwrap();
+		monitor.render(frame, self.ui_grid.planq_status);
 	}
 	/// Renders the game and its GUI.
 	pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
@@ -315,21 +313,13 @@ impl GameEngine<'_> {
 	pub fn show_target_chooser(&mut self) { self.target_chooser_is_visible = true; }
 	/// Hides the targeting menu
 	pub fn hide_target_chooser(&mut self) { self.target_chooser_is_visible = false; }
-	/// Shows the PLANQ's cli input if it's running, &c
-	pub fn show_planq_cli(&mut self) {
-
-	}
-	/// Hides the PLANQ's cli
-	pub fn hide_planq_cli(&mut self) { /* this can always be executed */ }
 	/// Requests a recalculation of the GameEngine.ui_grid object based on the given area
 	pub fn calc_layout(&mut self, area: Rect) {
 		//eprintln!("calc_layout() called"); // DEBUG:
 		self.ui_grid.calc_layout(area);
 		let camera_ref = self.app.world.get_resource_mut::<CameraView>();
 		if let Some(mut camera) = camera_ref {
-		//if camera_ref.is_some() {
 			eprintln!("- resizing cameraview during call to calc_layout()");// DEBUG:
-			//let mut camera = camera_ref.unwrap();
 			camera.set_dims(self.ui_grid.camera_main.width as i32, self.ui_grid.camera_main.height as i32);
 		}
 	}
@@ -339,6 +329,7 @@ impl GameEngine<'_> {
 	}
 	/// Changes the pause-state of the game, ie transition between Running/Paused modes
 	pub fn pause_game(&mut self, state: bool) {
+		// FIXME: this needs to set all of the running Timers to paused as well!!!
 		if state {
 			self.set_mode(EngineMode::Paused);
 		} else {
@@ -347,6 +338,7 @@ impl GameEngine<'_> {
 	}
 	/// Toggles between Running/Paused depending on last mode
 	pub fn pause_toggle(&mut self) {
+		// FIXME: this needs to set all of the running Timers to paused as well!!!
 		if self.mode == EngineMode::Paused {
 			self.pause_game(false);
 		} else {
@@ -377,7 +369,6 @@ impl GameEngine<'_> {
 		let game_events: &mut Events<GameEvent> = &mut self.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
 		game_events.send(GameEvent::new(GameEventType::ModeSwitch(new_mode), None));
 	}
-
 }
 
 #[derive(Resource, FromReflect, Reflect, Copy, Clone, PartialEq, Eq, Default)]
@@ -408,23 +399,23 @@ impl GameSettings {
 /// * 'p_stdin_height'  Sets the height of the CLI input widget
 pub struct UIGrid {
 	/// Provides the main view onto the worldmap
-	pub camera_main:    Rect,
+	pub camera_main:      Rect,
 	/// Designates the 'default' message log, which always shows msgs from the World channel
-	pub msg_world:      Rect,
+	pub msg_world:        Rect,
 	/// Designates the area for the whole Planq sidebar, all panels included
-	pub planq_sidebar:  Rect,
+	pub planq_sidebar:    Rect,
 	/// Designates the space reserved for the Planq's stats: offline status, battery power, &c
-	pub planq_status:   Rect,
+	pub planq_status:     Rect,
 	/// Designates the space for the Planq's entire terminal
-	pub planq_screen:    Rect,
+	pub planq_screen:     Rect,
 	/// Designates the output screen of the Planq
-	pub planq_stdout: Rect,
+	pub planq_stdout:     Rect,
 	/// Designates the CLI input of the Planq
-	pub planq_stdin: Rect,
+	pub planq_stdin:      Rect,
 	/// Sets the height of the planq_status widget, will be updated during gameplay
-	pub p_status_height: usize,
+	pub p_status_height:  usize,
 	/// Sets the height of the planq's CLI widget
-	pub p_stdin_height: usize
+	pub p_stdin_height:   usize
 }
 impl UIGrid {
 	pub fn new() -> UIGrid {
@@ -446,7 +437,7 @@ impl UIGrid {
 	/// planq_stdout, and planq_stdin fields of the UIGrid object.
 	pub fn calc_planq_layout(&mut self, max_area: Rect) {
 		// NEW METHOD for PLANQ splits
-		// (as a method call somewhere else, so that it can be redone outside of here
+		// (as a method call somewhere else, so that it can be redone outside of here)
 		// given the full width W and height H of the render area,
 		// 1- obtain the height of the planq_status module(s), H
 		//    (this can be 0 but should be more as the planq_status has some builtins)
@@ -511,18 +502,6 @@ impl UIGrid {
 			.direction(Direction::Vertical)
 			.constraints([Constraint::Min(30), Constraint::Length(12)].as_ref())
 			.split(main_horiz_split[0]).to_vec();
-		// OLD METHOD
-		// Split (3) into the PLANQ output sizes: (status)[0], (stdout_1)[1], (stdout_2)[2], as a vertical stack
-		//let planq_splits = Layout::default()
-		//	.direction(Direction::Vertical)
-		//	.constraints([Constraint::Min(3), Constraint::Length(22), Constraint::Length(22)].as_ref())
-		//	.split(main_horiz_split[1]).to_vec();
-		// Split (planq_splits)[0] vertically to provide a height=1 area for the PLANQ's (CLI input)[1]
-		//let planq_status = Layout::default()
-		//	.direction(Direction::Vertical)
-		//	.constraints([Constraint::Min(1), Constraint::Max(1)].as_ref())
-		//	.split(planq_splits[0]).to_vec();
-		//  ****
 		// Update the UIGrid itself to hold the new sizes
 		self.camera_main = camera_worldmsg_split[0];
 		self.msg_world = camera_worldmsg_split[1];

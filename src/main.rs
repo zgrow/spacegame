@@ -12,6 +12,16 @@
  */
 // TODO: checkout github/zkat/big-brain for a Bevy-based AI model !!! - thanx Bevy dev
 // TODO: checkout github/imsnif/diskonaut for a demo of flexible ratatui box-drawing
+// NOTE: The bevy_turborand library offers two access points to the RNG:
+//  - The GlobalRng resource, available in Systems as ResMut<GlobalRng>
+//  - The RngComponent component, which can be attached to any Entity as a 'pocket' RNG
+//    - Using the RngComponent can be more efficient due to Rust/Bevy's multithreading
+//    - The RngComponent is created from the GlobalRng, which helps ensure determinism
+//    - However, calling an Entity's RngComponent in two different systems breaks determinism
+//      if they are not explicitly ordered within Bevy
+//      > If the Player has an RngComponent, and that RngComponent is called in two different
+//        Systems, then those Systems must be explicitly ordered to guarantee determinism
+//      > Two Entities with RngComponent have different instances, and so do not need ordering
 // **EXTERNAL LIBS
 use std::io;
 use ratatui::backend::CrosstermBackend;
@@ -19,6 +29,7 @@ use ratatui::Terminal;
 use bevy::prelude::*;
 use bevy::app::ScheduleRunnerSettings;
 use bevy_save::prelude::*;
+use bevy_turborand::prelude::*;
 
 // **INTERNAL LIBS
 use spacegame::app::*;
@@ -38,6 +49,7 @@ use spacegame::sys::*;
 // **MAIN
 fn main() -> AppResult<()> {
 	std::env::set_var("RUST_BACKTRACE", "1"); // DEBUG: enables backtrace on program crash
+	// TODO: set up some CLI options to allow turning off debugging, etc
 	// Set up ratatui
 	let backend = CrosstermBackend::new(io::stdout());
 	let terminal = Terminal::new(backend)?;
@@ -70,17 +82,19 @@ fn main() -> AppResult<()> {
 		.register_saveable::<Openable>()
 		.register_saveable::<Lockable>()
 		.register_saveable::<Container>()
+		.insert_resource(GlobalRng::with_seed(69420)) // Specifying a seed makes the RNG deterministic
 		.insert_resource(GameSettings::new())
 		.insert_resource(ScheduleRunnerSettings::run_once()) // instructs Bevy that we'll advance the loop ourselves
-		.insert_resource(RexAssets::new())
+		.insert_resource(RexAssets::new()) // Adds the RexPAINT assets into Bevy
 		.insert_resource(Position{x: 35, y: 20, z: 0}) // The player's position/starting spawn point
 		.insert_resource(Events::<GameEvent>::default()) // inter-System comms
 		.insert_resource(Events::<PlanqEvent>::default()) // inter-System comms
-		.insert_resource(MessageLog::new(chanlist))
+		.insert_resource(MessageLog::new(chanlist)) // Creates the various in-game message channels
 		.insert_resource(PlanqData::new()) // Contains the PLANQ's outputs, settings, &c
+		.insert_resource(PlanqMonitor::new()) // Handles the PLANQ's various status bars and monitors
 		.add_plugins(MinimalPlugins) // see above for list of what this includes
 		.add_event::<crossterm::event::KeyEvent>() // Allows us to plug the crossterm events into Bevy's parser
-		.add_startup_system(new_player_spawn) // depends on having the player's position inserted prior
+		.add_startup_system(new_player_spawn) // WARN: player loc resource MUST be inserted before this!
 		.add_startup_system(new_planq_spawn)
 		.add_startup_system(new_lmr_spawn)
 		.add_system(engine_system)
@@ -93,24 +107,32 @@ fn main() -> AppResult<()> {
 		.add_system(lock_system)
 		.add_system(operable_system)
 		.add_system(planq_system)
+		.add_system(planq_monitor_system)
 	;
+	// Configure and start the RNG
+	// TODO: can't enable this until arguments have been implemented
+	//let mut global_rng = if DETERMINISTIC_MODE {
+	//  GlobalRng::with_seed(69420);
+	//} else {
+	//  GlobalRng::new();
+	//}
+	// NOTE: any required RngComponents should be constructed from this GlobalRng instance
 	// Build the game world
 	// TODO: i thought this was loading via bracket-rex but it has to go after the insert_resource
-	// via Bevy??? need to reexamine later
+	//       via Bevy??? need to reexamine later
 	let mut model = Model::default();
 	let cur_floor = 0;
 	let mut builder = get_builder(1);
 	builder.build_map();
 	let mut worldmap = builder.get_map();
-	// build all of the furniture, backdrops, and so on for this level
+	// Build all of the furniture, backdrops, and so on for this level
 	let mut item_spawns = builder.get_item_spawn_list();
 	eprintln!("item_spawns.len: {}", item_spawns.len()); // DEBUG:
 	eng.artificer.spawn_batch(&mut eng.app.world, &mut item_spawns, cur_floor);
 	model.levels.push(worldmap);
-	// build the dev map and drop a portal to it
+	// Build the dev map and drop a portal to it
 	builder = get_builder(99); // produces the dev map
 	builder.build_map();
-	//cur_floor += 1;
 	worldmap = builder.get_map();
 	model.levels.push(worldmap);
 	model.add_portal((3, 20, 0), (5, 5, 1), true);

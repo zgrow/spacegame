@@ -1,10 +1,9 @@
 // planq.rs
 // Provides the handling and abstractions for the player's PLANQ
 
+use std::collections::{HashMap, VecDeque};
 use ratatui::backend::Backend;
 use ratatui::Frame;
-use ratatui::buffer::*;
-use ratatui::layout::*;
 use ratatui::layout::Rect;
 use ratatui::widgets::*;
 use ratatui::style::*;
@@ -17,161 +16,6 @@ use crate::app::event::PlanqEvent;
 
 use tui_textarea::TextArea;
 
-/// Defines the Planq 'tag' component within Bevy
-#[derive(Reflect, Component, Default)]
-#[reflect(Component)]
-pub struct Planq { }
-
-/// Determines the type of status bar that will be displayed in the Planq
-#[derive(FromReflect, Reflect, Eq, PartialEq, Clone, Debug, Default)]
-pub enum PlanqStatusBarType {
-	#[default]
-	Null,         // Displays nothing, provided for compatibility
-	RawData(String),    // Paragraph (ie display data directly)
-	Gauge(u16),      // Gauge,LineGauge
-//	Sparkline,  // Sparkline
-//	Chart,      // Chart
-//	Graph,      // BarChart
-//	Canvas,     // Canvas
-//	Table,      // Table
-}
-#[derive(FromReflect, Reflect, Resource, Default, Eq, PartialEq, Clone, Debug)]
-#[reflect(Resource)]
-pub struct PlanqBar {
-	pub btype:  PlanqStatusBarType,
-	// -> START HERE: implement the first 'small' types of status bar, see the notes
-	// will probably want some kind of trait object as each status bar type takes a
-	// different kind of data as input: the 'render' call that receives the data should
-	// be generalized across the various specific types
-}
-
-/// Defines the Planq status widget for ratatui: provides outputs directly from the Planq
-/// as opposed to the CameraView, inventory display, &c, which use other Widgets
-pub struct PlanqStatus<'a> {
-	data: Vec<String>,
-	block: Option<Block<'a>>,
-	style: Style,
-	align: Alignment,
-}
-impl<'a> PlanqStatus<'a> {
-	pub fn new(new_data: &'a [String]) -> PlanqStatus<'a> {
-		PlanqStatus {
-			data: new_data.to_vec(),
-			block: None,
-			style: Style::default(),
-			align: Alignment::Left,
-		}
-	}
-	pub fn block(mut self, block: Block<'a>) -> PlanqStatus<'a> {
-		self.block = Some(block);
-		self
-	}
-	pub fn style(mut self, style: Style) -> PlanqStatus<'a> {
-		self.style = style;
-		self
-	}
-	pub fn alignment(mut self, align: Alignment) -> PlanqStatus<'a> {
-		self.align = align;
-		self
-	}
-}
-impl<'a> Widget for PlanqStatus<'a> {
-	fn render(mut self, area: Rect, buf: &mut Buffer) {
-		// Draw the border, if it exists
-		let area = match self.block.take() {
-			Some(b) => {
-				let inner_area = b.inner(area);
-				b.render(area, buf);
-				inner_area
-			}
-			None => area,
-		};
-		// area now contains the remaining space to draw the PLANQ
-		// anything wider than this is going to get truncated!
-		let _max_width = area.right() - area.left();
-		// The top and bottom panes are 'fixed' size, while the middle pane is expandable
-		// TODO: The middle pane should be 'smart', and can count how many slots it has available
-		//       for the player to load things into
-		let textstyle = Style::default().fg(Color::White);
-		// put the contents of self.data on the screen
-		let mut y_index = area.top();
-		for line in self.data {
-			buf.set_string(area.left(), y_index, line, textstyle);
-			y_index += 1;
-		}
-	}
-}
-/// Defines the CLI input system and its logic
-/// Note that tui-textarea is a part of the ratatui ecosystem, and therefore
-/// is ineligible by definition for addition to the Bevy ecosystem
-#[derive(Default, Clone)]
-pub struct PlanqInput<'a> {
-	//pub input: Input, // This cannot be added to anything with Reflect, nor can it have Reflect implemented for it because it is external
-	pub input: TextArea<'a>,
-	pub history: Vec<String>,
-}
-impl PlanqInput<'_> {
-	pub fn new() -> PlanqInput<'static> {
-		PlanqInput {
-			input: TextArea::default(),
-			history: Vec::new(),
-		}
-	}
-}
-
-/// Defines the set of output modes for the PLANQ's dual output windows
-#[derive(FromReflect, Reflect, Default, Eq, PartialEq, Clone, Debug)]
-pub enum PlanqOutputMode {
-	#[default]
-	Idle,
-	InventoryChooser,
-	Terminal,
-	Settings,
-}
-/// Defines the set of operating modes in the PLANQ's firmware
-#[derive(FromReflect, Reflect, Default, Eq, PartialEq, Clone, Debug)]
-pub enum PlanqCPUMode {
-	#[default]
-	Idle,
-	Error(u32),
-	Startup,
-	Shutdown,
-	Working,
-	Offline,
-}
-/// Provides context for certain actions (inventory use/drop, &c) that take secondary inputs
-#[derive(FromReflect, Reflect, Default, Clone, Debug, Eq, PartialEq)]
-pub enum PlanqActionMode {
-	#[default]
-	Default,
-	DropItem,
-	UseItem,
-	CliInput,
-}
-/// Provides the Bevy-backed tools for doing things on the PLANQ involving time intervals
-/// That is, this represents a 'process' or task within the PLANQ that needs processing time to complete
-#[derive(FromReflect, Reflect, Component, Clone, Default)]
-#[reflect(Component)]
-pub struct PlanqProcess {
-	pub timer: Timer,
-	pub outcome: PlanqEvent,
-}
-impl PlanqProcess {
-	pub fn new() -> PlanqProcess {
-		PlanqProcess {
-			timer: Timer::default(),
-			outcome: PlanqEvent::default()
-		}
-	}
-	pub fn time(mut self, duration: u64) -> PlanqProcess {
-		self.timer = Timer::new(Duration::from_secs(duration), TimerMode::Once);
-		self
-	}
-	pub fn event(mut self, new_event: PlanqEvent) -> PlanqProcess {
-		self.outcome = new_event;
-		self
-	}
-}
 /// Defines the Planq settings & controls (interface bwn my GameEngine class & Bevy)
 #[derive(Resource, FromReflect, Reflect, Eq, PartialEq, Clone, Debug, Default)]
 #[reflect(Resource)]
@@ -181,19 +25,13 @@ pub struct PlanqData {
 	pub is_carried: bool, // true if the planq is in the player's inventory
 	pub cpu_mode: PlanqCPUMode,
 	pub action_mode: PlanqActionMode, // Provides player action context for disambiguation
-	//pub output_1_enabled: bool,
-	//pub out1_mode: PlanqOutputMode,
-	//pub output_2_enabled: bool,
-	//pub out2_mode: PlanqOutputMode,
 	pub show_terminal: bool,
-	pub terminal_mode: PlanqOutputMode,
 	pub show_inventory: bool,
 	pub inventory_list: Vec<Entity>,
-	pub player_loc: Position,
+	pub player_loc: Position, // DEBUG: current player location
 	pub show_cli_input: bool,
 	pub stdout: Vec<Message>, // Contains the PLANQ's message backlog
 	pub proc_table: Vec<Entity>, // The list of PlanqProcesses running in the Planq
-	pub status_bars: Vec<PlanqBar>, // The list of active statusbar modules
 	// trying to maintain a vec of PlanqStatus objects would be tough because of lifetimes
 	// not sure yet what is required to help this work without storing a PlanqStatus directly
 }
@@ -205,58 +43,18 @@ impl PlanqData {
 			is_carried: false,
 			cpu_mode: PlanqCPUMode::Offline,
 			action_mode: PlanqActionMode::Default,
-			//output_1_enabled: false,
-			//out1_mode: PlanqOutputMode::Terminal,
-			//output_2_enabled: false,
-			//out2_mode: PlanqOutputMode::Idle,
 			show_terminal: false,
-			terminal_mode: PlanqOutputMode::Terminal,
 			show_inventory: false,
 			inventory_list: Vec::new(),
 			player_loc: Position::default(),
 			show_cli_input: false,
 			stdout: Vec::new(),
 			proc_table: Vec::new(),
-			status_bars: Vec::new(),
 		}
 	}
 	pub fn inventory_toggle(&mut self) {
 		if !self.show_inventory { self.show_inventory = true; }
 		else { self.show_inventory = false; }
-	}
-	/// Renders the status bars of the PLANQ
-	pub fn render_status_bars<B: Backend>(&mut self, frame: &mut Frame<'_, B>, mut area: Rect) {
-		//let mut planq_text = vec!["test string".to_string()]; // DEBUG:
-		//planq_text.push(format!("*D* x: {}, y: {}, z: {}",
-		//                        self.player_loc.x, self.player_loc.y, self.player_loc.z)); // DEBUG:
-		//planq_text.push("123456789_123456789_123456789_".to_string()); // DEBUG: ruler
-		//frame.render_widget(
-		//	PlanqStatus::new(&planq_text)
-		//	.block(Block::default()
-		//			.title("PLANQOS v29.3/rev30161124")
-		//			.title_alignment(Alignment::Right)
-		//			.borders(Borders::ALL)
-		//			.border_type(BorderType::Plain)
-		//			.border_style(Style::default().fg(Color::White)),
-		//	),
-		//	area,
-		//);
-		// ***
-		let sbar_block = Block::default().borders(Borders::LEFT | Borders::RIGHT)
-			.border_type(BorderType::Plain)
-			.border_style(Style::default().fg(Color::Gray));
-		for sbar in &self.status_bars {
-			match &sbar.btype {
-				PlanqStatusBarType::RawData(input) => {
-					frame.render_widget(Paragraph::new(input.clone()).block(sbar_block.clone()), area);
-				}
-				PlanqStatusBarType::Gauge(input) => {
-					frame.render_widget(Gauge::default().percent(*input).block(sbar_block.clone()), area);
-				}
-				_ => { }
-			}
-			area.y += 1;
-		}
 	}
 	/// Renders the CLI input box
 	pub fn render_cli<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect, stdin: &mut PlanqInput) {
@@ -292,5 +90,183 @@ impl PlanqData {
 		output
 	}
 }
+
+/// Handles the PLANQ's status bars, their settings, their inputs, &c
+#[derive(FromReflect, Reflect, Resource, Default, Eq, PartialEq, Clone, Debug)]
+#[reflect(Resource)]
+pub struct PlanqMonitor {
+	pub status_bars: Vec<String>, // The list of active statusbar modules
+	pub raw_data: HashMap<String, PlanqDataSource>, // Contains the live monitoring data
+}
+impl PlanqMonitor {
+	// Builders
+	pub fn new() -> PlanqMonitor {
+		PlanqMonitor::default()
+	}
+	pub fn watch(mut self, source: String) -> Self {
+		self.status_bars.push(source);
+		self
+	}
+	// General
+	/// Removes the specified source from the list of status_bars, thus removing it from the PLANQ
+	/// Returns true if the source was successfully removed
+	pub fn remove(mut self, source: String) -> bool {
+		if let Some(posn) = self.status_bars.iter().position(|x| x == source.as_str()) {
+			self.status_bars.remove(posn);
+			return true;
+		}
+		false
+	}
+	/// Describes how the PLANQ's monitor will render to the screen
+	/// Note that the area parameter should be just the sidebar area, not including the terminal
+	pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>, mut area: Rect) {
+		// TODO: Sparkline's height can be constrained by its area.height, need to check Gauge widget
+		area.height = 1;
+		let default_block = Block::default().borders(Borders::LEFT | Borders::RIGHT).border_type(BorderType::Plain)
+			.border_style(Style::default().fg(Color::Gray));
+		for source in &self.status_bars {
+			// NOTE: Previously tried to implement this logic using another fxn to do dynamic dispatch
+			// Unfortunately, in Rust, trait objects cannot be passed as params or instantiated locally
+			// They can be Boxed, but because the Widget type does not impl the Sized trait,
+			// using a Box to handle the dispatch fails when Rust tries to calculate types at compilation
+			// Therefore, if you know what's good for you, don't try to refactor this pattern...
+			// TODO: These will need a revisit for formatting, sanity, &c
+			if let Some(source_type) = self.raw_data.get(source) {
+				match source_type {
+					PlanqDataSource::Text(text) => {
+						//eprintln!("raw_data area height: {}", area.height);
+						frame.render_widget(Paragraph::new(text.clone())
+						                    .block(default_block.clone()), area);
+					}
+					PlanqDataSource::Integer(val) => {
+						frame.render_widget(Paragraph::new(val.to_string())
+						                    .block(default_block.clone()), area);
+					}
+					PlanqDataSource::Percent(pct) => {
+						//eprintln!("gauge area height: {}", area.height);
+						frame.render_widget(Gauge::default().percent(*pct as u16)
+						                    .gauge_style(Style::default().fg(Color::Red).bg(Color::Green))
+						                    .block(default_block.clone()), area)
+					}
+					PlanqDataSource::Decimal { numer, denom } => {
+						//eprintln!("linegauge area height: {}", area.height);
+						let quotient: f64 = *numer as f64 / *denom as f64;
+						frame.render_widget(LineGauge::default().ratio(quotient)
+						                    .gauge_style(Style::default().fg(Color::White).bg(Color::Blue))
+						                    .block(default_block.clone()), area);
+					}
+					PlanqDataSource::Series(data) => {
+						//eprintln!("sparkline area height: {}", area.height);
+						// NOTE: Sparkline's default for max() will be highest value in series if not specified
+						let series = Vec::from(data.clone()); // Convert it to a Vec from a VecDeque
+						frame.render_widget(Sparkline::default().data(&series)
+						                    .block(default_block.clone()), area);
+					}
+					_ => { continue; } // Covers the Null type
+				};
+				area.y += 1;
+			} else {
+				continue;
+			}
+		}
+	}
+}
+/// Defines the set of possible data types that a PLANQ's data source might provide
+#[derive(FromReflect, Reflect, Eq, PartialEq, Clone, Debug, Default)]
+pub enum PlanqDataSource {
+	#[default]
+	Null,
+	Text(String), // Ideally this should be a Span or some other ratatui-compat type instead
+	Integer(i32),
+	Percent(u32),
+	Decimal{numer: i32, denom: i32}, // Floating point numbers don't impl Eq, only PartialEq, so we have to use this pair of ints as a fractional representation instead
+	Series(VecDeque<u64>),
+}
+
+/// Defines the CLI input system and its logic
+/// Note that tui-textarea is a part of the ratatui ecosystem, and therefore
+/// is ineligible by definition for addition to the Bevy ecosystem
+#[derive(Default, Clone)]
+pub struct PlanqInput<'a> {
+	//pub input: Input, // This cannot be added to anything with Reflect, nor can it have Reflect implemented for it because it is external
+	pub input: TextArea<'a>,
+	pub history: Vec<String>,
+}
+impl PlanqInput<'_> {
+	pub fn new() -> PlanqInput<'static> {
+		PlanqInput {
+			input: TextArea::default(),
+			history: Vec::new(),
+		}
+	}
+}
+
+/// Defines the set of operating modes in the PLANQ's firmware
+#[derive(FromReflect, Reflect, Default, Eq, PartialEq, Clone, Debug)]
+pub enum PlanqCPUMode {
+	#[default]
+	Idle,
+	Error(u32),
+	Startup,
+	Shutdown,
+	Working,
+	Offline,
+}
+/// Provides context for certain actions (inventory use/drop, &c) that take secondary inputs
+#[derive(FromReflect, Reflect, Default, Clone, Debug, Eq, PartialEq)]
+pub enum PlanqActionMode {
+	#[default]
+	Default,
+	DropItem,
+	UseItem,
+	CliInput,
+}
+/// Provides the Bevy-backed tools for doing things on the PLANQ involving time intervals
+/// That is, this represents a 'process' or task within the PLANQ that needs processing time to complete
+#[derive(FromReflect, Reflect, Component, Clone, Default)]
+#[reflect(Component)]
+pub struct PlanqProcess {
+	pub timer: Timer,
+	pub outcome: PlanqEvent,
+}
+impl PlanqProcess {
+	pub fn new() -> PlanqProcess {
+		PlanqProcess::default()
+	}
+	pub fn time(mut self, duration: u64) -> PlanqProcess {
+		self.timer = Timer::new(Duration::from_secs(duration), TimerMode::Once);
+		self
+	}
+	pub fn event(mut self, new_event: PlanqEvent) -> PlanqProcess {
+		self.outcome = new_event;
+		self
+	}
+}
+/// Provides a means for setting regular intervals for the PLANQ's monitoring, so that we are not
+/// forced to provide updates at the framerate (and possibly cause flickering, &c)
+/// If no duration is specified, the DataSample source will always be updated
+#[derive(FromReflect, Reflect, Component, Clone, Default)]
+#[reflect(Component)]
+pub struct DataSampleTimer {
+	pub timer: Timer,
+	pub source: String,
+}
+impl DataSampleTimer {
+	pub fn new() -> DataSampleTimer {
+		DataSampleTimer::default()
+	}
+	pub fn duration(mut self, duration: u64) -> Self {
+		self.timer = Timer::new(Duration::from_secs(duration), TimerMode::Repeating);
+		self
+	}
+	pub fn source(mut self, source: String) -> Self {
+		self.source = source;
+		self
+	}
+}
+/// Defines the Planq 'tag' component within Bevy; used only as a lightweight marker for the PLANQ entity
+#[derive(Reflect, Component, Default)]
+#[reflect(Component)]
+pub struct Planq { }
 
 // EOF

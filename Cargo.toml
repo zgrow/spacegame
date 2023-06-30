@@ -27,6 +27,7 @@ strum_macros = "0.24.3"
 bevy_save = "0.4.1"
 tui-input = "0.7.1" # not sure if i want to use this over tui-textarea
 tui-textarea = { git = "https://github.com/rhysd/tui-textarea", version = "*", features = ["ratatui-crossterm"], default-features = false }
+bevy_turborand = "0.5.0"
 #bevy_ecs = "0.10.0"
 # versions of cursive above this require crate 'time' to be v3+, which requires rustc v1.63+
 #cursive = { version = "0.16.3" }
