@@ -627,7 +627,7 @@ pub fn planq_system(mut commands: Commands,
 				0 => {
 					if planq.proc_table.is_empty() {
 						eprintln!("¶ running boot stage 0");
-						msglog.tell_planq("GRAIN v17.6.823 'Cedar'".to_string());
+						msglog.tell_planq("¶ GRAIN v17.6.823 'Cedar'".to_string());
 						// kick off boot stage 1
 						planq.proc_table.push(commands.spawn(
 								PlanqProcess::new()
@@ -641,7 +641,7 @@ pub fn planq_system(mut commands: Commands,
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
 							eprintln!("¶ running boot stage 1");
-							msglog.tell_planq("Hardware Status ... [OK]".to_string());
+							msglog.tell_planq("¶ Hardware Status ... [OK]".to_string());
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it
@@ -654,7 +654,7 @@ pub fn planq_system(mut commands: Commands,
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
 							eprintln!("¶ running boot stage 2");
-							msglog.tell_planq("Firmware Status ... [OK]".to_string());
+							msglog.tell_planq("¶ Firmware Status ... [OK]".to_string());
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it and start it
@@ -667,7 +667,7 @@ pub fn planq_system(mut commands: Commands,
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
 							eprintln!("¶ running boot stage 3");
-							msglog.tell_planq("Bootloader Status ... [OK]".to_string());
+							msglog.tell_planq("¶ Bootloader Status ... [OK]".to_string());
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it and start it
@@ -680,7 +680,7 @@ pub fn planq_system(mut commands: Commands,
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
 							eprintln!("¶ running boot stage 4");
-							msglog.tell_planq("CellulOS 5 (v19.26.619_revB)".to_string());
+							msglog.tell_planq("¶ CellulOS 5 (v19.26.619_revB)".to_string());
 							monitor.status_bars.push("player_location".to_string());
 							monitor.raw_data.insert("player_location".to_string(), PlanqDataSource::Text("".to_string()));
 							commands.spawn(DataSampleTimer::new().source("player_location".to_string()));

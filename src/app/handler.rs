@@ -188,27 +188,30 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 		if planq.show_cli_input {
 			match key_event.code {
 				// close the CLI, do not run anything
-				KeyCode::Esc => {
+				KeyCode::Esc => { // Close and clear the input buffer
 					planq.show_cli_input = false; // Need to force it closed immediately, the system updates don't seem to work for this
 					new_planq_event.etype = PlanqEventType::CliClose; // Still going to generate the event in case I use it for a hook later
 				}
-				KeyCode::Enter => {
-					// pass the input buffer to the PLANQ's command parser
+				KeyCode::Enter => { // Dispatch the input buffer to the parser
+					planq.show_cli_input = false;
+					eng.planq_stdin.input.move_cursor(tui_textarea::CursorMove::Head);
+					eng.planq_stdin.input.delete_line_by_end();
+					let mut msglog = eng.app.world.get_resource_mut::<MessageLog>().unwrap();
+					let mut input_text = "> ".to_string();
+					input_text.push_str(eng.planq_stdin.input.yank_text());
+					msglog.tell_planq(input_text);
+					// TODO: pass the input buffer to the PLANQ's command parser
 				}
 				// TODO: set up the cursor dirs to allow movement? or reserve for planq menus?
-				the_input => {
-					// pass everything else to the CLI parser
-					//eng.planq_stdin.input.input(key_event.clone().into()); // not sure why rust refuses to let me use this type conversion
-					eprintln!("attempting a translation");
-					let flag = eng.planq_stdin.input.input(
+				the_input => { // Pass everything else to the CLI parser
+					eng.planq_stdin.input.input(
 						Input {
 							key: keycode_to_input_key(the_input),
 							ctrl: false, // FIXME: probably want to detect this
 							alt: false, // FIXME: probably want to detect this
 						}
 					);
-					eprintln!("{}", eng.planq_stdin.input.lines()[0]);
-					if flag { eprintln!("succeeded"); }
+					//eprintln!("{}", eng.planq_stdin.input.lines()[0]); // DEBUG:
 				}
 			}
 			return Ok(()) // WARN: do not disable this, lest key inputs be parsed twice (ie again below) by mistake!
@@ -463,6 +466,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					eng.planq_chooser.deselect();
 				} else if planq.show_cli_input {
 					// send the contents of the text input to the command module
+
 				}
 			}
 			// Debug keys and other tools

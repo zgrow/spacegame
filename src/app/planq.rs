@@ -70,8 +70,30 @@ impl PlanqData {
 	}
 	/// Renders the whole terminal window, including the backlog, leaving room for the CLI
 	pub fn render_terminal<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
+		/*
+		// Obtain a slice of the message log here and feed to the next widget
+		let msglog_ref = self.app.world.get_resource::<MessageLog>();
+		let msglog = msglog_ref.unwrap_or_default(); // get a handle on the msglog service
+		if msglog_ref.is_some() {
+			let worldmsg = msglog.get_log_as_spans("world".to_string(), 0); // get the full backlog
+			//eprintln!("*** worldmsg.len {}, ui_grid.msg_world.height {}", worldmsg.len() as i32, self.ui_grid.msg_world.height as i32); // DEBUG:
+			/* FIXME: magic number offset for window borders
+			 * NOTE: it would be possible to 'reserve' space here by setting the magic num offset
+			 *       greater than is strictly required to cause scrollback
+			 */
+			// Strict attention to typing required here lest we cause subtraction overflow errs
+			let backlog_start_offset = (worldmsg.len() as i32) - self.ui_grid.msg_world.height as i32 + 2;
+			let mut backlog_start: usize = 0;
+			if backlog_start_offset > 0 { backlog_start = backlog_start_offset as usize; }
+			let backlog = worldmsg[backlog_start..].to_vec(); // get a slice of the latest msgs
+			*/
+		let stdout = self.get_stdout_as_spans();
+		let start_offset = (stdout.len() as i32) - area.height as i32 + 2;
+		let mut start: usize = 0;
+		if start_offset > 0 { start = start_offset as usize; }
+		let backscroll = stdout[start..].to_vec();
 		frame.render_widget(
-			Paragraph::new("self.stdout")
+			Paragraph::new(backscroll)
 			.block(Block::default()
 			       .borders(Borders::ALL)
 			       .border_type(BorderType::Plain)

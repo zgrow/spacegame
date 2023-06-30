@@ -230,21 +230,6 @@ impl GameEngine<'_> {
 		self.render_planq(frame); // The PLANQ can decide what it needs to render or not
 		// Render any optional menus and layers, ie main menu
 		if self.main_menu_is_visible {
-			/*
-			self.main_menu.list = MainMenuItems::to_list(); // produces Vec<MainMenuItems>
-			let mut mm_items = Vec::new();
-			for item in self.main_menu.list.iter() {
-				mm_items.push(ListItem::new(item.to_string()));
-			}
-			let menu = List::new(mm_items)
-				.block(Block::default().title("Main Menu").borders(Borders::ALL))
-				.style(Style::default().fg(Color::White).bg(Color::Black))
-				.highlight_style(Style::default().fg(Color::Black).bg(Color::White))
-				.highlight_symbol("->");
-			let area = Rect::new(10, 12, 23, 10); // WARN: magic numbers
-			frame.render_widget(Clear, area);
-			frame.render_stateful_widget(menu, area, &mut self.main_menu.state);
-			*/
 			self.render_main_menu(frame);
 			/* this fires on every index change, not just confirmation
 			match self.main_menu.state.selected() {
