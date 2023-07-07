@@ -1,6 +1,8 @@
 // planq.rs
 // Provides the handling and abstractions for the player's PLANQ
 
+use std::fmt;
+use std::fmt::Display;
 use std::collections::{HashMap, VecDeque};
 use ratatui::backend::Backend;
 use ratatui::Frame;
@@ -13,6 +15,8 @@ use bevy::utils::Duration;
 use crate::app::messagelog::Message;
 use crate::components::Position;
 use crate::app::event::PlanqEvent;
+use crate::app::PlanqCmd::*;
+use strum_macros::EnumIter;
 
 use tui_textarea::TextArea;
 
@@ -58,14 +62,11 @@ impl PlanqData {
 	}
 	/// Renders the CLI input box
 	pub fn render_cli<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect, stdin: &mut PlanqInput) {
-		//let mut cli = TextArea::default();
-		//cli.set_block(
 		stdin.input.set_block(
 			Block::default()
 			.borders(Borders::LEFT | Borders::RIGHT)
 			.border_type(BorderType::Plain)
 		);
-		//frame.render_widget(cli.widget(), area);
 		frame.render_widget(stdin.input.widget(), area);
 	}
 	/// Renders the whole terminal window, including the backlog, leaving room for the CLI
@@ -111,14 +112,32 @@ impl PlanqData {
 		}
 		output
 	}
+	/*
+	/// Executes a command on the PLANQ, generally from the CLI
+	pub fn exec(&mut self, cmd: PlanqCmd) -> bool {
+		match cmd {
+			PlanqCmd::Error(msg) => {
+				self.stdout.push(Message::new(0, 0, "planq".to_string(), "& ERROR:".to_string()));
+				self.stdout.push(Message::new(0, 0, "planq".to_string(), format!("& {}", msg)));
+			}
+			PlanqCmd::Help => { /* list all the PLANQ commands */ }
+			PlanqCmd::Shutdown => { /* trigger a shutdown */ }
+			PlanqCmd::Reboot => { /* execute a reboot */ }
+			PlanqCmd::Connect(target) => { /* run the planq.connect subroutine */ }
+			PlanqCmd::Disconnect => { /* run the planq.disconnect subroutine */ }
+			_ => { /* NoOperation */ }
+		}
+		false
+	}
+	*/
 }
 
 /// Handles the PLANQ's status bars, their settings, their inputs, &c
-#[derive(FromReflect, Reflect, Resource, Default, Eq, PartialEq, Clone, Debug)]
+#[derive(FromReflect, Reflect, Resource, Eq, PartialEq, Clone, Debug)]
 #[reflect(Resource)]
 pub struct PlanqMonitor {
 	pub status_bars: Vec<String>, // The list of active statusbar modules
-	pub raw_data: HashMap<String, PlanqDataSource>, // Contains the live monitoring data
+	pub raw_data: HashMap<String, PlanqDataType>, // Contains the live monitoring data
 }
 impl PlanqMonitor {
 	// Builders
@@ -146,39 +165,60 @@ impl PlanqMonitor {
 		area.height = 1;
 		let default_block = Block::default().borders(Borders::LEFT | Borders::RIGHT).border_type(BorderType::Plain)
 			.border_style(Style::default().fg(Color::Gray));
+		// NOTE: Previously tried to implement this logic using another fxn to do dynamic dispatch
+		//       Unfortunately, in Rust, trait objects cannot be passed as params or instantiated locally
+		//       They can be Boxed, but because the Widget type does not impl the Sized trait,
+		//       using a Box to handle the dispatch fails when Rust tries to calculate types at compilation
+		//       Thus: all who might modify this logic, BEWARE
+		// METHOD
+		// For each data_source in the status_bars list,
+		// 1: try to retrieve the data associated with the source from the data_source dictionary
+		// 2: if successful, match the retrieved data with a PlanqDataType
+		// 3: for that PDT, check if the data source is a special case, and if so, use that logic for display
+		// 4: else, just display the data using a generic pattern for that PDT
 		for source in &self.status_bars {
-			// NOTE: Previously tried to implement this logic using another fxn to do dynamic dispatch
-			// Unfortunately, in Rust, trait objects cannot be passed as params or instantiated locally
-			// They can be Boxed, but because the Widget type does not impl the Sized trait,
-			// using a Box to handle the dispatch fails when Rust tries to calculate types at compilation
-			// Therefore, if you know what's good for you, don't try to refactor this pattern...
 			// TODO: These will need a revisit for formatting, sanity, &c
 			if let Some(source_type) = self.raw_data.get(source) {
 				match source_type {
-					PlanqDataSource::Text(text) => {
-						//eprintln!("raw_data area height: {}", area.height);
-						frame.render_widget(Paragraph::new(text.clone())
-						                    .block(default_block.clone()), area);
+					PlanqDataType::Text(text) => {
+						// TODO: these prefixes could probably get promoted into a dict or something faster/precompiled
+						let prefix = match source.as_str() {
+							"planq_mode" => { "MODE: ".to_string() }
+							"player_location" => { "LOCN: ".to_string() }
+							"current_time" => { "TIME: ".to_string() }
+							_ => { "".to_string() }
+						};
+						let remainder = area.width as usize - prefix.len() - 2;
+						let line = PlanqMonitor::right_align(text.clone(), remainder);
+						let output = prefix + &line;
+						frame.render_widget(Paragraph::new(output).block(default_block.clone()), area);
 					}
-					PlanqDataSource::Integer(val) => {
+					PlanqDataType::Integer(val) => {
 						frame.render_widget(Paragraph::new(val.to_string())
 						                    .block(default_block.clone()), area);
 					}
-					PlanqDataSource::Percent(pct) => {
-						//eprintln!("gauge area height: {}", area.height);
-						frame.render_widget(Gauge::default().percent(*pct as u16)
-						                    .gauge_style(Style::default().fg(Color::Red).bg(Color::Green))
-						                    .block(default_block.clone()), area)
+					PlanqDataType::Percent(pct) => {
+						if source == "planq_battery" {
+							let prefix = "BATT: ".to_string();
+							let remainder = area.width as usize - prefix.len() - 2;
+							let line = PlanqMonitor::right_align(pct.to_string() + "%", remainder);
+							let output = prefix + &line;
+							frame.render_widget(Gauge::default().percent(*pct as u16).label(format!("{:width$}", output, width = area.width as usize))
+							                    .gauge_style(Style::default().fg(Color::White).bg(Color::Black))
+							                    .block(default_block.clone()), area)
+						} else {
+							frame.render_widget(Gauge::default().percent(*pct as u16)
+							                    .gauge_style(Style::default().fg(Color::White).bg(Color::Black))
+							                    .block(default_block.clone()), area)
+						}
 					}
-					PlanqDataSource::Decimal { numer, denom } => {
-						//eprintln!("linegauge area height: {}", area.height);
+					PlanqDataType::Decimal { numer, denom } => {
 						let quotient: f64 = *numer as f64 / *denom as f64;
 						frame.render_widget(LineGauge::default().ratio(quotient)
 						                    .gauge_style(Style::default().fg(Color::White).bg(Color::Blue))
 						                    .block(default_block.clone()), area);
 					}
-					PlanqDataSource::Series(data) => {
-						//eprintln!("sparkline area height: {}", area.height);
+					PlanqDataType::Series(data) => {
 						// NOTE: Sparkline's default for max() will be highest value in series if not specified
 						let series = Vec::from(data.clone()); // Convert it to a Vec from a VecDeque
 						frame.render_widget(Sparkline::default().data(&series)
@@ -192,10 +232,34 @@ impl PlanqMonitor {
 			}
 		}
 	}
+	/// Prepends whitespace to the given string until it is of the given width, for right-aligning PLANQ text
+	/// Can be used to build empty lines by giving an empty string to prepend to
+	// TODO: perhaps write a "hard_right_align" that truncates if the string is too long?
+	// NOTE: Rust technically allows padding with an arbitrary char, but the std::fmt macros do not provide any way
+	//         to change this at runtime, since it has to be included as part of the format! macro
+	//       If string padding with arbitrary chars is desired, must either:
+	//         consistently use the same char every time,
+	//         or use an external crate that provides the syntax
+	fn right_align(input: String, width: usize) -> String {
+		if input.len() >= width { return input; }
+		format!("{:>str_width$}", input, str_width = width)
+	}
 }
+impl Default for PlanqMonitor {
+	fn default() -> PlanqMonitor {
+		PlanqMonitor {
+			status_bars: vec!["planq_battery".to_string(), "planq_mode".to_string(), "current_time".to_string(), ],
+			raw_data: HashMap::from([("current_time".to_string(), PlanqDataType::Text("Initializing...".to_string())),
+				                       ("planq_battery".to_string(), PlanqDataType::Percent(0)),
+				                       ("planq_mode".to_string(), PlanqDataType::Text("Initializing...".to_string()))
+			]),
+		}
+	}
+}
+
 /// Defines the set of possible data types that a PLANQ's data source might provide
 #[derive(FromReflect, Reflect, Eq, PartialEq, Clone, Debug, Default)]
-pub enum PlanqDataSource {
+pub enum PlanqDataType {
 	#[default]
 	Null,
 	Text(String), // Ideally this should be a Span or some other ratatui-compat type instead
@@ -234,6 +298,19 @@ pub enum PlanqCPUMode {
 	Working,
 	Offline,
 }
+impl Display for PlanqCPUMode {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let output = match *self {
+			PlanqCPUMode::Idle => { "IDLE" }
+			PlanqCPUMode::Error(_) => { "ERROR" }
+			PlanqCPUMode::Startup => { "STARTUP" }
+			PlanqCPUMode::Shutdown => { "SHUTDOWN" }
+			PlanqCPUMode::Working => { "WORKING" }
+			PlanqCPUMode::Offline => { "OFFLINE" }
+		};
+		write!(f, "{}", output)
+	}
+}
 /// Provides context for certain actions (inventory use/drop, &c) that take secondary inputs
 #[derive(FromReflect, Reflect, Default, Clone, Debug, Eq, PartialEq)]
 pub enum PlanqActionMode {
@@ -242,6 +319,32 @@ pub enum PlanqActionMode {
 	DropItem,
 	UseItem,
 	CliInput,
+}
+/// Defines the full set of commands that can actually be executed on the PLANQ
+#[derive(FromReflect, Reflect, PartialEq, Eq, Clone, Debug, Default, EnumIter)]
+pub enum PlanqCmd {
+	#[default]
+	NoOperation,
+	Error(String),
+	Help,
+	Shutdown,
+	Reboot,
+	Connect(String),
+	Disconnect
+}
+impl fmt::Display for PlanqCmd {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		//write!(f, "{}", self.field)
+		match *self {
+			NoOperation => { write!(f, "(NoOperation)") }
+			Error(_) => { write!(f, "(Error)") }
+			Help => { write!(f, "help") }
+			Shutdown => { write!(f, "shutdown") }
+			Reboot => { write!(f, "reboot") }
+			Connect(_) => { write!(f, "connect") }
+			Disconnect => { write!(f, "disconnect") }
+		}
+	}
 }
 /// Provides the Bevy-backed tools for doing things on the PLANQ involving time intervals
 /// That is, this represents a 'process' or task within the PLANQ that needs processing time to complete

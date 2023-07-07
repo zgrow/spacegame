@@ -6,7 +6,6 @@
 
 // NOTE: see bevy/examples/games/alien_cake_addict.rs for example on handling the Player entity
 
-use std::collections::VecDeque;
 use crate::components::*;
 use crate::camera_system::CameraView;
 use crate::map::*;
@@ -45,8 +44,8 @@ pub fn new_camera_system(mut commands: Commands) {
 }
 /// Spawns a new player, including their subsystems and default values
 pub fn new_player_spawn(mut commands: Commands,
-	                    mut msglog: ResMut<MessageLog>,
-	                    spawnpoint: Res<Position>,
+	                      mut msglog:   ResMut<MessageLog>,
+	                      spawnpoint:   Res<Position>,
 ) {
 	commands.spawn((
 		// this is the player's collection of components and their initial values
@@ -66,7 +65,7 @@ pub fn new_player_spawn(mut commands: Commands,
 }
 /// Spawns a new LMR at the specified Position, using default values
 pub fn new_lmr_spawn(mut commands:  Commands,
-	                 mut msglog:    ResMut<MessageLog>,
+	                   mut msglog:    ResMut<MessageLog>,
 ) {
 	commands.spawn((
 		Name        {name: "LMR".to_string()},
@@ -98,7 +97,7 @@ pub fn new_planq_spawn(mut commands:    Commands,
 		},
 		Device {
 			pw_switch: false,
-			batt_voltage: 0,
+			batt_voltage: 100,
 			batt_discharge: -1, // TODO: implement battery charge loss
 			state: DeviceState::Offline, // TODO: sync this to the PLANQ's mode, don't try to use it!
 		},
@@ -110,10 +109,10 @@ pub fn new_planq_spawn(mut commands:    Commands,
 //  CONTINUOUS SYSTEMS (run frequently)
 /// Runs assessment of the game state for things like victory/defeat conditions, &c
 pub fn engine_system(mut state:         ResMut<GameSettings>,
-	                 mut ereader:       EventReader<GameEvent>,
-	                 p_query:           Query<(Entity, &Position), With<Player>>,
-	                 p_items_query:     Query<(Entity, &Portable), Without<Position>>,
-	                 q_query:           Query<(Entity, &Portable), With<Planq>>,
+	                   mut ereader:       EventReader<GameEvent>,
+	                   p_query:           Query<(Entity, &Position), With<Player>>,
+	                   p_items_query:     Query<(Entity, &Portable), Without<Position>>,
+	                   q_query:           Query<(Entity, &Portable), With<Planq>>,
 ) {
 	for event in ereader.iter() {
 		match event.etype {
@@ -148,11 +147,11 @@ pub fn engine_system(mut state:         ResMut<GameSettings>,
 }
 /// Handles entities that can move around the map
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
-	                   mut msglog:      ResMut<MessageLog>,
-	                   mut p_posn_res:  ResMut<Position>,
-	                   mut p_query:     Query<(&mut Position, &mut Viewshed), With<Player>>,
-	                   model:           Res<Model>,
-	                   enty_query:      Query<(&Position, &Name, Option<&mut Viewshed>), Without<Player>>,
+	                     mut msglog:      ResMut<MessageLog>,
+	                     mut p_posn_res:  ResMut<Position>,
+	                     mut p_query:     Query<(&mut Position, &mut Viewshed), With<Player>>,
+	                     model:           Res<Model>,
+	                     enty_query:      Query<(&Position, &Name, Option<&mut Viewshed>), Without<Player>>,
 ) {
 	// NOTE: the enty_query doesn't need to include Obstructive component because the map's
 	// blocked_tiles sub-map already includes that information in an indexed vector
@@ -259,9 +258,9 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	}
 }
 /// Handles updates to the 'meta' maps, ie the blocked and opaque tilemaps
-pub fn map_indexing_system(mut model:   ResMut<Model>,
-	                       mut blocker_query: Query<&Position, With<Obstructive>>,
-	                       mut opaque_query: Query<(&Position, &Opaque)>,
+pub fn map_indexing_system(mut model:         ResMut<Model>,
+	                         mut blocker_query: Query<&Position, With<Obstructive>>,
+	                         mut opaque_query:  Query<(&Position, &Opaque)>,
 ) {
 	// TODO: consider possible optimization for not updating levels that the player is not on?
 	// might require some extra smartness to allow updates if the LMR does something out of sight
@@ -287,10 +286,10 @@ pub fn map_indexing_system(mut model:   ResMut<Model>,
 }
 /// Handles CanOpen component action via ActorOpen/Close events
 pub fn openable_system(mut commands:    Commands,
-	               mut ereader:     EventReader<GameEvent>,
-	               mut msglog:      ResMut<MessageLog>,
-	               mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
-	               mut e_query:     Query<(Entity, &Position, &Name, Option<&Player>, Option<&mut Viewshed>), With<CanOpen>>,
+	                     mut ereader:     EventReader<GameEvent>,
+	                     mut msglog:      ResMut<MessageLog>,
+	                     mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
+	                     mut e_query:     Query<(Entity, &Position, &Name, Option<&Player>, Option<&mut Viewshed>), With<CanOpen>>,
 ) {
 	for event in ereader.iter() {
 		if event.etype != ActorOpen
@@ -445,12 +444,12 @@ pub fn visibility_system(mut model: ResMut<Model>,
 }
 /// Handles pickup/drop/destroy requests for Items
 pub fn item_collection_system(mut commands: Commands,
-	                          mut ereader:  EventReader<GameEvent>,
-	                          mut msglog:   ResMut<MessageLog>,
-	                          // The list of Entities that also have Containers
-	                          e_query:      Query<(Entity, &Name, &Position, &Container, Option<&Player>)>,
-	                          // The list of every Item that may or may not be in a container
-	                          i_query:      Query<(Entity, &Name, &Portable, Option<&Position>)>,
+	                            mut ereader:  EventReader<GameEvent>,
+	                            mut msglog:   ResMut<MessageLog>,
+	                            // The list of Entities that also have Containers
+	                            e_query:      Query<(Entity, &Name, &Position, &Container, Option<&Player>)>,
+	                            // The list of every Item that may or may not be in a container
+	                            i_query:      Query<(Entity, &Name, &Portable, Option<&Position>)>,
 ) {
 	for event in ereader.iter() {
 		if event.etype != ItemMove
@@ -501,9 +500,10 @@ pub fn item_collection_system(mut commands: Commands,
 	}
 }
 /// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
-pub fn planq_system(mut commands: Commands,
+pub fn planq_system(mut commands:   Commands,
 	                  mut ereader:    EventReader<GameEvent>,
 	                  mut preader:    EventReader<PlanqEvent>,
+	                  time:           Res<Time>,
 	                  mut msglog:     ResMut<MessageLog>,
 	                  mut planq:      ResMut<PlanqData>, // contains the PLANQ's settings and data storage
 	                  mut monitor:    ResMut<PlanqMonitor>, // contains the PLANQ's status bar info
@@ -531,6 +531,9 @@ pub fn planq_system(mut commands: Commands,
 					refresh_inventory = true;
 					if econtext.object == planq_enty.0 {
 						planq.is_carried = true;
+						commands.spawn(DataSampleTimer::new().source("planq_mode".to_string()));
+						commands.spawn(DataSampleTimer::new().source("current_time".to_string()));
+						commands.spawn(DataSampleTimer::new().source("planq_battery".to_string()));
 					}
 				}
 			}
@@ -563,8 +566,12 @@ pub fn planq_system(mut commands: Commands,
 			Reboot => { /* do a Shutdown, then a Startup */ }
 			GoIdle => { planq.cpu_mode = PlanqCPUMode::Idle; }
 			CliOpen => {
-				planq.show_cli_input = true;
-				planq.action_mode = PlanqActionMode::CliInput;
+				if planq.cpu_mode != PlanqCPUMode::Startup
+				&& planq.cpu_mode != PlanqCPUMode::Shutdown
+				&& planq.cpu_mode != PlanqCPUMode::Offline {
+					planq.show_cli_input = true;
+					planq.action_mode = PlanqActionMode::CliInput;
+				}
 			}
 			CliClose => {
 				// FIXME: need to clear the CLI's input buffer! might need to do this at the time of key input?
@@ -595,6 +602,7 @@ pub fn planq_system(mut commands: Commands,
 	}
 	// HINT: Get the current battery voltage with planq_enty.2.batt_voltage
 	// - Handle the Planq's CPU mode logic
+	// TODO: catch the edge case where the proc_table.len() == 0 but the CPUMode != Offline/Startup/Error/&c
 	match planq.cpu_mode {
 		PlanqCPUMode::Error(_) => { /* TODO: implement Error modes */ }
 		PlanqCPUMode::Offline => { /* do nothing */ }
@@ -626,8 +634,8 @@ pub fn planq_system(mut commands: Commands,
 			match planq.boot_stage {
 				0 => {
 					if planq.proc_table.is_empty() {
-						eprintln!("¶ running boot stage 0");
-						msglog.tell_planq("¶ GRAIN v17.6.823 'Cedar'".to_string());
+						eprintln!("¶ running boot stage {}", planq.boot_stage);
+						msglog.boot_message(planq.boot_stage);
 						// kick off boot stage 1
 						planq.proc_table.push(commands.spawn(
 								PlanqProcess::new()
@@ -640,8 +648,8 @@ pub fn planq_system(mut commands: Commands,
 				1 => {
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
-							eprintln!("¶ running boot stage 1");
-							msglog.tell_planq("¶ Hardware Status ... [OK]".to_string());
+							eprintln!("¶ running boot stage {}", planq.boot_stage);
+							msglog.boot_message(planq.boot_stage);
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it
@@ -653,8 +661,8 @@ pub fn planq_system(mut commands: Commands,
 				2 => {
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
-							eprintln!("¶ running boot stage 2");
-							msglog.tell_planq("¶ Firmware Status ... [OK]".to_string());
+							eprintln!("¶ running boot stage {}", planq.boot_stage);
+							msglog.boot_message(planq.boot_stage);
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it and start it
@@ -666,8 +674,8 @@ pub fn planq_system(mut commands: Commands,
 				3 => {
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
-							eprintln!("¶ running boot stage 3");
-							msglog.tell_planq("¶ Bootloader Status ... [OK]".to_string());
+							eprintln!("¶ running boot stage {}", planq.boot_stage);
+							msglog.boot_message(planq.boot_stage);
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it and start it
@@ -679,26 +687,26 @@ pub fn planq_system(mut commands: Commands,
 				4 => {
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
-							eprintln!("¶ running boot stage 4");
-							msglog.tell_planq("¶ CellulOS 5 (v19.26.619_revB)".to_string());
+							eprintln!("¶ running boot stage {}", planq.boot_stage);
+							msglog.boot_message(planq.boot_stage);
+							// TODO: implement an add() method on the monitor: monitor.add("player_location");
+							// DEBUG: these status bars are for testing/debugging
 							monitor.status_bars.push("player_location".to_string());
-							monitor.raw_data.insert("player_location".to_string(), PlanqDataSource::Text("".to_string()));
+							monitor.raw_data.insert("player_location".to_string(), PlanqDataType::Text("".to_string()));
 							commands.spawn(DataSampleTimer::new().source("player_location".to_string()));
-							monitor.status_bars.push("current_time".to_string());
-							monitor.raw_data.insert("current_time".to_string(), PlanqDataSource::Text("".to_string()));
-							commands.spawn(DataSampleTimer::new().source("current_time".to_string()));
-							monitor.status_bars.push("test_line".to_string());
-							monitor.raw_data.insert("test_line".to_string(), PlanqDataSource::Decimal {numer: 1, denom: 10});
-							commands.spawn(DataSampleTimer::new().duration(2).source("test_line".to_string()));
-							monitor.status_bars.push("test_sparkline".to_string());
-							monitor.raw_data.insert("test_sparkline".to_string(), PlanqDataSource::Series(VecDeque::new()));
-							commands.spawn(DataSampleTimer::new().duration(1).source("test_sparkline".to_string()));
-							monitor.status_bars.push("test_gauge".to_string());
-							monitor.raw_data.insert("test_gauge".to_string(), PlanqDataSource::Percent(0));
-							commands.spawn(DataSampleTimer::new().duration(3).source("test_gauge".to_string()));
+							//monitor.status_bars.push("test_line".to_string());
+							//monitor.raw_data.insert("test_line".to_string(), PlanqDataType::Decimal {numer: 1, denom: 10});
+							//commands.spawn(DataSampleTimer::new().duration(2).source("test_line".to_string()));
+							//monitor.status_bars.push("test_sparkline".to_string());
+							//monitor.raw_data.insert("test_sparkline".to_string(), PlanqDataType::Series(VecDeque::new()));
+							//commands.spawn(DataSampleTimer::new().duration(1).source("test_sparkline".to_string()));
+							//monitor.status_bars.push("test_gauge".to_string());
+							//monitor.raw_data.insert("test_gauge".to_string(), PlanqDataType::Percent(0));
+							//commands.spawn(DataSampleTimer::new().duration(3).source("test_gauge".to_string()));
+							// END DEBUG:
 							proc.1.outcome = PlanqEvent::new(PlanqEventType::NullEvent);
 							planq.cpu_mode = PlanqCPUMode::Idle;
-							eprintln!("* Adding status bar to PLANQ");
+							eprintln!("¶ Adding status bars to PLANQ");
 							// TODO: ensure that the status bar stack is cleaned up on PLANQ shutdown
 						}
 					}
@@ -712,10 +720,30 @@ pub fn planq_system(mut commands: Commands,
 			// When finished, set the power_is_on AND planq_enty.2.pw_switch to false
 		}
 		PlanqCPUMode::Idle => {
-			// TODO: Display a cute graphic
+			// given a sequence of integers 0-9,
+			// produce a smoothly scaled integer 1-21
+			let smooth_input = (time.elapsed().as_secs() % 10) as f64;
+			//let angle: f64 = 0.6282 * smooth_input - 1.571;
+			//let output = (10.5 * angle.sin() + 10.5) as usize;
+			let output = (4.4 * smooth_input - 23.0).abs() as usize;
+			let idle_message = format!("{:width$}", "", width=output) + "-=[ ]=-";
+			if planq.proc_table.len() == 1 { // Is there anything besides the boot process running?
+				// update the idle graphic if we're still idling, or send a new one if not
+				msglog.replace(idle_message, "planq".to_string(), 0, 0);
+			}
+			// FIXME: what to do if CPUMode = Idle but proc_table.len() > 1 (there are tasks to finish)?
 		}
 		PlanqCPUMode::Working => {
 			// TODO: Display the outputs from the workloads
+			// ...
+			// Finally, if all the workloads are done, shift back to Idle mode
+			if planq.proc_table.len() == 1 { planq.cpu_mode = PlanqCPUMode::Idle; }
+		}
+	}
+	// - Iterate any active PlanqProcesses
+	for mut pq_timer in t_query.iter_mut() {
+		if !pq_timer.1.timer.finished() {
+			pq_timer.1.timer.tick(time.delta());
 		}
 	}
 	// - Refill the planq's inventory list
@@ -730,22 +758,15 @@ pub fn planq_system(mut commands: Commands,
 }
 /// Handles the 'backend' automated stuff for the PLANQ, such as the status bars
 pub fn planq_monitor_system(time:           Res<Time>,
-	                          msglog:         ResMut<MessageLog>,
+	                          msglog:         Res<MessageLog>,
 	                          mut planq:      ResMut<PlanqData>, // contains the PLANQ's settings and data storage
 	                          mut monitor:    ResMut<PlanqMonitor>, // contains the PLANQ's status bar info
 	                          p_query:        Query<(Entity, &Position), With<Player>>, // provides interface to player data
 	                          mut q_query:    Query<(Entity, &Planq, &Device, &mut RngComponent)>, // contains the PLANQ's component data
-	                          mut t_query:    Query<(Entity, &mut PlanqProcess)>, // contains the set of all PlanqTimers
 	                          mut s_query:    Query<(Entity, &mut DataSampleTimer)>, // the set of datasources that need updates
 ) {
 	let player = p_query.get_single().unwrap();
 	let mut planq_enty = q_query.get_single_mut().unwrap();
-	// - Iterate any active PlanqProcesses
-	for mut pq_timer in t_query.iter_mut() {
-		if !pq_timer.1.timer.finished() {
-			pq_timer.1.timer.tick(time.delta());
-		}
-	}
 	// - Refresh the planq's scrollback
 	// TODO: optimize this to avoid doing a full copy of the log every single time
 	planq.stdout = msglog.get_log_as_messages("planq".to_string(), 0);
@@ -759,23 +780,32 @@ pub fn planq_monitor_system(time:           Res<Time>,
 	for mut data_timer in s_query.iter_mut() {
 		if data_timer.1.timer.finished() {
 			let source_name = data_timer.1.source.clone();
-			//match data_timer.1.source.as_str() {
 			match source_name.as_str() {
-				"player_location" => {
-					monitor.raw_data.entry(source_name.to_string())
-					.and_modify(|x| *x = PlanqDataSource::Text(format!("LOCN: {}", planq.player_loc)));
+				// START HERE: all of the other cases below need to be revised to match this method call pattern in "planq_mode"
+				"planq_mode" => {
+					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(planq.cpu_mode.to_string()));
 				}
-				"current_time" => {
-					monitor.raw_data.entry(source_name.to_string())
-					.and_modify(|x| *x = PlanqDataSource::Text(format!("TIME: {}", time.elapsed().get_as_string())));
+				"player_location" => {
+					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(planq.player_loc.to_string()));
+				}
+				"current_time" => { // TODO: this needs to be rewritten into a 24h clock, not a stopwatch
+					let start_time_offset = Duration::new(2096, 789); // 12:34:56.789
+					let current_time = time.elapsed() + start_time_offset;
+					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(current_time.get_as_string()));
+				}
+				"planq_battery" => {
+					monitor.raw_data.entry(source_name)
+						.and_modify(|x| *x = PlanqDataType::Percent(planq_enty.2.batt_voltage as u32));
 				}
 				"test_line" => {
-					monitor.raw_data.entry(source_name.to_string())
-					.and_modify(|x| *x = PlanqDataSource::Decimal {numer: planq_enty.3.i32(0..100), denom: 100});
+					monitor.raw_data.entry(source_name)
+						.and_modify(|x| *x = PlanqDataType::Decimal {numer: planq_enty.3.i32(0..100), denom: 100});
 				}
 				"test_sparkline" => {
-					let entry = monitor.raw_data.get_mut(&source_name.to_string()).unwrap();
-					if let PlanqDataSource::Series(ref mut arr) = entry {
+					// This update method is a little 'backwards': instead of passing a new value to raw_data via entry(),
+					// we modify the raw_data's values directly using the mutable reference we obtain with get_mut()
+					let entry = monitor.raw_data.get_mut(&source_name).unwrap();
+					if let PlanqDataType::Series(ref mut arr) = entry {
 						arr.push_back(planq_enty.3.u64(0..10));
 						loop {
 							if arr.len() >= 31 {
@@ -787,8 +817,8 @@ pub fn planq_monitor_system(time:           Res<Time>,
 					}
 				}
 				"test_gauge" => {
-					monitor.raw_data.entry(source_name.to_string())
-					.and_modify(|x| *x = PlanqDataSource::Percent(planq_enty.3.u32(0..=100)));
+					monitor.raw_data.entry(source_name)
+					.and_modify(|x| *x = PlanqDataType::Percent(planq_enty.3.u32(0..=100)));
 				}
 				_ => {  }
 			}
@@ -814,12 +844,13 @@ pub trait DurationFmtExt {
 impl DurationFmtExt for Duration {
 	/// Provides the time as a preformatted string, suitable for display.
 	fn get_as_string(self) -> String {
-		let secs = self.as_secs();
+		let mut secs = self.as_secs();
 		let mils = self.subsec_millis();
-		let nanos = self.subsec_nanos();
-		let mins = secs / 60; // *Total* time in mins, ie elapsed
-		let hours = mins / 60; // *Total* time in hours, ie elapsed
-		format!("{}:{}:{}.{}.{}", hours, mins, secs, mils, nanos)
+		let hours: u64 = secs / 3600;
+		secs -= hours * 3600;
+		let mins: u64 = secs / 60;
+		secs -= mins * 60;
+		format!("{:02}:{:02}:{:02}.{:03}", hours, mins, secs, mils)
 	}
 	/// Provides the current ship time as a raw quantity of milliseconds, suitable for doing maths to.
 	fn get_as_msecs(self) -> u128 {

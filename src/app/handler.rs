@@ -221,6 +221,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			return Ok(()) // WARN: do not disable this, lest key inputs be parsed twice (ie again below) by mistake!
 		}
+		// Else, try to parse the key like a regular command input
 		match key_event.code {
 			// Meta actions
 			KeyCode::Char('p') => { // Pause key toggle
