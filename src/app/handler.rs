@@ -196,11 +196,16 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					planq.show_cli_input = false;
 					eng.planq_stdin.input.move_cursor(tui_textarea::CursorMove::Head);
 					eng.planq_stdin.input.delete_line_by_end();
-					let mut msglog = eng.app.world.get_resource_mut::<MessageLog>().unwrap();
-					let mut input_text = "> ".to_string();
-					input_text.push_str(eng.planq_stdin.input.yank_text());
-					msglog.tell_planq(input_text);
-					// TODO: pass the input buffer to the PLANQ's command parser
+					let input_text = "> ".to_string() + eng.planq_stdin.input.yank_text();
+					// We must finish working with the PLANQ reference before we can get the msglog
+					if planq.cpu_mode == PlanqCPUMode::Idle {
+						let mut msglog = eng.app.world.get_resource_mut::<MessageLog>().unwrap(); // Must keep these here to satisfy borrow checker
+						msglog.replace(input_text.clone(), "planq".to_string(), 0, 0);
+					} else {
+						let mut msglog = eng.app.world.get_resource_mut::<MessageLog>().unwrap(); // See above ^^^
+						msglog.tell_planq(input_text.clone());
+					}
+					eng.exec(planq_parser(input_text));
 				}
 				// TODO: set up the cursor dirs to allow movement? or reserve for planq menus?
 				the_input => { // Pass everything else to the CLI parser
@@ -488,6 +493,19 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 		}
 	}
 	Ok(())
+}
+/// Translates an input string from the player into a PLANQ command and context
+pub fn planq_parser(input: String) -> PlanqCmd {
+	let input_vec: Vec<&str> = input.trim_matches(|c| c == '>' || c == '¶').trim_start().split(' ').collect();
+	//eprintln!("> {:?}", input_vec); // DEBUG:
+	match input_vec[0] {
+		"help" => { PlanqCmd::Help }
+		"shutdown" => { PlanqCmd::Shutdown }
+		"reboot" => { PlanqCmd::Reboot }
+		"connect" => { PlanqCmd::Connect(input_vec[1].to_string()) }
+		"disconnect" => { PlanqCmd::Disconnect }
+		input => { PlanqCmd::Error(format!("Unknown command: {}", input)) } // No matching command was found!
+	}
 }
 
 // EOF

@@ -2,6 +2,7 @@
 // generated as app.rs using orhun/rust-tui-template via cargo-generate
 // Mar 15 2023
 use std::error;
+use strum::IntoEnumIterator;
 use bevy_save::prelude::*;
 use bevy::app::App;
 use bracket_rex::prelude::XpFile;
@@ -76,6 +77,7 @@ impl GameEngine<'_> {
 			player_action: GameEventType::NullEvent,
 			planq_stdin: PlanqInput::new(),
 		};
+		new_eng.planq_stdin.input.set_cursor_line_style(Style::default());
 		new_eng.ui_grid.calc_layout(max_area);
 		new_eng
 	}
@@ -133,27 +135,14 @@ impl GameEngine<'_> {
 		// TODO: replace the 'no planq detected' message with something nicer
 		if !planq.is_carried { // Player is not carrying a planq
 			frame.render_widget(
-				Paragraph::new("\n\n[no PLANQ detected] ").block(
+				Paragraph::new("[no PLANQ detected]").block(
 					Block::default().borders(Borders::NONE)
 				),
 				self.ui_grid.planq_status,
 			);
 			return;
 		}
-		// TODO: replace the 'planq offline' message with something nicer
-		//       make sure it includes a battery readout: charge level, "NO BATT", &c
-		else if planq.cpu_mode == PlanqCPUMode::Offline {
-			frame.render_widget(
-				Paragraph::new("\n\n[PLANQ offline]").block(
-					Block::default()
-					.borders(Borders::ALL)
-					.border_type(BorderType::Thick)
-					.border_style(Style::default().fg(Color::Gray).bg(Color::Black))
-				),
-				self.ui_grid.planq_status,
-			);
-			return;
-		}
+		// Display the terminal window if it's been set to visible
 		if planq.show_terminal {
 			planq.render_terminal(frame, self.ui_grid.planq_stdout);
 			// Only display the CLI if there's a terminal visible to contain it
@@ -161,7 +150,8 @@ impl GameEngine<'_> {
 				planq.render_cli(frame, self.ui_grid.planq_stdin, &mut self.planq_stdin);
 			}
 		}
-		// Always render the status widgets if there's power
+		// Always render the status widgets: need to provide battery power, ship time, PLANQ status
+		// WARN: this MUST be after we are done with the planq object above due to borrow checking
 		let mut monitor = self.app.world.get_resource_mut::<PlanqMonitor>().unwrap();
 		monitor.render(frame, self.ui_grid.planq_status);
 	}
@@ -354,6 +344,31 @@ impl GameEngine<'_> {
 		let game_events: &mut Events<GameEvent> = &mut self.app.world.get_resource_mut::<Events<GameEvent>>().unwrap();
 		game_events.send(GameEvent::new(GameEventType::ModeSwitch(new_mode), None));
 	}
+	/// Executes a command on the PLANQ, generally from the CLI
+	pub fn exec(&mut self, cmd: PlanqCmd) -> bool {
+		let mut msglog = self.app.world.get_resource_mut::<MessageLog>().unwrap();
+		match cmd {
+			PlanqCmd::Error(msg) => {
+				msglog.tell_planq("¶│ ERROR:".to_string());
+				msglog.tell_planq(format!("¶│ {}", msg));
+				msglog.tell_planq(" ".to_string());
+			}
+			PlanqCmd::Help => {
+				msglog.tell_planq("¶│ Available commands:".to_string());
+				for command in PlanqCmd::iter() {
+					msglog.tell_planq(format!("¶│   {}", command));
+				}
+				msglog.tell_planq(" ".to_string());
+			}
+			PlanqCmd::Shutdown => { /* trigger a shutdown */ }
+			PlanqCmd::Reboot => { /* execute a reboot */ }
+			PlanqCmd::Connect(target) => { /* run the planq.connect subroutine */ }
+			PlanqCmd::Disconnect => { /* run the planq.disconnect subroutine */ }
+			_ => { /* NoOperation */ }
+		}
+		false
+	}
+
 }
 
 #[derive(Resource, FromReflect, Reflect, Copy, Clone, PartialEq, Eq, Default)]
