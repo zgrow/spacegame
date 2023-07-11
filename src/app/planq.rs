@@ -21,7 +21,7 @@ use strum_macros::EnumIter;
 use tui_textarea::TextArea;
 
 /// Defines the Planq settings & controls (interface bwn my GameEngine class & Bevy)
-#[derive(Resource, FromReflect, Reflect, Eq, PartialEq, Clone, Debug, Default)]
+#[derive(Resource, FromReflect, Reflect, Eq, PartialEq, Clone, Debug)]
 #[reflect(Resource)]
 pub struct PlanqData {
 	pub power_is_on: bool, // true if the planq has been turned on
@@ -32,12 +32,30 @@ pub struct PlanqData {
 	pub show_terminal: bool,
 	pub show_inventory: bool,
 	pub inventory_list: Vec<Entity>,
-	pub player_loc: Position, // DEBUG: current player location
+	pub player_loc: Position, // player's current coordinates (TODO: replace with a room-based system)
 	pub show_cli_input: bool,
 	pub stdout: Vec<Message>, // Contains the PLANQ's message backlog
 	pub proc_table: Vec<Entity>, // The list of PlanqProcesses running in the Planq
-	// trying to maintain a vec of PlanqStatus objects would be tough because of lifetimes
-	// not sure yet what is required to help this work without storing a PlanqStatus directly
+	pub jack_cnxn: Entity, // ID of the object that the PLANQ's access jack is connected to
+}
+impl Default for PlanqData {
+	fn default() -> PlanqData {
+		PlanqData {
+			power_is_on: false, // true if the planq has been turned on
+			boot_stage: 0,
+			is_carried: false, // true if the planq is in the player's inventory
+			cpu_mode: PlanqCPUMode::Offline,
+			action_mode: PlanqActionMode::Default, // Provides player action context for disambiguation
+			show_terminal: false,
+			show_inventory: false,
+			inventory_list: Vec::new(),
+			player_loc: Position::default(), // player's current coordinates (TODO: replace with a room-based system)
+			show_cli_input: false,
+			stdout: Vec::new(), // Contains the PLANQ's message backlog
+			proc_table: Vec::new(), // The list of PlanqProcesses running in the Planq
+			jack_cnxn: Entity::PLACEHOLDER, // ID of the object that the PLANQ's access jack is connected to
+		}
+	}
 }
 impl PlanqData {
 	pub fn new() -> PlanqData {
@@ -54,6 +72,7 @@ impl PlanqData {
 			show_cli_input: false,
 			stdout: Vec::new(),
 			proc_table: Vec::new(),
+			jack_cnxn: Entity::PLACEHOLDER,
 		}
 	}
 	pub fn inventory_toggle(&mut self) {
@@ -112,24 +131,6 @@ impl PlanqData {
 		}
 		output
 	}
-	/*
-	/// Executes a command on the PLANQ, generally from the CLI
-	pub fn exec(&mut self, cmd: PlanqCmd) -> bool {
-		match cmd {
-			PlanqCmd::Error(msg) => {
-				self.stdout.push(Message::new(0, 0, "planq".to_string(), "& ERROR:".to_string()));
-				self.stdout.push(Message::new(0, 0, "planq".to_string(), format!("& {}", msg)));
-			}
-			PlanqCmd::Help => { /* list all the PLANQ commands */ }
-			PlanqCmd::Shutdown => { /* trigger a shutdown */ }
-			PlanqCmd::Reboot => { /* execute a reboot */ }
-			PlanqCmd::Connect(target) => { /* run the planq.connect subroutine */ }
-			PlanqCmd::Disconnect => { /* run the planq.disconnect subroutine */ }
-			_ => { /* NoOperation */ }
-		}
-		false
-	}
-	*/
 }
 
 /// Handles the PLANQ's status bars, their settings, their inputs, &c
@@ -320,7 +321,7 @@ pub enum PlanqActionMode {
 	UseItem,
 	CliInput,
 }
-/// Defines the full set of commands that can actually be executed on the PLANQ
+/// Defines the full set of user commands that can actually be executed on the PLANQ
 #[derive(FromReflect, Reflect, PartialEq, Eq, Clone, Debug, Default, EnumIter)]
 pub enum PlanqCmd {
 	#[default]

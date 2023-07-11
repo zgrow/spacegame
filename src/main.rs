@@ -127,7 +127,7 @@ fn main() -> AppResult<()> {
 	let mut worldmap = builder.get_map();
 	// Build all of the furniture, backdrops, and so on for this level
 	let mut item_spawns = builder.get_item_spawn_list();
-	eprintln!("item_spawns.len: {}", item_spawns.len()); // DEBUG:
+	eprintln!("* item_spawns.len: {}", item_spawns.len()); // DEBUG:
 	eng.artificer.spawn_batch(&mut eng.app.world, &mut item_spawns, cur_floor);
 	model.levels.push(worldmap);
 	// Build the dev map and drop a portal to it

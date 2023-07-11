@@ -343,6 +343,42 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					}
 				}
 			}
+			KeyCode::Char('C') => { // CONNECT the PLANQ to a nearby AccessPort
+				let mut access_ports = Vec::new();
+				let mut port_query = eng.app.world.query_filtered::<(Entity, &Position, &Name), With<AccessPort>>();
+				let p_posn = *eng.app.world.get_resource::<Position>().unwrap();
+				eng.item_chooser.list.clear();
+				for port in port_query.iter(&eng.app.world) {
+					if *port.1 == p_posn {
+						access_ports.push(ListItem::new(port.2.name.clone()));
+						eng.item_chooser.list.push(port.0);
+					}
+				}
+				if !access_ports.is_empty() {
+					if access_ports.len() == 1 {
+						let choice_val = eng.item_chooser.list[0];
+						new_game_event.etype = PlanqConnect;
+						new_game_event.context = Some(GameEventContext{ subject: player, object: choice_val });
+						// We'll defer to the event handler to communicate to the player about this action
+						eprintln!("* connecting PLANQ to {choice_val:?}"); // DEBUG:
+					} else {
+						eng.pause_game(true);
+						eng.player_action = PlanqConnect;
+						eng.show_item_chooser();
+					}
+				}
+			}
+			KeyCode::Char('D') => { // DISCONNECT the PLANQ from a connected AccessPort, if set
+				if planq.jack_cnxn == Entity::PLACEHOLDER {
+					// report "no connection" and abort the action
+					let mut msglog = eng.app.world.get_resource_mut::<MessageLog>().unwrap();
+					msglog.tell_player("There's nothing connected to your PLANQ.".to_string());
+				} else {
+					// disconnect the PLANQ
+					new_game_event.etype = PlanqDisconnect;
+					new_game_event.context = Some(GameEventContext{ subject: player, object: planq.jack_cnxn });
+				}
+			}
 			KeyCode::Char('g') => { // GET a Portable item from the ground at player's feet
 				let mut item_names = Vec::new();
 				let mut item_query = eng.app.world.query_filtered::<(Entity, &Position, &Name), With<Portable>>();

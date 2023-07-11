@@ -56,20 +56,15 @@ impl Position {
 		false
 	}
 }
+impl PartialEq<(i32, i32, i32)> for Position {
+	fn eq(&self, rhs: &(i32, i32, i32)) -> bool {
+		if self.x == rhs.0 && self.y == rhs.1 && self.z == rhs.2 { return true; }
+		false
+	}
+}
 impl fmt::Display for Position {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "{}, {}, {}", self.x, self.y, self.z)
-	}
-}
-//impl<'a, 'b> PartialEq<&'b Position> for &'a Position {
-//	fn eq(self, other: &'b Position) -> bool {
-//		if self.x == other.x && self.y == other.y && self.z == other.z { true }
-//		false
-//	}
-//}
-impl<'a> PartialEq<&(i32, i32, i32)> for &'a Position {
-	fn eq(&self, other: &&(i32, i32, i32)) -> bool {
-		self.x == other.0 && self.y == other.1 && self.z == other.2
 	}
 }
 /// Makes the entity available to be rendered on the viewport
@@ -115,6 +110,7 @@ pub struct Opaque { pub opaque: bool }
 #[reflect(Component)]
 pub struct Openable {
 	pub is_open: bool,
+	pub is_stuck: bool,
 	pub open_glyph: String,
 	pub closed_glyph: String,
 }
@@ -146,7 +142,7 @@ impl Lockable {
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
 pub struct Key { pub key_id: i32 }
-/// Describes an entity with behavior that can be applied/used/manipulated by another entity
+/// Describes an entity that can have an external power source, a switch, and a DeviceState
 #[derive(Reflect, Component, Default)]
 #[reflect(Component)]
 pub struct Device {
@@ -215,6 +211,12 @@ pub enum DeviceState {
 /// Describes an entity that can manipulate the controls of a Device
 #[derive(Component)]
 pub struct CanOperate { }
+/// Describes an entity with a PLANQ-compatible maintenance system
+#[derive(Component)]
+pub struct AccessPort { }
+/// Describes an entity that can connect to and communicate with the shipnet
+#[derive(Reflect, FromReflect, Default, Copy, Clone, Eq, PartialEq, Debug)]
+pub struct Networkable { }
 
 //  *** PRIMITIVES AND COMPUTED VALUES (ie no save/load)
 /// Sets the current run mode of the GameEngine

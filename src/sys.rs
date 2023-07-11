@@ -20,6 +20,7 @@ use bevy::ecs::system::{Commands, Res, Query, ResMut};
 use bevy::ecs::event::EventReader;
 use bevy::ecs::query::{With, Without, QueryEntityError};
 use bevy::ecs::entity::Entity;
+use bevy::prelude::EventWriter;
 use bevy::utils::Duration;
 use bevy::time::Time;
 use bracket_pathfinding::prelude::*;
@@ -289,7 +290,8 @@ pub fn openable_system(mut commands:    Commands,
 	                     mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
 	                     mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
-	                     mut e_query:     Query<(Entity, &Position, &Name, Option<&Player>, Option<&mut Viewshed>), With<CanOpen>>,
+	                     //mut e_query:     Query<(Entity, &Position, &Name, Option<&Player>, Option<&mut Viewshed>), With<CanOpen>>,
+	                     mut e_query:     Query<(Entity, &Position, &Name, Option<&Player>, &mut Viewshed), With<CanOpen>>,
 ) {
 	for event in ereader.iter() {
 		if event.etype != ActorOpen
@@ -297,7 +299,7 @@ pub fn openable_system(mut commands:    Commands,
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
 		//eprintln!("actor opening door {0:?}", econtext.object); // DEBUG:
-		let actor = e_query.get_mut(econtext.subject).unwrap();
+		let mut actor = e_query.get_mut(econtext.subject).unwrap();
 		let player_action = actor.3.is_some();
 		let mut message: String = "".to_string();
 		match event.etype {
@@ -305,18 +307,28 @@ pub fn openable_system(mut commands:    Commands,
 				//eprintln!("Trying to open a door"); // DEBUG:
 				for mut door in door_query.iter_mut() {
 					if door.0 == econtext.object {
-						door.2.is_open = true;
-						door.3.glyph = door.2.open_glyph.clone();
-						door.4.opaque = false;
-						commands.entity(door.0).remove::<Obstructive>();
+						if door.2.is_stuck {
+							if player_action {
+								message = "The door seems to be stuck.".to_string();
+							} else {
+								message = format!("The {} tries to open a stuck door, but fails.", actor.2.name.clone());
+								//message = "The foo tries to open a stuck door, but fails.".to_string();
+							}
+						} else {
+							door.2.is_open = true;
+							door.3.glyph = door.2.open_glyph.clone();
+							door.4.opaque = false;
+							commands.entity(door.0).remove::<Obstructive>();
+							if player_action {
+								message = "The door slides open at your touch.".to_string();
+							} else {
+								message = format!("The {} opens a door.", actor.2.name.clone());
+							}
+							actor.4.dirty = true; // Entities without vision have no business opening doors
+						}
 					}
+					//if actor.4.is_some() { actor.4.unwrap().dirty = true; }
 				}
-				if player_action {
-					message = "The door slides open at your touch.".to_string();
-				} else {
-					message = format!("The {} opens a door.", actor.2.name.clone());
-				}
-				if actor.4.is_some() { actor.4.unwrap().dirty = true; }
 			}
 			GameEventType::ActorClose => {
 				//eprintln!("Trying to close a door"); // DEBUG:
@@ -333,7 +345,7 @@ pub fn openable_system(mut commands:    Commands,
 				} else {
 					message = format!("The {} closes a door.", actor.2.name.clone());
 				}
-				if actor.4.is_some() { actor.4.unwrap().dirty = true; }
+				actor.4.dirty = true;
 			}
 			_ => { }
 		}
@@ -452,6 +464,7 @@ pub fn item_collection_system(mut commands: Commands,
 	                            i_query:      Query<(Entity, &Name, &Portable, Option<&Position>)>,
 ) {
 	for event in ereader.iter() {
+		// Do some event typechecking before variable initialization to prevent invalid data accesses
 		if event.etype != ItemMove
 		&& event.etype != ItemDrop
 		&& event.etype != ItemKILL { continue; }
@@ -508,7 +521,7 @@ pub fn planq_system(mut commands:   Commands,
 	                  mut planq:      ResMut<PlanqData>, // contains the PLANQ's settings and data storage
 	                  mut monitor:    ResMut<PlanqMonitor>, // contains the PLANQ's status bar info
 	                  p_query:        Query<(Entity, &Position), With<Player>>, // provides interface to player data
-	                  i_query:        Query<(Entity, &Portable), Without<Position>>,
+	                  i_query:        Query<(Entity, &Portable), Without<Position>>, // inventory lists (TODO: consider deprecating?)
 	                  mut q_query:    Query<(Entity, &Planq, &Device, &mut RngComponent)>, // contains the PLANQ's component data
 	                  mut t_query:    Query<(Entity, &mut PlanqProcess)>, // contains the set of all PlanqTimers
 ) {
@@ -585,6 +598,28 @@ pub fn planq_system(mut commands:   Commands,
 			InventoryDrop => {
 				planq.inventory_toggle(); // display the inventory menu
 				planq.action_mode = PlanqActionMode::DropItem;
+			}
+			AccessLink => {
+				// The player has connected the PLANQ's access jack to an access port (PlanqConnect has fired)
+				// but has not yet executed "connect" on the PLANQ itself (PlanqCmd::Connect(target))
+				// planq.jack_cnxn should contain the Entity ID of the target
+				// - Set up whatever backend linkage is needed
+				// - Get the status output of the target
+				// - Display that status output and switch back to Idle
+				// OUTPUT:789_123456789_123456789_
+				// "P: Connected: $ENTY"
+				// "E: Status: $E_STATUS"
+				// "P: (idle)"
+			}
+			AccessUnlink => {
+				// The player has disconnected their PLANQ from the device
+				// - If PlanqCmd::Disconnect() was not run prior, may wish to capture that and cause errors
+				// - stop any running processes/jobs
+				// - stop/clean up any leftover bits
+				// - return to the main PLANQ input state (Working/Idle)
+				// OUTPUT:789_123456789_123456789_
+				// "P: Connection closed"
+				// "P: (idle)"
 			}
 		}
 	}
@@ -781,7 +816,6 @@ pub fn planq_monitor_system(time:           Res<Time>,
 		if data_timer.1.timer.finished() {
 			let source_name = data_timer.1.source.clone();
 			match source_name.as_str() {
-				// START HERE: all of the other cases below need to be revised to match this method call pattern in "planq_mode"
 				"planq_mode" => {
 					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(planq.cpu_mode.to_string()));
 				}
@@ -825,6 +859,30 @@ pub fn planq_monitor_system(time:           Res<Time>,
 			data_timer.1.timer.reset();
 		} else {
 			data_timer.1.timer.tick(time.delta());
+		}
+	}
+}
+/// Handles the PLANQ's access jack connection/disconnection events and logic
+pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
+	                        mut preader:      EventWriter<PlanqEvent>,
+	                        mut msglog:       ResMut<MessageLog>,
+	                        mut planq:        ResMut<PlanqData>,
+	                        a_query:          Query<(Entity, &Name), With<AccessPort>>,
+) {
+	for event in ereader.iter() {
+		match event.etype {
+			PlanqConnect => {
+				planq.jack_cnxn = event.context.unwrap().object;
+				msglog.tell_player("The PLANQ's access jack clicks into place.".to_string());
+				preader.send(PlanqEvent::new(PlanqEventType::AccessLink))
+			}
+			PlanqDisconnect => {
+				let object_name = a_query.get(planq.jack_cnxn).unwrap().1;
+				planq.jack_cnxn = Entity::PLACEHOLDER;
+				msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name));
+				preader.send(PlanqEvent::new(PlanqEventType::AccessUnlink))
+			}
+			_ => { }
 		}
 	}
 }

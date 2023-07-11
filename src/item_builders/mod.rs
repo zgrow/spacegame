@@ -48,6 +48,7 @@ pub struct Fixture {
 pub struct Door {
 	pub item:       Fixture,
 	pub door:       Openable,
+	//pub lock:       Lockable,
 }
 
 /// Provides a facility for creating items during gameplay
@@ -88,6 +89,26 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 				})
 			}
 			ItemType::Door      => {
+				if location == (4, 20, 0) {
+					// DEBUG: spawn the locked door for testing
+					return world.spawn(Door {
+						item: Fixture {
+							item:   Item {
+								name: Name { name: format!("_door_{}", self.spawn_count) },
+								posn:   location,
+								render: Renderable { glyph: "█".to_string(), fg: 4, bg: 0 },
+							},
+							obstructs: Obstructive { },
+							opaque:    Opaque { opaque: true },
+						},
+						door: Openable {
+							is_open: false,
+							is_stuck: true,
+							open_glyph: "▔".to_string(),
+							closed_glyph: "█".to_string(),
+						},
+					});
+				} // else, spawn a regular door
 				world.spawn(Door {
 					item: Fixture {
 						item:   Item {
@@ -100,9 +121,10 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 					},
 					door: Openable {
 						is_open: false,
+						is_stuck: false,
 						open_glyph: "▔".to_string(),
 						closed_glyph: "█".to_string(),
-					}
+					},
 				})
 			}
 			ItemType::Snack     => {
@@ -129,6 +151,11 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			item.1.z = z_level;
 			self.spawn(world, item.0, item.1);
 		}
+		// FIXME: this desperately needs some kind of improvement to allow specifying more details/properties
+		// of an item before it is spawned; doesn't read anything right now except the rexpaint values
+		// DEBUG: don't use this pattern or try to keep this, it's a one-off for testing
+
+		// END DEBUG:
 	}
 }
 

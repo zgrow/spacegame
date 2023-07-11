@@ -41,6 +41,8 @@ pub enum GameEventType {
 	ItemKILL,
 	DoorOpen,
 	DoorClose,
+	PlanqConnect,
+	PlanqDisconnect,
 }
 impl fmt::Display for GameEventType {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -59,6 +61,8 @@ impl fmt::Display for GameEventType {
 			GameEventType::ItemKILL => { "etype::ItemKILL" }
 			GameEventType::DoorOpen => { "etype::DoorOpen" }
 			GameEventType::DoorClose => { "etype::DoorClose" }
+			GameEventType::PlanqConnect => { "etype::PlanqConnect" }
+			GameEventType::PlanqDisconnect => { "etype::PlanqDisconnect" }
 		};
 		write!(f, "{}", output)
 	}
@@ -107,6 +111,8 @@ pub enum PlanqEventType {
 	CliClose,
 	InventoryUse,
 	InventoryDrop,
+	AccessLink,
+	AccessUnlink,
 }
 
 // EOF
