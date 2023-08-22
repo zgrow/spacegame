@@ -1,9 +1,12 @@
 /target
-Cargo.lock
 /resources
+/doc
+.local-history
+.gitignore
+.cargo
+Cargo.lock
 savegame.json
 logfile
-doc
-*session*
 notes
 build.sh
+*ession
