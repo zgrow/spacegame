@@ -1,36 +1,27 @@
 [package]
 name = "spacegame"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Zach Grow"]
 
 [dependencies]
-crossterm = "0.25.0"
-#tui = "0.19.0"
-ratatui = "0.20.1"
-#bracket-lib = "0.8.7"
-bracket-rex = { version = "0.8.7", default-features = false } # REXPaint tools
-bracket-algorithm-traits = { version = "0.8.7", default-features = false } # required for other bracket-lib crates
-bracket-geometry = { version = "0.8.7", default-features = false } # provides a few geometric primitives and helpers, required for others
-bracket-random = { version = "0.8.7", default-features = false }
-#bracket-noise = {} # noise generation tools
-bracket-pathfinding = { version = "0.8.7", default-features = false } # high-perf A* pathfinding and Djikstra maps
-#bracket-random = {} # RNG and dice string parsing
-#bracket-rex = { version = "0.8.7", default-features = false } # REXPaint tools
-bracket-embedding = { version = "0.8.7", default-features = false } # resource embedding tools for WebGL apps
 # Disabling the defaults removes the rendering/windowing code from Bevy
 # Note also the use of MinimalPlugins in the main() method
-bevy = { version = "0.10.0", default-features = false }
-codepage-437 = "0.1.0"
-strum = "0.24.1"
-strum_macros = "0.24.3"
-bevy_save = "0.4.1"
-tui-input = "0.7.1" # not sure if i want to use this over tui-textarea
+bevy = { version = "0.11.0", default-features = false }
+crossterm = "0.26"
+ratatui = "0.22.0"
 tui-textarea = { git = "https://github.com/rhysd/tui-textarea", version = "*", features = ["ratatui-crossterm"], default-features = false }
-#bevy_ecs = "0.10.0"
-# versions of cursive above this require crate 'time' to be v3+, which requires rustc v1.63+
-#cursive = { version = "0.16.3" }
-#serde = { version = "1.0.93", features = ["derive"] }
-#serde_json = "1.0.39"
-#specs = { version = "0.16.1", features = ["serde"] }
-#specs-derive = "0.4.1"
+bevy_save = "0.9.0"
+bevy_turborand = "0.6.0"
+bracket-algorithm-traits = { version = "0.8.7", default-features = false } # required for other bracket-lib crates
+bracket-geometry = { version = "0.8.7", default-features = false } # provides a few geometric primitives and helpers, required for others
+bracket-pathfinding = { version = "0.8.7", default-features = false } # high-perf A* pathfinding and Djikstra maps
+strum = "0.25.0"
+strum_macros = "0.25.1"
+# OLD DEPENDENCIES
+#bracket-rex = { version = "0.8.7", default-features = false } # REXPaint tools
+#bracket-embedding = { version = "0.8.7", default-features = false } # resource embedding tools for WebGL apps
+#bracket-noise = {} # noise generation tools
+#codepage-437 = "0.1.0"
+#tui-input = "0.7.1" # not sure if i want to use this over tui-textarea
+
