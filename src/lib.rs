@@ -1,29 +1,25 @@
 // lib.rs
-// generated from orhun/rust-tui-template via cargo-generate
-// Mar 15 2023
+// July 12 2023
 
-/// ratatui and related methods
-pub mod app;
+// Provides the GameEngine with an internal Bevy instance and related methods
+pub mod engine;
 
-/// REXPaint tools, including loader
-pub mod rex_assets;
-
-/// My custom map object
-pub mod map;
-
-/// The set of ECS components
+// Collection of smaller Components for Bevy that aren't directly associated with a particular type
 pub mod components;
 
-/// The map builder and its components
-pub mod map_builders;
-
-/// The camera view and related tools
-pub mod camera_system;
-
-/// The set of subsystem packages to execute on the GameEngine
+// Collection of Systems for Bevy that aren't directly associated with a particular type
 pub mod sys;
 
-/// Defines Items, the ways to use and create and destroy them
-pub mod item_builders;
+// Provides the prototypes and logic for the GameWorld world model object
+pub mod map;
+
+// Provides the abstraction onto the game world for rendering onto a display
+pub mod camera;
+
+// Provides the map builder
+pub mod mason;
+
+// Provides the item builder
+pub mod artisan;
 
 // EOF
