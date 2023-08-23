@@ -1,6 +1,7 @@
 /target
 /resources
-/doc
+/docs
+SIGNPOST
 .local-history
 .gitignore
 .cargo

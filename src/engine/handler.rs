@@ -43,6 +43,37 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	// *** GAME CONTROL HANDLING
 	if eng.mode == EngineMode::Running {
 		let mut new_game_event = GameEvent::new(NullEvent, Some(player), None);
+		let mut new_planq_event = PlanqEvent::new(NullEvent, None, None);
+		// *** PLANQ CLI INPUT MODE
+		if planq.show_cli_input {
+			match key_event.code {
+				// close the CLI, do not run anything
+				KeyCode::Esc => {
+					planq.show_cli_input = false; // Need to force it closed immediately, the system updates don't seem to work for this
+					new_planq_event.etype = PlanqEventType::CliClose; // Still going to generate the event in case I use it for a hook later
+				}
+				KeyCode::Enter => {
+					// pass the input buffer to the PLANQ's command parser
+				}
+				// TODO: set up the cursor dirs to allow movement? or reserve for planq menus?
+				the_input => {
+					// pass everything else to the CLI parser
+					//eng.planq_stdin.input.input(key_event.clone().into()); // START HERE ** not sure why rust refuses to let me use this type conversion
+					eprintln!("attempting a translation");
+					let flag = eng.planq_stdin.input.input(
+						Input {
+							key: keycode_to_input_key(the_input),
+							ctrl: false, // FIXME: probably want to detect this
+							alt: false, // FIXME: probably want to detect this
+						}
+					);
+					eprintln!("{}", eng.planq_stdin.input.lines()[0]);
+					if flag { eprintln!("succeeded"); }
+				}
+			}
+			return Ok(()) // WARN: do not disable this, lest key inputs be parsed twice (ie again below) by mistake!
+		}
+		// *** STANDARD GAME INPUTS
 		match key_event.code {
 			// Meta/menu controls
 			KeyCode::Char('p') => { // Pause key toggle
@@ -51,6 +82,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				return Ok(())
 			}
 			KeyCode::Esc | KeyCode::Char('Q') => { // Close any open menus, or if none are open, open the main menu
+				// TODO: Close the PLANQ cli if it's open
 				eng.menu_context.reset();
 				if eng.visible_menu != MenuType::None {
 					eng.visible_menu = MenuType::None;
@@ -301,6 +333,10 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			let game_events: &mut Events<GameEvent> = &mut eng.bevy.world.get_resource_mut::<Events<GameEvent>>().unwrap();
 			game_events.send(new_game_event);
 		}
+		if new_planq_event.etype != GameEventType::NullEvent {
+			let planq_events: &mut Events<PlanqEvent> = &mut eng.bevy.world.get_resource_mut::<Events<GameEvent>>().unwrap();
+			planq_events.send(new_planq_event);
+		}
 	} else { // ALL OTHER SITUATIONS: Paused, Standby, etc
 		match key_event.code {
 			// Only handle these keys if the game's actually in-progress
@@ -341,6 +377,38 @@ pub fn make_new_submenu<T: std::fmt::Display>(entries: Vec<T>) -> Vec<MenuItem<T
 	}
 	submenu.sort_by(|a, b| a.partial_cmp(b).unwrap());
 	submenu
+}
+/// Converts my Event keycodes into tui_textarea::Input::Keys
+pub fn keycode_to_input_key(key_code: KeyCode) -> Key {
+	match key_code {
+		KeyCode::Char(val) => { Key::Char(val) }
+		KeyCode::F(num) => { Key::F(num) }
+		KeyCode::Modifier(_) => { Key::Null } // TODO: is this the ctrl/alt/whatever detection?
+		KeyCode::Up => { Key::Up }
+		KeyCode::Down => { Key::Down }
+		KeyCode::Left => { Key::Left }
+		KeyCode::Right => { Key::Right }
+		KeyCode::Home => { Key::Home }
+		KeyCode::End => { Key::End }
+		KeyCode::PageUp => { Key::PageUp }
+		KeyCode::PageDown => { Key::PageDown }
+		KeyCode::Delete => { Key::Delete }
+		KeyCode::Backspace => { Key::Backspace }
+		KeyCode::Enter => { Key::Enter }
+		KeyCode::Esc => { Key::Esc }
+		KeyCode::Tab => { Key::Tab }
+		KeyCode::Insert => { Key::Null } // Not supported by textarea
+		KeyCode::BackTab => { Key::Null } // Not supported by textarea
+		KeyCode::CapsLock => { Key::Null } // Not supported by textarea
+		KeyCode::ScrollLock => { Key::Null } // Not supported by textarea
+		KeyCode::NumLock => { Key::Null } // Not supported by textarea
+		KeyCode::PrintScreen => { Key::Null } // Not supported by textarea
+		KeyCode::Pause => { Key::Null } // Not supported by textarea
+		KeyCode::Menu => { Key::Null } // Not supported by textarea
+		KeyCode::KeypadBegin => { Key::Null } // Not supported by textarea
+		KeyCode::Media(_) => { Key::Null } // Not supported by textarea
+		KeyCode::Null => { Key::Null }
+	}
 }
 
 // EOF

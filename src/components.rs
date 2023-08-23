@@ -210,7 +210,6 @@ impl Memory {
 		Memory::default()
 	}
 }
-
 /// Defines a set of mechanisms that allow an entity to maintain some internal state and memory of game context
 /// Describes an Entity that can move around under its own power
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
@@ -256,6 +255,96 @@ pub struct Openable {
 	pub is_open: bool,
 	pub open_glyph: String,
 	pub closed_glyph: String,
+}
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Lockable { pub is_locked: bool, pub key: i32 }
+impl Lockable {
+	// Unlocks, given the correct key value as input
+	pub fn unlock(&mut self, test_key: i32) -> bool {
+		if test_key == self.key {
+			self.is_locked = false;
+			return true;
+		}
+		false
+	}
+	// Locks when called; if a key is given, it will overwrite the previous key-value
+	// Specify a value of 0 to obtain the existing key-value instead
+	pub fn lock(&mut self, new_key: i32) -> i32 {
+		self.is_locked = true;
+		if new_key != 0 { self.key = new_key; }
+		self.key
+	}
+}
+/// Describes an entity that can lock or unlock a Lockable object
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Key { pub key_id: i32 }
+/// Describes an entity with behavior that can be applied/used/manipulated by another entity
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Device {
+	pub pw_switch: bool,
+	pub batt_voltage: i32,
+	pub batt_discharge: i32,
+	pub state: DeviceState,
+}
+impl Device {
+	/// Creates a new Device; set the batt_discharge param to 0 to disable battery use
+	pub fn new(discharge_rate: i32) -> Device {
+		Device {
+			pw_switch: false,
+			batt_voltage: 0, // BATTERIES NOT INCLUDED LMAOOO
+			batt_discharge: discharge_rate,
+			state: DeviceState::Offline,
+		}
+	}
+	/// Turns on the device, if there's any power remaining. Returns false if no power left.
+	pub fn power_on(&mut self) -> bool {
+		if self.batt_voltage > 0
+		|| self.batt_discharge == 0 {
+			self.pw_switch = true;
+			self.state = DeviceState::Idle;
+		}
+		self.pw_switch
+	}
+	/// Turns off the device.
+	pub fn power_off(&mut self) {
+		self.pw_switch = false;
+		self.state = DeviceState::Offline;
+	}
+	/// Discharges battery power according to the specified duration, returns current power level
+	pub fn discharge(&mut self, duration: i32) -> i32 {
+		if self.batt_discharge < 0 {
+			// This item does not need a battery/has infinite power, so no discharge can occur
+			return self.batt_voltage;
+		}
+		self.batt_voltage -= self.batt_discharge * duration;
+		if self.batt_voltage < 0 { self.batt_voltage = 0; }
+		self.batt_voltage
+	}
+	/// Recharges the battery to the given percentage
+	pub fn recharge(&mut self, charge_level: i32) -> i32 {
+		self.batt_voltage += charge_level;
+		self.batt_voltage
+	}
+	/// power toggle
+	pub fn power_toggle(&mut self) -> bool {
+		// NOTE: trying to invoke these methods doesn't seem to work here; not sure why
+		//if !self.pw_switch { self.power_on(); }
+		//else { self.power_off(); }
+		if !self.pw_switch { self.pw_switch = true; }
+		else { self.pw_switch = false; }
+		self.pw_switch
+	}
+}
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+pub enum DeviceState {
+	#[default]
+	Offline,
+	Idle,
+	Working,
+	Error(u32) // Takes an error code as a specifier
 }
 
 //  *** PRIMITIVES AND COMPUTED VALUES (ie no save/load)

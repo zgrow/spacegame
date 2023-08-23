@@ -188,12 +188,6 @@ pub struct GameEventContext {
 	pub subject: Entity, // the entity performing the action; by defn, only one
 	pub object: Entity, // the entity upon which the subject will perform the action
 }
-impl MapEntities for GameEventContext {
-	fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
-		self.subject = entity_mapper.get_or_reserve(self.subject);
-		self.object = entity_mapper.get_or_reserve(self.object);
-	}
-}
 impl GameEventContext {
 	pub fn new(actor: Entity, target: Entity) -> GameEventContext {
 		GameEventContext {
@@ -216,6 +210,12 @@ impl Default for GameEventContext {
 			subject: Entity::PLACEHOLDER,
 			object: Entity::PLACEHOLDER,
 		}
+	}
+}
+impl MapEntities for GameEventContext { // Maintain Entity references wrt bevy_save
+	fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
+		self.subject = entity_mapper.get_or_reserve(self.subject);
+		self.object = entity_mapper.get_or_reserve(self.object);
 	}
 }
 

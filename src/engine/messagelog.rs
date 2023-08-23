@@ -122,6 +122,11 @@ impl MessageLog {
 	pub fn tell_player(&mut self, msg_text: String) {
 		self.add(msg_text, "world".to_string(), 0, 0);
 	}
+	/// Helper method: adds a new message directly to the "planq" channel (aka 'stdout')
+	pub fn tell_planq(&mut self, msg_text: String) {
+		self.add(msg_text, "planq".to_string(), 0, 0);
+	}
+
 }
 /// Implements the Default trait for the reference type
 impl<'a> Default for &'a MessageLog {

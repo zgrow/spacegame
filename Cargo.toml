@@ -16,10 +16,10 @@ bevy_turborand = "0.6.0"
 bracket-algorithm-traits = { version = "0.8.7", default-features = false } # required for other bracket-lib crates
 bracket-geometry = { version = "0.8.7", default-features = false } # provides a few geometric primitives and helpers, required for others
 bracket-pathfinding = { version = "0.8.7", default-features = false } # high-perf A* pathfinding and Djikstra maps
+bracket-rex = { version = "0.8.7", default-features = false } # REXPaint tools
 strum = "0.25.0"
 strum_macros = "0.25.1"
 # OLD DEPENDENCIES
-#bracket-rex = { version = "0.8.7", default-features = false } # REXPaint tools
 #bracket-embedding = { version = "0.8.7", default-features = false } # resource embedding tools for WebGL apps
 #bracket-noise = {} # noise generation tools
 #codepage-437 = "0.1.0"

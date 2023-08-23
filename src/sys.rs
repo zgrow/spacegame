@@ -174,6 +174,66 @@ pub fn item_collection_system(mut cmd:      Commands,
 		}
 	}
 }
+/// Handles ActorLock/Unlock events
+pub fn lock_system(mut _commands:    Commands,
+                   mut ereader:     EventReader<GameEvent>,
+                   mut msglog:      ResMut<MessageLog>,
+                   mut lock_query:  Query<(Entity, &Position, &ActorName, &mut Lockable)>,
+                   mut e_query:     Query<(Entity, &Position, &ActorName, Option<&Player>), With<CanOpen>>,
+                   key_query:       Query<(Entity, &Portable, &ActorName, &Key), Without<Position>>,
+) {
+	for event in ereader.iter() {
+		if event.etype != ActorLock
+		&& event.etype != ActorUnlock { continue; }
+		if event.context.is_none() { continue; }
+		let econtext = event.context.as_ref().unwrap();
+		let actor = e_query.get_mut(econtext.subject).unwrap();
+		let player_action = actor.3.is_some();
+		let mut target = lock_query.get_mut(econtext.object).unwrap();
+		let mut message: String = "".to_string();
+		match event.etype {
+			ActorLock => {
+				// TODO: obtain the new key value and apply it to the lock
+				target.3.is_locked = true;
+				if player_action {
+					message = format!("You tap the LOCK button on the {}.", target.2.name.clone());
+				} else {
+					message = format!("The {} locks the {}.", actor.2.name.clone(), target.2.name.clone());
+				}
+			}
+			ActorUnlock => {
+				// Obtain the set of keys that the actor is carrying
+				let mut carried_keys: Vec<(Entity, i32, String)> = Vec::new();
+				for key in key_query.iter() {
+					if key.1.carrier == actor.0 { carried_keys.push((key.0, key.3.key_id, key.2.name.clone())); }
+				}
+				if carried_keys.is_empty() { continue; } // no keys to try!
+				// The actor has at least one key to try in the lock
+				for key in carried_keys.iter() {
+					if key.1 == target.3.key {
+						// the subject has the right key, unlock the lock
+						target.3.is_locked = false;
+						if player_action {
+							message = format!("Your {} unlocks the {}.", key.2, target.2.name.clone());
+						} else {
+							message = format!("The {} unlocks the {}.", actor.2.name.clone(), target.2.name.clone());
+						}
+					} else {
+						// none of the keys worked, report a failure
+						if player_action {
+							message = "You don't seem to have the right key.".to_string();
+						}
+					}
+				}
+			}
+			_ => { }
+		}
+		if !message.is_empty() {
+			msglog.tell_player(message);
+		}
+	}
+}
+
 /// Handles updates to the 'meta' worldmaps, ie the blocked and opaque tilemaps
 pub fn map_indexing_system(mut model:         ResMut<Model>,
 	                         mut blocker_query: Query<&Position, With<Obstructive>>,
@@ -365,6 +425,22 @@ pub fn openable_system(mut commands:    Commands,
 		}
 	}
 }
+/// Handles anything related to the CanOperate component: ActorUse, ToggleSwitch, &c
+pub fn operable_system(mut ereader: EventReader<GameEvent>,
+                       //mut o_query: Query<(Entity, &Position, &Name), With<CanOperate>>,
+                       mut d_query: Query<(Entity, &ActorName, &mut Device)>,
+) {
+	for event in ereader.iter() {
+		if event.etype != ItemUse { continue; }
+		let econtext = event.context.as_ref().unwrap();
+		if econtext.is_invalid() { continue; }
+		//let operator = o_query.get(econtext.subject).unwrap();
+		let mut device = d_query.get_mut(econtext.object).unwrap();
+		if !device.2.pw_switch { // If it's not powered on, assume that function first
+			device.2.power_toggle();
+		}
+	}
+}
 /// Handles entities that can see physical light
 pub fn visibility_system(mut model: ResMut<Model>,
 	                       mut seers: Query<(&mut Viewshed, &Position, Option<&Player>, Option<&mut Memory>), Changed<Viewshed>>,
@@ -427,6 +503,47 @@ pub fn new_player_spawn(mut commands: Commands,
 		Container::default(),
 		Memory::new(),
 	));
+}
+/// Spawns a new LMR at the specified Position, using default values
+pub fn new_lmr_spawn(mut commands:  Commands,
+	                   mut msglog:    ResMut<MessageLog>,
+) {
+	commands.spawn((
+		LMR         { },
+		ActionSet::new(),
+		ActorName   {name: "LMR".to_string()},
+		Position::new(12, 12, 0), // TODO: remove magic numbers
+		Renderable::new("l".to_string(), 14, 0),
+		Viewshed::new(5),
+		Mobile::default(),
+		Obstructive::default(),
+		Container::default(),
+		Opaque::new(true),
+	));
+	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0), "debug".to_string(), 1, 1);
+}
+/// Spawns the player's PLANQ [TODO: in the starting locker]
+pub fn new_planq_spawn(mut commands:    Commands,
+	                   mut msglog:      ResMut<MessageLog>,
+) {
+	commands.spawn((
+		Planq { },
+		Thing {
+			item: Item {
+				name: ActorName { name: "PLANQ".to_string() },
+				posn: Position::new(25, 30, 0),
+				render: Renderable { glyph: "¶".to_string(), fg: 3, bg: 0 },
+			},
+			portable: Portable { carrier: Entity::PLACEHOLDER },
+		},
+		Device {
+			pw_switch: false,
+			batt_voltage: 0,
+			batt_discharge: -1, // TODO: implement battery charge loss
+			state: DeviceState::Offline, // TODO: sync this to the PLANQ's mode, don't try to use it!
+		},
+	));
+	msglog.add(format!("planq spawned at {}, {}, {}", 25, 30, 0), "debug".to_string(), 1, 1);
 }
 /// Adds a demo NPC to the game world
 pub fn test_npc_spawn(mut commands: Commands,

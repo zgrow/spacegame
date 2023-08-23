@@ -3,10 +3,9 @@
 
 use ratatui::{
 	buffer::Buffer,
-	widgets::{Widget, Block},
+	widgets::{Block, Widget},
 	layout::{Alignment, Rect},
-	style::Style,
-	style::Color::Indexed,
+	style::{Color::Indexed, Style},
 };
 use crate::map::xy_to_index;
 use crate::camera::CameraView;

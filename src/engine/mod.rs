@@ -398,20 +398,27 @@ impl GameEngine<'_> {
 	/// Gets Bevy instance set up from nothing, up to just before calling bevy.world.update()
 	pub fn init_bevy(&mut self) {
 		eprintln!("* Initializing Bevy..."); // DEBUG: announce Bevy startup
+		let chanlist = vec!["world".to_string(),
+			                  "planq".to_string(),
+			                  "debug".to_string()];
 		self.bevy
 		//.add_event::<crossterm::event::KeyEvent>() // Registers the KeyEvent from crossterm in Bevy
 		.add_plugins(RngPlugin::default())
 		//.add_systems(Startup, new_player_spawn)
 		.add_systems(Startup, (new_player_spawn,
-			                     test_npc_spawn,
+			                     new_planq_spawn,
+			                     new_lmr_spawn,
 		))
 		.add_systems(Update, (action_referee_system,
 			                    camera_update_system,
 			                    examination_system,
 			                    item_collection_system,
+			                    lockable_system,
 			                    map_indexing_system,
 			                    movement_system,
 			                    openable_system,
+			                    operable_system,
+			                    planq_update_system,
 			                    visibility_system,
 		))
 		//.register_saveable::<EngineMode>()
@@ -453,16 +460,26 @@ impl GameEngine<'_> {
 		.register_saveable::<Container>()
 		.register_saveable::<Opaque>()
 		.register_saveable::<Openable>()
+		.register_saveable::<Planq>()
+		.register_saveable::<Lockable>()
 		.insert_resource(Events::<GameEvent>::default())
-		.insert_resource(MessageLog::new(vec!["world".to_string()]))
+		.insert_resource(Events::<PlanqEvent>::default())
+		.insert_resource(MessageLog::new(chanlist))
+		.insert_resource(PlanqData::new())
 		.insert_resource(Position::new(9, 9, 1)) // DEBUG: arbitrary player spawnpoint
+		.insert_resource(RexAssets::new())
 		;
 		self.mode = EngineMode::Startup;
 		self.solve_layout(self.term_dims);
 		self.build_camera();
 	}
 	/// Creates the initial worldmap from scratch
-	pub fn build_new_worldmap(&mut self) {
+	pub fn create_new_worldmap(&mut self) {
+		todo!();
+		// See OLDsrc/main.rs for the method that should go here
+	}
+	/// Creates a fallback dev map for testing purposes
+	pub fn build_dev_worldmap(&mut self) {
 		let mut model = Model::default();
 		// Build the DevMapBasement
 		self.mason.build_map();

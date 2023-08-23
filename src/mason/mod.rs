@@ -4,6 +4,8 @@
 use crate::artisan::ItemType;
 use crate::components::Position;
 use crate::map::*;
+mod rexpaint_map;
+use rexpaint_map::RexMapBuilder;
 
 pub trait MapBuilder {
 	fn build_map(&mut self);
@@ -13,11 +15,13 @@ pub trait MapBuilder {
 pub fn get_builder(selection: i32) -> Box<dyn MapBuilder>{
 	//Box::new(DevMapBasement::new())
 	match selection {
-		1 => Box::new(DevMapBasement::new()),
-		2 => Box::new(DevMapLobby::new()),
-		_ => Box::new(DevMapBasement::new())
+		1  => Box::new(RexMapBuilder::new()),
+		68 => Box::new(DevMapBasement::new()),
+		69 => Box::new(DevMapLobby::new()),
+		_  => Box::new(DevMapBasement::new())
 	}
 }
+/// Creates the top level of the dev testing map
 pub struct DevMapLobby {
 	map: Map,
 	new_entys: Vec<(ItemType, Position)>,
@@ -91,6 +95,7 @@ impl Default for DevMapLobby {
 		DevMapLobby::new()
 	}
 }
+/// Creates the bottom level of the dev testing map
 pub struct DevMapBasement {
 	map: Map,
 	new_entys: Vec<(ItemType, Position)>,
