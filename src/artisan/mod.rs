@@ -7,6 +7,7 @@ use bevy::ecs::world::EntityMut;
 
 // *** INTERNAL LIBRARIES
 use crate::components::*;
+use crate::engine::planq::*;
 //use crate::components::ActorName;
 
 /// Defines the set of item types, which allow requests to be made for specific types of items at runtime
@@ -18,13 +19,13 @@ pub enum ItemType {
 	Snack,
 	Fixture,
 	Door,
+	Planq,
 }
 /// Defines a baseline 'inanimate object' component bundle
 /// This is only useful on its own for defining pieces of scenery/backdrop, ie
 /// things that will not move, do not have interactions, and do not block movement or sight
 #[derive(Bundle)]
 pub struct Item {
-	pub name:    ActorName,
 	pub desc:    Description,
 	pub render:  Renderable,
 	pub actions: ActionSet,
@@ -58,8 +59,25 @@ pub struct Door {
 /// Provides a facility for creating items during gameplay
 #[derive(Resource, Clone, Debug, Default, Reflect)]
 #[reflect(Resource)]
-pub struct ItemBuilder { pub spawn_count: i32 }
+pub struct ItemBuilder {
+	pub spawn_count: i32,
+	desc:     Option<Description>,
+	render:   Option<Renderable>,
+	posn:     Option<Position>,
+	actions:  Option<ActionSet>,
+	obstruct: Option<Obstructive>,
+	opaque:   Option<Opaque>,
+	open:     Option<Openable>,
+	portable: Option<Portable>,
+	device:   Option<Device>,
+	mobile:   Option<Mobile>,
+	contain:  Option<Container>,
+	lock:     Option<Lockable>,
+	key:      Option<Key>,
+	planq:    Option<Planq>,
+}
 impl<'a, 'b> ItemBuilder where 'a: 'b {
+	/*
 	/// Spawns an Item Entity in the World, ie at a map Position, and returns a ref to it
 	pub fn spawn_at(&'b mut self, world: &'a mut World, new_type: ItemType, location: Position) -> EntityMut<'b> {
 		self.spawn_count += 1;
@@ -68,7 +86,6 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			ItemType::Simple    => {
 				world.spawn((
 					Item {
-						name: ActorName { name: format!("_simpleItem_{}", self.spawn_count) },
 						desc: Description::new(format!("_simpleItem_{}", self.spawn_count), "A simple Item.".to_string()),
 						render: Renderable { glyph: "i".to_string(), fg: 4, bg: 0 },
 						actions: ActionSet::new(),
@@ -80,7 +97,6 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 				world.spawn((
 					Thing {
 						item: Item {
-							name: ActorName { name: format!("_thing_{}", self.spawn_count) },
 							desc: Description::new(format!("_thing_{}", self.spawn_count), "A new Thing.".to_string()),
 							render: Renderable { glyph: "t".to_string(), fg: 4, bg: 0 },
 							actions: ActionSet::new(),
@@ -94,7 +110,6 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 				world.spawn((
 					Fixture {
 						item: Item {
-							name: ActorName { name: format!("_fixture_{}", self.spawn_count) },
 							desc: Description::new(format!("_fixture_{}", self.spawn_count), "A plain Fixture.".to_string()),
 							render: Renderable { glyph: "#".to_string(), fg: 4, bg: 0 },
 							actions: ActionSet::new(),
@@ -110,7 +125,6 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 					Door {
 						item: Fixture {
 							item:   Item {
-								name: ActorName { name: format!("_door_{}", self.spawn_count) },
 								desc: Description::new(format!("_door_{}", self.spawn_count), "A regular Door.".to_string()),
 								render: Renderable { glyph: "█".to_string(), fg: 4, bg: 0 },
 								actions: ActionSet::new(),
@@ -132,7 +146,6 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 					Snack {
 						item: Thing {
 							item: Item {
-								name:   ActorName { name: format!("_snack_{}", self.spawn_count) },
 								desc:   Description::new(format!("_snack_{}", self.spawn_count), "A tasty Snack.".to_string()),
 								render: Renderable { glyph: "%".to_string(), fg: 5, bg: 0 },
 								actions: ActionSet::new(),
@@ -156,7 +169,6 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 					Snack {
 						item: Thing {
 							item: Item {
-								name:   ActorName { name: format!("_snack_{}", self.spawn_count) },
 								desc:   Description::new(format!("_snack_{}", self.spawn_count), "A tasty Snack.".to_string()),
 								render: Renderable { glyph: "%".to_string(), fg: 5, bg: 0 },
 								actions: ActionSet::new(),
@@ -177,8 +189,88 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		//eprintln!("* spawning batch: {} items", items.len()); // DEBUG: announce batch item spawn
 		for item in items {
 			item.1.z = z_level;
-			self.spawn_at(world, item.0, item.1);
+			self.create(item.0).at(item.1).build(world);
+			//self.spawn_at(world, item.0, item.1);
 		}
+	}
+	*/
+	/// ItemBuilder constructor
+	pub fn new() -> ItemBuilder {
+		ItemBuilder::default()
+	}
+	/// Generates the Item itself; note that the Portable component will always be generated with a placeholder!
+	/// Therefore, to actually spawn the item into the world, either the at() or within() builder chains MUST be used
+	pub fn create(&mut self, new_type: ItemType) -> &mut ItemBuilder {
+		match new_type {
+			ItemType::Simple    => {
+				self.desc = Some(Description::new(format!("_simpleItem_{}", self.spawn_count), "A simple Item.".to_string()));
+				self.render = Some(Renderable::new("i".to_string(), 4, 0));
+				self.actions = Some(ActionSet::new());
+			}
+			ItemType::Thing     => {
+				self.desc = Some(Description::new(format!("_thing_{}", self.spawn_count), "A new Thing.".to_string()));
+				self.render = Some(Renderable::new("t".to_string(), 4, 0));
+				self.actions = Some(ActionSet::new());
+				self.portable = Some(Portable::empty());
+			}
+			ItemType::Fixture   => {
+				self.desc = Some(Description::new(format!("_fixture_{}", self.spawn_count), "A plain Fixture.".to_string()));
+				self.render = Some(Renderable::new("#".to_string(), 4, 0));
+				self.actions = Some(ActionSet::new());
+				self.obstruct = Some(Obstructive::default());
+				self.opaque = Some(Opaque::new(true));
+			}
+			ItemType::Door      => {
+				self.desc = Some(Description::new(format!("_door_{}", self.spawn_count), "A regular Door.".to_string()));
+				self.render = Some(Renderable::new("█".to_string(), 4, 0));
+				self.actions = Some(ActionSet::new());
+				self.obstruct = Some(Obstructive::default());
+				self.opaque = Some(Opaque::new(true));
+				self.open = Some(Openable::new(false, "▔".to_string(), "█".to_string(),));
+			}
+			ItemType::Snack     => {
+				self.desc = Some(Description::new(format!("_snack_{}", self.spawn_count), "A tasty Snack.".to_string()));
+				self.render = Some(Renderable::new("%".to_string(), 5, 0));
+				self.actions = Some(ActionSet::new());
+				self.portable = Some(Portable::empty());
+			}
+			ItemType::Planq     => {
+				self.desc = Some(Description::new("PLANQ".to_string(), "It's your PLANQ.".to_string()));
+				self.render = Some(Renderable::new("¶".to_string(), 3, 0));
+				self.actions = Some(ActionSet::new());
+				self.portable = Some(Portable::empty());
+				self.device = Some(Device::new(-1));
+				self.planq = Some(Planq::new());
+			}
+		}
+		self
+	}
+	pub fn at(&mut self, posn: Position) -> &mut ItemBuilder {
+		self.posn = Some(posn);
+		self
+	}
+	pub fn within(&mut self, target: Entity) -> &mut ItemBuilder {
+		self.portable = Some(Portable::new(target));
+		self
+	}
+	pub fn build(&'b mut self, world: &'a mut World) -> EntityMut<'b> {
+		self.spawn_count += 1;
+		let mut new_item = world.spawn_empty();
+		if let Some(desc)     = &self.desc { new_item.insert(desc.clone()); self.desc = None; }
+		if let Some(render)   = &self.render { new_item.insert(render.clone()); self.render = None; }
+		if let Some(posn)     = self.posn { new_item.insert(posn); self.posn = None; }
+		if let Some(actions)  = &self.actions { new_item.insert(actions.clone()); self.actions = None; }
+		if let Some(obstruct) = self.obstruct { new_item.insert(obstruct); self.obstruct = None; }
+		if let Some(opaque)   = self.opaque { new_item.insert(opaque); self.opaque = None; }
+		if let Some(open)     = &self.open { new_item.insert(open.clone()); self.open = None; }
+		if let Some(portable) = self.portable { new_item.insert(portable); self.portable = None; }
+		if let Some(device)   = self.device { new_item.insert(device); self.device = None; }
+		if let Some(mobile)   = self.mobile { new_item.insert(mobile); self.mobile = None; }
+		if let Some(contain)  = &self.contain { new_item.insert(contain.clone()); self.contain = None; }
+		if let Some(lock)     = self.lock { new_item.insert(lock); self.lock = None; }
+		if let Some(key)      = self.key { new_item.insert(key); self.key = None; }
+		if let Some(planq)    = self.planq { new_item.insert(planq); self.planq = None; }
+		new_item
 	}
 }
 

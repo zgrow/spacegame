@@ -14,14 +14,11 @@ tui-textarea = { git = "https://github.com/rhysd/tui-textarea", version = "*", f
 bevy_save = "0.9.0"
 bevy_turborand = "0.6.0"
 bracket-algorithm-traits = { version = "0.8.7", default-features = false } # required for other bracket-lib crates
+bracket-embedding = { version = "0.8.7", default-features = false } # resource embedding tools for WebGL apps
 bracket-geometry = { version = "0.8.7", default-features = false } # provides a few geometric primitives and helpers, required for others
 bracket-pathfinding = { version = "0.8.7", default-features = false } # high-perf A* pathfinding and Djikstra maps
 bracket-rex = { version = "0.8.7", default-features = false } # REXPaint tools
+codepage-437 = "0.1.0"
 strum = "0.25.0"
 strum_macros = "0.25.1"
-# OLD DEPENDENCIES
-#bracket-embedding = { version = "0.8.7", default-features = false } # resource embedding tools for WebGL apps
-#bracket-noise = {} # noise generation tools
-#codepage-437 = "0.1.0"
-#tui-input = "0.7.1" # not sure if i want to use this over tui-textarea
 

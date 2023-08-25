@@ -19,6 +19,10 @@ use crate::engine::event::ActionType;
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Player { }
+/// Identifies the LMR in the ECS
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct LMR { }
 /// Allows an entity to identify the set of ActionTypes that it supports.
 /// The presence of an ActionType in actions indicates it is compatible;
 /// finding the intersection between two ActionSets results in the set of actions
@@ -41,18 +45,6 @@ impl Default for ActionSet {
 			actions: HashSet::new(),
 			outdated: true,
 		}
-	}
-}
-
-/// Provides a friendly identifier to the player
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct ActorName {
-	pub name: String
-}
-impl fmt::Display for ActorName {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", self.name)
 	}
 }
 /// Represents a point on a 2D grid as an XY pair, plus a Z-coordinate to indicate what floor the entity is on
@@ -138,7 +130,8 @@ impl<'a> PartialEq<&(i32, i32, i32)> for &'a Position { /// Allows comparison of
 		self.x == other.0 && self.y == other.1 && self.z == other.2
 	}
 }
-/// Holds the narrative description of an object
+/// Holds the narrative description of an object. If this component is used as an input for text formatting, it will produce
+/// the name of the entity that owns it. See also the name() and desc() methods
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct Description {
@@ -146,11 +139,18 @@ pub struct Description {
 	pub desc: String,
 }
 impl Description {
+	/// Creates a new Description with the given name and description
 	pub fn new(new_name: String, new_desc: String) -> Description {
 		Description {
 			name: new_name,
 			desc: new_desc,
 		}
+	}
+	pub fn name(&self) -> String {
+		self.name.clone()
+	}
+	pub fn desc(&self) -> String {
+		self.desc.clone()
 	}
 }
 impl Default for Description {
@@ -159,6 +159,11 @@ impl Default for Description {
 			name: "default_name".to_string(),
 			desc: "default_desc".to_string(),
 		}
+	}
+}
+impl fmt::Display for Description {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.name)
 	}
 }
 /// Holds the information needed to display an Entity on the worldmap
@@ -226,12 +231,17 @@ pub struct Obstructive { }
 pub struct Portable {
 	pub carrier: Entity
 }
+impl Portable {
+	pub fn new(target: Entity) -> Portable { Portable { carrier: target } }
+	pub fn empty() -> Portable { Portable { carrier: Entity::PLACEHOLDER } }
+}
 impl MapEntities for Portable {
 	fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
 		self.carrier = entity_mapper.get_or_reserve(self.carrier);
 	}
 }
 impl FromWorld for Portable {
+	// This is intentional (lmao) to prevent issues when loading from save game
 	fn from_world(_world: &mut World) -> Self {
 		Self {
 			carrier: Entity::PLACEHOLDER,
@@ -248,6 +258,13 @@ pub struct Container { }
 pub struct Opaque {
 	pub opaque: bool
 }
+impl Opaque {
+	pub fn new(setting: bool) -> Self {
+		Opaque {
+			opaque: setting,
+		}
+	}
+}
 /// Describes an entity with an operable barrier of some kind: a container's lid, or a door, &c
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
@@ -255,6 +272,15 @@ pub struct Openable {
 	pub is_open: bool,
 	pub open_glyph: String,
 	pub closed_glyph: String,
+}
+impl Openable {
+	pub fn new(state: bool, opened: String, closed: String) -> Openable {
+		Openable {
+			is_open: state,
+			open_glyph: opened,
+			closed_glyph: closed,
+		}
+	}
 }
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
@@ -333,8 +359,7 @@ impl Device {
 		// NOTE: trying to invoke these methods doesn't seem to work here; not sure why
 		//if !self.pw_switch { self.power_on(); }
 		//else { self.power_off(); }
-		if !self.pw_switch { self.pw_switch = true; }
-		else { self.pw_switch = false; }
+		self.pw_switch = !self.pw_switch;
 		self.pw_switch
 	}
 }

@@ -1,92 +1,120 @@
 // planq.rs
 // Provides all of the logic and handling for the player's PLANQ
 
-// TODO: import the PlanqEvent stuff from OLDsrc/app/event.rs
+#![allow(clippy::too_many_arguments)]
 
-use bevy::prelude::*;
-use bevy::utils::*;
+use bevy::{
+	prelude::*,
+	ecs::query::*,
+	utils::*,
+};
+use ratatui::prelude::*;
+use ratatui::layout::Rect;
+use ratatui::style::Color;
+use ratatui::text::Line;
+use ratatui::widgets::Block;
 use tui_textarea::TextArea;
+
+use crate::{
+	components::*,
+	engine::{
+		PlanqEventType::BootStage,
+		*,
+		event::*,
+	},
+};
 
 //  *** SYSTEMS
 /// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
 pub fn planq_update_system(mut commands: Commands,
-	                mut ereader:    EventReader<GameEvent>,
-	                mut preader:    EventReader<PlanqEvent>,
-	                mut msglog:     ResMut<MessageLog>,
-	                time:       Res<Time>,
-	                mut planq:      ResMut<PlanqData>, // contains the PLANQ's settings and data storage
-	                p_query: Query<(Entity, &Position), With<Player>>, // provides interface to player data
-	                i_query: Query<(Entity, &Portable), Without<Position>>,
-	                q_query: Query<(Entity, &Planq, &Device)>, // contains the PLANQ's component data
-	                mut t_query: Query<(Entity, &mut PlanqProcess)>, // contains the set of all PlanqTimers
+	                         mut ereader:  EventReader<GameEvent>,
+	                         mut preader:  EventReader<PlanqEvent>,
+	                         mut msglog:   ResMut<MessageLog>,
+	                         time:         Res<Time>,
+	                         mut planq:    ResMut<PlanqData>, // contains the PLANQ's settings and data storage
+	                         p_query:      Query<(Entity, &Position), With<Player>>, // provides interface to player data
+	                         i_query:      Query<(Entity, &Portable), Without<Position>>,
+	                         q_query:      Query<(Entity, &Planq, &Device)>, // contains the PLANQ's component data
+	                         mut t_query:  Query<(Entity, &mut PlanqProcess)>, // contains the set of all PlanqTimers
 ) {
 	/* TODO: Implement level generation such that the whole layout can be created at startup from a
 	 * tree of rooms, rather than by directly loading a REXPaint map; by retaining this tree-list
 	 * of rooms in the layout, the PLANQ can then show the player's location as a room name
 	 */
 	// Update the planq's settings if there are any changes queued up
+	if p_query.is_empty() { return; }
+	if q_query.is_empty() { return; }
 	let player = p_query.get_single().unwrap();
 	let planq_enty = q_query.get_single().unwrap();
 	let mut refresh_inventory = false;
-	// Handle any new comms
-	for event in ereader.iter() {
-		match event.etype {
-			// Player interaction events that need to be monitored
-			ItemMove => { // The player (g)ot the PLANQ from somewhere external
-				let econtext = event.context.as_ref().unwrap();
-				if econtext.subject == player.0 {
-					refresh_inventory = true;
-					if econtext.object == planq_enty.0 {
-						planq.is_carried = true;
+	// Handle any new GameEvents we're interested in
+	if !ereader.is_empty() {
+		for event in ereader.iter() {
+			let atype;
+			if let GameEventType::PlayerAction(action) = event.etype {
+				atype = action;
+			} else {
+				continue;
+			}
+			match atype {
+				// Player interaction events that need to be monitored
+				ActionType::MoveItem => { // The player (g)ot the PLANQ from somewhere external
+					let econtext = event.context.as_ref().unwrap();
+					if econtext.subject == player.0 {
+						refresh_inventory = true;
+						if econtext.object == planq_enty.0 {
+							planq.is_carried = true;
+						}
 					}
 				}
-			}
-			ItemDrop => { // The player (d)ropped the PLANQ
-				let econtext = event.context.as_ref().unwrap();
-				if econtext.subject == player.0 { refresh_inventory = true; }
-				if econtext.object == planq_enty.0 { planq.is_carried = false; }
-			}
-			ItemUse => { // The player (a)pplied the PLANQ
-				let econtext = event.context.as_ref().unwrap();
-				if econtext.subject == player.0
-				&& econtext.object == planq_enty.0 {
-					// Note that the Operable system already handles the ItemUse action for the
-					// PLANQ: it allows the player to operate the power switch
-					// This seems likely to change in the future to allow some better service
-					// commands, like battery swaps or peripheral attachment
-					msglog.tell_player("There is a faint 'click' as you press the PLANQ's power button.".to_string());
+				ActionType::DropItem => { // The player (d)ropped the PLANQ
+					let econtext = event.context.as_ref().unwrap();
+					if econtext.subject == player.0 { refresh_inventory = true; }
+					if econtext.object == planq_enty.0 { planq.is_carried = false; }
 				}
+				ActionType::UseItem => { // The player (a)pplied the PLANQ
+					let econtext = event.context.as_ref().unwrap();
+					if econtext.subject == player.0
+					&& econtext.object == planq_enty.0 {
+						// Note that the Operable system already handles the ItemUse action for the
+						// PLANQ: it allows the player to operate the power switch
+						// This seems likely to change in the future to allow some better service
+						// commands, like battery swaps or peripheral attachment
+						msglog.tell_player("There is a faint 'click' as you press the PLANQ's power button.".to_string());
+					}
+				}
+				_ => { }
 			}
-			_ => { }
 		}
 	}
-	for event in preader.iter() {
-		match event.etype {
-			// PLANQ system commands
-			PlanqEventType::NullEvent => { /* do nothing */ }
-			Startup => { planq.cpu_mode = PlanqCPUMode::Startup; } // covers the entire boot stage
-			BootStage(lvl) => {
-				planq.boot_stage = lvl;
-			}
-			Shutdown => { planq.cpu_mode = PlanqCPUMode::Shutdown; }
-			Reboot => { /* do a Shutdown, then a Startup */ }
-			GoIdle => { planq.cpu_mode = PlanqCPUMode::Idle; }
-			CliOpen => {
-				planq.show_cli_input = true;
-				planq.action_mode = PlanqActionMode::CliInput;
-			}
-			CliClose => {
-				// FIXME: need to clear the CLI's input buffer! might need to do this at the time of key input?
-				planq.show_cli_input = false;
-				planq.action_mode = PlanqActionMode::Default; // FIXME: this might be a bad choice
-			}
-			InventoryUse => {
-				planq.inventory_toggle(); // display the inventory menu
-				planq.action_mode = PlanqActionMode::UseItem;
-			}
-			InventoryDrop => {
-				planq.inventory_toggle(); // display the inventory menu
-				planq.action_mode = PlanqActionMode::DropItem;
+	// Handle all new PlanqEvents
+	if !preader.is_empty() {
+		for event in preader.iter() {
+			match event.etype {
+				// PLANQ system commands
+				PlanqEventType::NullEvent      => { /* do nothing */ }
+				PlanqEventType::Startup        => { planq.cpu_mode = PlanqCPUMode::Startup; } // covers the entire boot stage
+				PlanqEventType::BootStage(lvl) => { planq.boot_stage = lvl; }
+				PlanqEventType::Shutdown       => { planq.cpu_mode = PlanqCPUMode::Shutdown; }
+				PlanqEventType::Reboot         => { /* TODO: do a Shutdown, then a Startup */ }
+				PlanqEventType::GoIdle         => { planq.cpu_mode = PlanqCPUMode::Idle; }
+				PlanqEventType::CliOpen => {
+					planq.show_cli_input = true;
+					planq.action_mode = PlanqActionMode::CliInput;
+				}
+				PlanqEventType::CliClose => {
+					// FIXME: need to clear the CLI's input buffer! might need to do this at the time of key input?
+					planq.show_cli_input = false;
+					planq.action_mode = PlanqActionMode::Default; // FIXME: this might be a bad choice
+				}
+				PlanqEventType::InventoryUse => {
+					planq.inventory_toggle(); // display the inventory menu
+					planq.action_mode = PlanqActionMode::UseItem;
+				}
+				PlanqEventType::InventoryDrop => {
+					planq.inventory_toggle(); // display the inventory menu
+					planq.action_mode = PlanqActionMode::DropItem;
+				}
 			}
 		}
 	}
@@ -234,7 +262,7 @@ pub fn planq_update_system(mut commands: Commands,
 
 //  *** STRUCTURES
 /// BEVY: Defines the Planq settings/controls (interface bwn my GameEngine class & Bevy)
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect, FromReflect)]
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Resource)]
 pub struct PlanqData {
 	pub power_is_on: bool, // true if the planq has been turned on
@@ -274,8 +302,7 @@ impl PlanqData {
 		}
 	}
 	pub fn inventory_toggle(&mut self) {
-		if !self.show_inventory { self.show_inventory = true; }
-		else { self.show_inventory = false; }
+		self.show_inventory = !self.show_inventory;
 	}
 	/// Renders the status bars of the PLANQ
 	pub fn render_status_bars<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
@@ -299,6 +326,7 @@ impl PlanqData {
 	pub fn render_cli<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect, stdin: &mut PlanqInput) {
 		//let mut cli = TextArea::default();
 		//cli.set_block(
+		/* TODO: textarea stuff
 		stdin.input.set_block(
 			Block::default()
 			.borders(Borders::LEFT | Borders::RIGHT)
@@ -306,10 +334,11 @@ impl PlanqData {
 		);
 		//frame.render_widget(cli.widget(), area);
 		frame.render_widget(stdin.input.widget(), area);
+		*/
 	}
-	/// Provides the contents of the PLANQ's stdout as a set of formatted Spans for ratatui
-	pub fn get_stdout_as_spans(&self) -> Vec<Spans> {
-		let mut output: Vec<Spans> = Vec::new();
+	/// Provides the contents of the PLANQ's stdout as a set of formatted Line for ratatui
+	pub fn get_stdout_as_spans(&self) -> Vec<Line> {
+		let mut output: Vec<Line> = Vec::new();
 		if self.stdout.is_empty() { return output; }
 		for msg in self.stdout.iter() {
 			output.push(msg.text.clone().into());
@@ -416,7 +445,7 @@ impl PlanqData {
 /// TUI-TEXTAREA/RATATUI: Defines the CLI input system and its logic
 /// Note that tui-textarea is a part of the ratatui ecosystem, and therefore
 /// is ineligible, *by definition*, for addition to the Bevy ecosystem
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct PlanqInput<'a> {
 	//pub input: Input, // This cannot be added to anything with Reflect, nor can it have Reflect implemented for it because it is external
 	pub input: TextArea<'a>,
@@ -431,7 +460,7 @@ impl PlanqInput<'_> {
 	}
 }
 /// BEVY: Provides the Bevy-backed tools for doing things on the PLANQ involving time intervals
-#[derive(Component, Clone, Debug, Default, Reflect, FromReflect)]
+#[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct PlanqProcess {
 	pub timer: Timer,
@@ -512,7 +541,7 @@ impl<'a> Widget for PlanqStatus<'a> {
 
 //  *** EVENTS
 /// Describes a PLANQ-specific event, ie an event connected to its logic
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect, FromReflect)]
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 pub struct PlanqEvent {
 	pub etype: PlanqEventType,
 }
@@ -523,8 +552,11 @@ impl PlanqEvent {
 		}
 	}
 }
+impl Event for PlanqEvent {
+
+}
 /// Defines the set of control and input events that the Planq needs to handle
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect, FromReflect)]
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum PlanqEventType {
 	#[default]
 	NullEvent,
@@ -539,14 +571,25 @@ pub enum PlanqEventType {
 	InventoryDrop,
 }
 
-
 //  *** UTILITIES and COMPONENTS
 /// Defines the Planq 'tag' component within Bevy
 #[derive(Component, Copy, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Planq { }
+impl Planq {
+	pub fn new() -> Planq {
+		Planq::default()
+	}
+}
+/// Provides the Component Bundle that creates a PLANQ object in the game
+#[derive(Bundle)]
+pub struct PlanqBundle {
+	pub planq: Planq,
+	pub thing: Thing,
+	pub device: Device,
+}
 /// Provides context for certain actions (inventory use/drop, &c) that take secondary inputs
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Reflect, FromReflect)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum PlanqActionMode {
 	#[default]
 	Default,
@@ -555,7 +598,7 @@ pub enum PlanqActionMode {
 	CliInput,
 }
 /// Defines the set of operating modes in the PLANQ's firmware
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Reflect, FromReflect)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum PlanqCPUMode {
 	#[default]
 	Idle,
@@ -566,7 +609,7 @@ pub enum PlanqCPUMode {
 	Offline,
 }
 /// Defines the set of output modes for the PLANQ's dual output windows
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Reflect, FromReflect)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum PlanqOutputMode {
 	#[default]
 	Idle,

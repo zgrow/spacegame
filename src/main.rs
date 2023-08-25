@@ -7,7 +7,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
 // *** INTERNAL LIBS
-use tower_ascend::engine::{
+use spacegame::engine::{
 	AppResult,
 	GameEngine,
 	handler::key_parser,

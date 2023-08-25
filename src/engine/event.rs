@@ -6,10 +6,11 @@ use bevy::prelude::*;
 use bevy::ecs::entity::*;
 use strum_macros::AsRefStr;
 use std::fmt::{Display, Formatter, Result};
+use std::borrow::Cow;
 
 // *** INTERNAL LIBS
 use crate::components::Direction;
-use crate::engine::*;
+use crate::engine::EngineMode;
 
 //  *** GAME EVENTS
 /// Describes a general game event, can include a GameEventContext
@@ -113,20 +114,19 @@ impl Display for GameEventType {
 #[derive(AsRefStr, Component, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
 pub enum ActionType {
 	#[default]          // TARGET
-	NoAction,           // not associated with any Components, by definition
+	NoAction,           // NONE: not associated with any Components, by definition
 	Examine,            // Description
 	MoveTo(Direction),  // Mobile
-	Inventory,          // [Player: indicates that they've opened the inventory to use an item in it]
+	Inventory,          // PLAYER: indicates that they've opened the inventory to use an item in it
 	MoveItem,           // Portable
 	DropItem,           // Portable
-	UseItem,            // (none, probably Operable? when set up)
-	KillItem,           // *system action only*, not associated with any Components
+	UseItem,            // Device
+	KillItem,           // SYSTEM: not associated with any Components
 	OpenItem,           // Openable
 	CloseItem,          // Openable
-	//LockItem,         // Lockable
-	//UnlockItem,       // Lockable
+	LockItem,           // Lockable
+	UnlockItem,         // Lockable
 }
-//serialize_trait_object!(ActionType);
 impl Display for ActionType {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		// WARN: Because of how Rust constructs the temporaries that it uses while handling match cases,
@@ -148,10 +148,8 @@ impl Display for ActionType {
 			ActionType::KillItem     => { "KillItem".to_string() }
 			ActionType::OpenItem     => { "Open".to_string() }
 			ActionType::CloseItem    => { "Close".to_string() }
-			/*
-			ActionType::LockItem     => { "atype::LockItem" }
-			ActionType::UnlockItem   => { "atype::UnlockItem" }
-			*/
+			ActionType::LockItem     => { "Lock".to_string() }
+			ActionType::UnlockItem   => { "Unlock".to_string() }
 			//_ => { "atype::UNKNOWN" }
 		};
 		// Trying to write the output var directly causes major borrow issues

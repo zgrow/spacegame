@@ -4,47 +4,56 @@
 // *** EXTERNAL LIBS
 use std::borrow::Cow;
 use std::error;
-use bevy::prelude::*;
+use bevy::{
+	prelude::*,
+	utils::*,
+};
 use bevy_save::prelude::*;
-use bevy::app::App;
-use bevy::utils::HashMap;
 use bevy_turborand::prelude::*;
-use ratatui::Frame;
-use ratatui::backend::Backend;
-use ratatui::layout::{
-	Constraint,
-	Direction,
-	Layout,
-	Rect,
+use ratatui::{
+	Frame,
+	backend::Backend,
+	layout::{
+		Constraint,
+		Direction,
+		Layout,
+		Rect
+	},
+	style::{
+		Color,
+		Style
+	},
+	widgets::*,
 };
-use ratatui::style::{
-	Color,
-	Style,
-};
-use ratatui::widgets::*;
 
 // *** INTERNAL LIBS
 pub mod event;
 pub mod handler;
+pub mod image_loader;
 pub mod menu;
 pub mod messagelog;
+pub mod planq;
 pub mod tui;
 pub mod viewport;
-use crate::artisan::*;
-use crate::camera::*;
-use crate::components::*;
-use crate::engine::{
-	event::*,
-	menu::*,
-	messagelog::*,
-	viewport::*,
+use crate::{
+	artisan::*,
+	camera::*,
+	components::*,
+	engine::{
+		event::*,
+		menu::*,
+		messagelog::*,
+		planq::*,
+		viewport::*
+	},
+	map::*,
+	mason::{
+		get_builder,
+		MapBuilder,
+	},
+	rex_assets::*,
+	sys::*
 };
-use crate::map::*;
-use crate::mason::{
-	get_builder,
-	MapBuilder
-};
-use crate::sys::*;
 
 // *** GameEngine
 pub struct GameEngine<'a> {
@@ -75,7 +84,7 @@ impl GameEngine<'_> {
 			mode: EngineMode::Standby,
 			bevy: App::new(),
 			mason: get_builder(1), // WARN: only pulls in the DevMapBuilder right now
-			artisan: ItemBuilder {spawn_count: 0},
+			artisan: ItemBuilder::new(),
 			// HINT: These menu items are handled via a match case in GameEngine::tick()
 			visible_menu: MenuType::None,
 			menu_main: MenuState::new(vec![]),
@@ -406,7 +415,6 @@ impl GameEngine<'_> {
 		.add_plugins(RngPlugin::default())
 		//.add_systems(Startup, new_player_spawn)
 		.add_systems(Startup, (new_player_spawn,
-			                     new_planq_spawn,
 			                     new_lmr_spawn,
 		))
 		.add_systems(Update, (action_referee_system,
@@ -450,7 +458,6 @@ impl GameEngine<'_> {
 		.register_saveable::<Player>()
 		.register_saveable::<ActionSet>()
 		.register_saveable::<bevy::utils::hashbrown::HashSet<ActionType>>()
-		.register_saveable::<ActorName>()
 		.register_saveable::<Position>()
 		.register_saveable::<Description>()
 		.register_saveable::<Renderable>()
@@ -474,9 +481,30 @@ impl GameEngine<'_> {
 		self.build_camera();
 	}
 	/// Creates the initial worldmap from scratch
-	pub fn create_new_worldmap(&mut self) {
+	pub fn build_new_worldmap(&mut self) {
+		let mut model = Model::default();
+		self.mason = get_builder(1);
+		self.mason.build_map();
+		let mut worldmap = self.mason.get_map();
+		// Construct the various furniture/scenery/backdrop items
+		let item_spawns = self.mason.get_item_spawn_list();
+		eprintln!("* item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
+		for item in item_spawns.iter() {
+			self.artisan.create(item.0).at(item.1).build(&mut self.bevy.world);
+		}
+		model.levels.push(worldmap);
+		// Create a dev map and drop a portal to it
+		self.mason = get_builder(68);
+		self.mason.build_map();
+		worldmap = self.mason.get_map();
+		model.levels.push(worldmap);
+		model.add_portal((3, 20, 0), (5, 5, 1), true);
+		// Add the game world to the engine
+		self.bevy.insert_resource(model);
+	}
+	/// Handles the initial spawns for a new game, esp those items that are not included with the worldmap layout
+	pub fn populate_new_worldmap(&mut self) {
 		todo!();
-		// See OLDsrc/main.rs for the method that should go here
 	}
 	/// Creates a fallback dev map for testing purposes
 	pub fn build_dev_worldmap(&mut self) {
@@ -486,7 +514,8 @@ impl GameEngine<'_> {
 		let mut worldmap = self.mason.get_map();
 		// get_item_spawn_list();
 		// artisan.spawn_batch(item_spawn_list);
-		self.artisan.spawn_at(&mut self.bevy.world, ItemType::Door, (10, 10, 0).into());
+		//self.artisan.spawn_at(&mut self.bevy.world, ItemType::Door, (10, 10, 0).into());
+		self.artisan.create(ItemType::Door).at(Position::new(10, 10, 0)).build(&mut self.bevy.world);
 		model.levels.push(worldmap);
 		// Build the DevMapLobby
 		self.mason = get_builder(2);
@@ -494,7 +523,8 @@ impl GameEngine<'_> {
 		worldmap = self.mason.get_map();
 		// get_item_spawn_list();
 		// artisan.spawn_batch(item_spawn_list);
-		self.artisan.spawn_at(&mut self.bevy.world, ItemType::Door, (13, 17, 1).into());
+		//self.artisan.spawn_at(&mut self.bevy.world, ItemType::Door, (13, 17, 1).into());
+		self.artisan.create(ItemType::Door).at(Position::new(13, 17, 1)).build(&mut self.bevy.world);
 		model.levels.push(worldmap);
 		// Add level transitions and teleporters
 		model.add_portal((5, 5, 0), (7, 7, 1), true);
@@ -516,11 +546,11 @@ impl GameEngine<'_> {
 	}
 	/// Requests the creation of an item from the item builder
 	pub fn make_item(&mut self, new_type: ItemType, location: Position) {
-		self.artisan.spawn_at(&mut self.bevy.world, new_type, location);
+		self.artisan.create(new_type).at(location).build(&mut self.bevy.world);
 	}
 	/// Requests to give a new Item to a specific Entity
 	pub fn give_item(&mut self, new_type: ItemType, target: Entity) {
-		self.artisan.spawn_to(&mut self.bevy.world, new_type, target);
+		self.artisan.create(new_type).within(target).build(&mut self.bevy.world);
 	}
 }
 

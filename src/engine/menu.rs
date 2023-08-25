@@ -71,7 +71,10 @@ impl GameEventPartial {
 			| ActionType::DropItem
 			| ActionType::UseItem
 			| ActionType::OpenItem
-			| ActionType::CloseItem => {
+			| ActionType::CloseItem
+			| ActionType::LockItem
+			| ActionType::UnlockItem
+			=> {
 				self.subject != Entity::PLACEHOLDER && self.object != Entity::PLACEHOLDER
 			},
 			ActionType::NoAction => {

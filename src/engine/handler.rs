@@ -5,16 +5,15 @@ use bevy::ecs::event::Events;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 // crossterm::KeyEvent: https://docs.rs/crossterm/latest/crossterm/event/struct.KeyEvent.html
 // bevy::KeyboardInput: https://docs.rs/bevy/latest/bevy/input/keyboard/struct.KeyboardInput.html
+use tui_textarea::Key;
 
 use crate::components::*;
-use crate::components::{
-	Direction,
-	ActorName,
-};
+use crate::components::Direction;
 use crate::engine::*;
 use crate::engine::handler::ActionType::*;
 use crate::engine::event::*;
 use crate::engine::event::GameEventType::*;
+//use crate::engine::planq::PlanqEventType::*;
 
 /// Parses the player inputs coming from ratatui and turns them into game logic
 pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
@@ -39,11 +38,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	let player = player_ref.unwrap_or(Entity::PLACEHOLDER);
 	// DEBUG: crash and stop if we ever fail this condition
 	// HINT: if this assert gets triggered, check the player object to see if you need to add a new Component
-	assert!(player != Entity::PLACEHOLDER, "* key_parser()'s player_query failed to find the player entity!"); 
+	//assert!(player != Entity::PLACEHOLDER, "* key_parser()'s player_query failed to find the player entity!"); 
 	// *** GAME CONTROL HANDLING
 	if eng.mode == EngineMode::Running {
-		let mut new_game_event = GameEvent::new(NullEvent, Some(player), None);
-		let mut new_planq_event = PlanqEvent::new(NullEvent, None, None);
+		let mut new_game_event = GameEvent::new(GameEventType::NullEvent, Some(player), None);
+		let mut new_planq_event = PlanqEvent::new(PlanqEventType::NullEvent);
+		let planq = &mut eng.bevy.world.get_resource_mut::<PlanqData>().unwrap();
 		// *** PLANQ CLI INPUT MODE
 		if planq.show_cli_input {
 			match key_event.code {
@@ -60,6 +60,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					// pass everything else to the CLI parser
 					//eng.planq_stdin.input.input(key_event.clone().into()); // START HERE ** not sure why rust refuses to let me use this type conversion
 					eprintln!("attempting a translation");
+					/* TODO: textarea
 					let flag = eng.planq_stdin.input.input(
 						Input {
 							key: keycode_to_input_key(the_input),
@@ -69,6 +70,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					);
 					eprintln!("{}", eng.planq_stdin.input.lines()[0]);
 					if flag { eprintln!("succeeded"); }
+					*/
 				}
 			}
 			return Ok(()) // WARN: do not disable this, lest key inputs be parsed twice (ie again below) by mistake!
@@ -166,7 +168,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('i') => { // INVENTORY the player's possessions and allow selection
 				let mut item_names = Vec::new();
 				//eprintln!("* item_query: {:?}", item_query); // DEBUG: report size of item_query
-				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &ActorName, &Portable, &ActionSet), Without<Position>>();
+				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &Description, &Portable, &ActionSet), Without<Position>>();
 				for item in backpack_query.iter(&eng.bevy.world) {
 					//eprintln!("* found item {}", item.1.name.clone()); // DEBUG: report the item being worked on
 					if item.2.carrier == player {
@@ -192,7 +194,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('d') => { // DROP an item from player's inventory
 				let mut item_names = Vec::new();
-				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &ActorName, &Portable), Without<Position>>();
+				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &Description, &Portable), Without<Position>>();
 				for item in backpack_query.iter(&eng.bevy.world) {
 					if item.2.carrier == player {
 						item_names.push(MenuItem::item(
@@ -214,7 +216,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('g') => { // GET an item from the ground
 				let mut item_names = Vec::new();
-				let mut item_query = eng.bevy.world.query::<(Entity, &ActorName, &Position, &Portable)>();
+				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Position, &Portable)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in item_query.iter(&eng.bevy.world) {
 					//eprintln!("* found item {}", target.1.name.clone()); // DEBUG: announce found targets for GET
@@ -239,7 +241,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('o') => { // OPEN an Openable item
 				let mut item_names = Vec::new();
-				let mut item_query = eng.bevy.world.query::<(Entity, &ActorName, &Position, &Openable)>();
+				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Position, &Openable)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in item_query.iter(&eng.bevy.world) {
 					//eprintln!("* found item {}", target.1.name.clone()); // DEBUG: report found OPENABLE items
@@ -265,7 +267,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('c') => { // CLOSE an Openable nearby
 				let mut item_names = Vec::new();
-				let mut item_query = eng.bevy.world.query::<(Entity, &ActorName, &Position, &Openable)>();
+				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Position, &Openable)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in item_query.iter(&eng.bevy.world) {
 					//eprintln!("* found item {}", target.1.name.clone()); // DEBUG: report found closed OPENABLE items
@@ -333,8 +335,8 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			let game_events: &mut Events<GameEvent> = &mut eng.bevy.world.get_resource_mut::<Events<GameEvent>>().unwrap();
 			game_events.send(new_game_event);
 		}
-		if new_planq_event.etype != GameEventType::NullEvent {
-			let planq_events: &mut Events<PlanqEvent> = &mut eng.bevy.world.get_resource_mut::<Events<GameEvent>>().unwrap();
+		if new_planq_event.etype != PlanqEventType::NullEvent {
+			let planq_events: &mut Events<PlanqEvent> = &mut eng.bevy.world.get_resource_mut::<Events<PlanqEvent>>().unwrap();
 			planq_events.send(new_planq_event);
 		}
 	} else { // ALL OTHER SITUATIONS: Paused, Standby, etc

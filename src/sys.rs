@@ -3,7 +3,7 @@
 
 // Disable some of the more irritating clippy warnings
 #![allow(clippy::type_complexity)]
-#![allow(clippy::too_many_arguments)]
+//#![allow(clippy::too_many_arguments)]
 #![allow(clippy::single_match)]
 #![allow(clippy::needless_lifetimes)]
 
@@ -15,7 +15,7 @@ use bevy::ecs::event::EventReader;
 use bevy::ecs::query::{
 	Changed,
 	With,
-	//Without,
+	Without,
 };
 use bevy::ecs::system::{
 	Commands,
@@ -40,6 +40,7 @@ use crate::engine::event::*;
 use crate::engine::event::GameEventType::*;
 use crate::engine::event::ActionType::*;
 use crate::engine::messagelog::*;
+use crate::engine::planq::*;
 use crate::map::*;
 
 // *** CONTINUOUS SYSTEMS
@@ -59,7 +60,6 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 					let comp_name = split_str[split_str.len() - 1];
 					match comp_name {
 						"Description" => { new_set.insert(ActionType::Examine); }
-						"Mobile"      => { /*new_set.insert(ActionType::MoveTo()); // Need to handle the variants somehow... */ }
 						"Portable"    => {
 							new_set.insert(ActionType::MoveItem);
 							new_set.insert(ActionType::DropItem);
@@ -68,7 +68,17 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 							new_set.insert(ActionType::OpenItem);
 							new_set.insert(ActionType::CloseItem);
 						}
-						/* Also need to cover ActionType::UseItem... */
+						"Lockable"    => {
+							new_set.insert(ActionType::UnlockItem);
+							new_set.insert(ActionType::LockItem);
+						}
+						"Key"         => {
+							new_set.insert(ActionType::UnlockItem);
+							new_set.insert(ActionType::LockItem);
+						}
+						"Device"      => {
+							new_set.insert(ActionType::UseItem);
+						}
 						_ => { }
 					}
 				}
@@ -78,7 +88,7 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 			actor.1.outdated = false;
 		}
 	}
-	// - might also choose to set up the "dead entity collector" logic here...
+	// HINT: might also choose to set up the "dead entity collector" logic here...
 }
 /// Handles requests for descriptions of entities by the player
 pub fn examination_system(mut ereader:  EventReader<GameEvent>,
@@ -103,9 +113,9 @@ pub fn item_collection_system(mut cmd:      Commands,
 	                            mut ereader:  EventReader<GameEvent>,
 	                            mut msglog:   ResMut<MessageLog>,
 	                            // The list of Entities that also have Containers
-	                            e_query:      Query<(Entity, &ActorName, &Position, &Container, Option<&Player>)>,
+	                            e_query:      Query<(Entity, &Description, &Position, &Container, Option<&Player>)>,
 	                            // The list of every Item that may or may not be in a container
-	                            i_query:      Query<(Entity, &ActorName, &Portable, Option<&Position>)>,
+	                            i_query:      Query<(Entity, &Description, &Portable, Option<&Position>)>,
 ) {
 	// Don't even bother trying if there's no events to worry about
 	if ereader.is_empty() { return; }
@@ -175,24 +185,31 @@ pub fn item_collection_system(mut cmd:      Commands,
 	}
 }
 /// Handles ActorLock/Unlock events
-pub fn lock_system(mut _commands:    Commands,
-                   mut ereader:     EventReader<GameEvent>,
-                   mut msglog:      ResMut<MessageLog>,
-                   mut lock_query:  Query<(Entity, &Position, &ActorName, &mut Lockable)>,
-                   mut e_query:     Query<(Entity, &Position, &ActorName, Option<&Player>), With<CanOpen>>,
-                   key_query:       Query<(Entity, &Portable, &ActorName, &Key), Without<Position>>,
+pub fn lockable_system(mut _commands:    Commands,
+	                     mut ereader:      EventReader<GameEvent>,
+	                     mut msglog:       ResMut<MessageLog>,
+	                     mut lock_query:   Query<(Entity, &Position, &Description, &mut Lockable)>,
+	                     mut e_query:      Query<(Entity, &Position, &Description, Option<&Player>)>,
+	                     key_query:        Query<(Entity, &Portable, &Description, &Key), Without<Position>>,
 ) {
+	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
-		if event.etype != ActorLock
-		&& event.etype != ActorUnlock { continue; }
+		let mut atype = ActionType::NoAction;
+		if let PlayerAction(action) | ActorAction(action) = event.etype {
+			if action != LockItem && action != UnlockItem {
+				continue;
+			} else {
+				atype = action;
+			}
+		}
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
 		let actor = e_query.get_mut(econtext.subject).unwrap();
 		let player_action = actor.3.is_some();
 		let mut target = lock_query.get_mut(econtext.object).unwrap();
 		let mut message: String = "".to_string();
-		match event.etype {
-			ActorLock => {
+		match atype {
+			ActionType::LockItem => {
 				// TODO: obtain the new key value and apply it to the lock
 				target.3.is_locked = true;
 				if player_action {
@@ -201,7 +218,7 @@ pub fn lock_system(mut _commands:    Commands,
 					message = format!("The {} locks the {}.", actor.2.name.clone(), target.2.name.clone());
 				}
 			}
-			ActorUnlock => {
+			ActionType::UnlockItem => {
 				// Obtain the set of keys that the actor is carrying
 				let mut carried_keys: Vec<(Entity, i32, String)> = Vec::new();
 				for key in key_query.iter() {
@@ -233,7 +250,6 @@ pub fn lock_system(mut _commands:    Commands,
 		}
 	}
 }
-
 /// Handles updates to the 'meta' worldmaps, ie the blocked and opaque tilemaps
 pub fn map_indexing_system(mut model:         ResMut<Model>,
 	                         mut blocker_query: Query<&Position, With<Obstructive>>,
@@ -264,7 +280,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
 	                     mut p_posn_res:  ResMut<Position>,
 	                     model:           Res<Model>,
-	                     mut e_query:     Query<(Entity, &ActorName, &mut Position, Option<&mut Viewshed>)>
+	                     mut e_query:     Query<(Entity, &Description, &mut Position, Option<&mut Viewshed>)>
 ) {
 	if ereader.is_empty() { return; } // Don't even bother trying if there's no events to worry about
 	for event in ereader.iter() {
@@ -365,7 +381,7 @@ pub fn openable_system(mut commands:    Commands,
 	                     mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
 	                     mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
-	                     mut e_query:     Query<(Entity, &Position, &ActorName, Option<&Player>, Option<&mut Viewshed>)>,
+	                     mut e_query:     Query<(Entity, &Position, &Description, Option<&Player>, Option<&mut Viewshed>)>,
 ) {
 	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
@@ -428,23 +444,29 @@ pub fn openable_system(mut commands:    Commands,
 /// Handles anything related to the CanOperate component: ActorUse, ToggleSwitch, &c
 pub fn operable_system(mut ereader: EventReader<GameEvent>,
                        //mut o_query: Query<(Entity, &Position, &Name), With<CanOperate>>,
-                       mut d_query: Query<(Entity, &ActorName, &mut Device)>,
+                       mut d_query: Query<(Entity, &Description, &mut Device)>,
 ) {
+	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
-		if event.etype != ItemUse { continue; }
+		if let PlayerAction(action) | ActorAction(action) = event.etype {
+			if action != UseItem {
+				continue;
+			}
+		}
 		let econtext = event.context.as_ref().unwrap();
-		if econtext.is_invalid() { continue; }
+		if econtext.is_blank() { continue; }
 		//let operator = o_query.get(econtext.subject).unwrap();
 		let mut device = d_query.get_mut(econtext.object).unwrap();
 		if !device.2.pw_switch { // If it's not powered on, assume that function first
 			device.2.power_toggle();
 		}
+		// TODO: there's definitely going to be more stuff to implement here depending on the actual Device
 	}
 }
 /// Handles entities that can see physical light
-pub fn visibility_system(mut model: ResMut<Model>,
-	                       mut seers: Query<(&mut Viewshed, &Position, Option<&Player>, Option<&mut Memory>), Changed<Viewshed>>,
-	                       mut observable: Query<(Entity, &Position, &Renderable)>,
+pub fn visibility_system(mut model:  ResMut<Model>,
+	                       mut seers:  Query<(&mut Viewshed, &Position, Option<&Player>, Option<&mut Memory>), Changed<Viewshed>>,
+	                       observable: Query<(Entity, &Position, &Renderable)>,
 ) {
 	for (mut viewshed, s_posn, player, memory) in &mut seers {
 		//eprintln!("* [vis_sys] s_posn: {posn:?}"); // DEBUG: print the position of the entity being examined
@@ -490,11 +512,10 @@ pub fn new_player_spawn(mut commands: Commands,
 		commands.entity(player.0).insert(Viewshed::new(8));
 		return;
 	}
-	eprintln!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
-	commands.spawn((
-		Player      { },
+	let player = commands.spawn((
+		Player { },
 		ActionSet::new(),
-		ActorName   {name: "Pleyeur".to_string()},
+		Description::new("Pleyeur".to_string(), "Still your old self.".to_string()),
 		*spawnpoint,
 		Renderable::new("@".to_string(), 2, 0),
 		Viewshed::new(8),
@@ -502,7 +523,17 @@ pub fn new_player_spawn(mut commands: Commands,
 		Obstructive::default(),
 		Container::default(),
 		Memory::new(),
+	)).id();
+	eprintln!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
+	commands.spawn((
+		Planq::new(),
+		ActionSet::new(),
+		Description::new("PLANQ".to_string(), "It's your PLANQ.".to_string()),
+		Renderable::new("¶".to_string(), 3, 0),
+		Portable::new(player),
+		Device::new(-1),
 	));
+	eprintln!("* new planq spawned into player inventory"); // DEBUG: announce creation of player's planq
 }
 /// Spawns a new LMR at the specified Position, using default values
 pub fn new_lmr_spawn(mut commands:  Commands,
@@ -511,7 +542,7 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 	commands.spawn((
 		LMR         { },
 		ActionSet::new(),
-		ActorName   {name: "LMR".to_string()},
+		Description::new("LMR".to_string(), "The Light Maintenance Robot is awaiting instructions.".to_string()),
 		Position::new(12, 12, 0), // TODO: remove magic numbers
 		Renderable::new("l".to_string(), 14, 0),
 		Viewshed::new(5),
@@ -521,29 +552,6 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 		Opaque::new(true),
 	));
 	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0), "debug".to_string(), 1, 1);
-}
-/// Spawns the player's PLANQ [TODO: in the starting locker]
-pub fn new_planq_spawn(mut commands:    Commands,
-	                   mut msglog:      ResMut<MessageLog>,
-) {
-	commands.spawn((
-		Planq { },
-		Thing {
-			item: Item {
-				name: ActorName { name: "PLANQ".to_string() },
-				posn: Position::new(25, 30, 0),
-				render: Renderable { glyph: "¶".to_string(), fg: 3, bg: 0 },
-			},
-			portable: Portable { carrier: Entity::PLACEHOLDER },
-		},
-		Device {
-			pw_switch: false,
-			batt_voltage: 0,
-			batt_discharge: -1, // TODO: implement battery charge loss
-			state: DeviceState::Offline, // TODO: sync this to the PLANQ's mode, don't try to use it!
-		},
-	));
-	msglog.add(format!("planq spawned at {}, {}, {}", 25, 30, 0), "debug".to_string(), 1, 1);
 }
 /// Adds a demo NPC to the game world
 pub fn test_npc_spawn(mut commands: Commands,
@@ -561,7 +569,7 @@ pub fn test_npc_spawn(mut commands: Commands,
 	}
 	commands.spawn((
 		ActionSet::new(),
-		ActorName   {name: "Jenaryk".to_string()},
+		Description::new("Jenaryk".to_string(), "Behold, a generic virtual cariacature of a man.".to_string()),
 		spawnpoint,
 		Renderable::new("&".to_string(), 1, 0),
 		Viewshed::new(8),
