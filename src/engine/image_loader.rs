@@ -1,11 +1,11 @@
-// image_loader.rs - convers REXPaint files into game resources
+// image_loader.rs - converts REXPaint files into game resources
 use std::collections::HashMap;
 use bracket_rex::prelude::*;
 use crate::map::*;
 use ratatui::text::{Span, Text};
 use codepage_437::CP437_WINGDINGS;
 use crate::components::Position;
-use crate::item_builders::ItemType;
+use crate::artisan::ItemType;
 
 pub struct XpFileParser {
 	pub dict_rexval_to_string: HashMap<u32, String>,

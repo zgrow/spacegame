@@ -1,378 +1,216 @@
 // sys.rs
-// Defines the various subsystems we'll be running on the GameEngine
+// July 12 2023
+
+// Disable some of the more irritating clippy warnings
 #![allow(clippy::type_complexity)]
-#![allow(clippy::too_many_arguments)]
+//#![allow(clippy::too_many_arguments)]
 #![allow(clippy::single_match)]
+#![allow(clippy::needless_lifetimes)]
 
-// NOTE: see bevy/examples/games/alien_cake_addict.rs for example on handling the Player entity
-
-use crate::components::*;
-use crate::camera_system::CameraView;
-use crate::map::*;
-use crate::components::{Name, Position, Renderable, Player, Mobile};
-use crate::sys::event::*;
-use crate::sys::{GameEventType::*, PlanqEventType::*};
-use crate::app::messagelog::MessageLog;
-use crate::app::planq::*;
-use crate::app::*;
-use crate::item_builders::*;
-use bevy::ecs::system::{Commands, Res, Query, ResMut};
-use bevy::ecs::event::EventReader;
-use bevy::ecs::query::{With, Without, QueryEntityError};
+// *** EXTERNAL LIBS
+use bevy::ecs::archetype::Archetypes;
+use bevy::ecs::component::{ComponentId, Components};
 use bevy::ecs::entity::Entity;
-use bevy::prelude::EventWriter;
-use bevy::utils::Duration;
-use bevy::time::Time;
+use bevy::ecs::event::{EventReader, EventWriter};
+use bevy::ecs::query::{
+	Changed,
+	With,
+	Without,
+};
+use bevy::ecs::system::{
+	Commands,
+	Query,
+	Res,
+	ResMut
+};
+use bevy::utils::{Duration, HashSet};
+use bevy_turborand::*;
 use bracket_pathfinding::prelude::*;
-use bevy_turborand::prelude::*;
+//use bevy_turborand::prelude::*;
 
-// TODO: Need to implement change detection on the following:
-// map_indexing_system
-// visibility_system
+// *** INTERNAL LIBS
+use crate::components::*;
+use crate::components::{
+	Direction,
+	Mobile,
+	Player,
+	Position,
+	Renderable
+};
+use crate::engine::event::*;
+use crate::engine::event::GameEventType::*;
+use crate::engine::event::ActionType::*;
+use crate::engine::messagelog::*;
+use crate::engine::planq::*;
+use crate::map::*;
 
-//  UTILITIES
-/// Converts a spacegame::Position into a bracket_pathfinding::Point
-pub fn posn_to_point(input: &Position) -> Point { Point { x: input.x, y: input.y } }
-
-//  SINGLETON SYSTEMS (run once)
-/// Spawns a new CameraView on the game world (ie the default/main view)
-pub fn new_camera_system(mut commands: Commands) {
-	commands.insert_resource(CameraView {
-		map: Vec::new(),
-		width: 0,
-		height: 0,
-	});
-}
-/// Spawns a new player, including their subsystems and default values
-pub fn new_player_spawn(mut commands: Commands,
-	                      mut msglog:   ResMut<MessageLog>,
-	                      spawnpoint:   Res<Position>,
+// *** CONTINUOUS SYSTEMS
+pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually if i want to despawn entys
+	                           archetypes:    &Archetypes,
+	                           components:    &Components,
+	                           mut a_query:   Query<(Entity, &mut ActionSet)>,
 ) {
-	commands.spawn((
-		// this is the player's collection of components and their initial values
-		Player      { },
-		Name        {name: "Pleyeur".to_string()},
-		Position    {x: spawnpoint.x, y: spawnpoint.y, z: spawnpoint.z},
-		Renderable  {glyph: "@".to_string(), fg: 2, bg: 0},
-		Viewshed    {visible_tiles: Vec::new(), range: 8, dirty: true},
-		Mobile      { },
-		Obstructive { },
-		Container   { contents: Vec::new() },
-		Opaque      { opaque: true },
-		CanOpen     { },
-		CanOperate  { },
-	));
-	msglog.add("WELCOME TO SPACEGAME".to_string(), "world".to_string(), 1, 1);
-}
-/// Spawns a new LMR at the specified Position, using default values
-pub fn new_lmr_spawn(mut commands:  Commands,
-	                   mut msglog:    ResMut<MessageLog>,
-) {
-	commands.spawn((
-		Name        {name: "LMR".to_string()},
-		Position    {x: 12, y: 12, z: 0}, // TODO: remove magic numbers
-		Renderable  {glyph: "l".to_string(), fg: 14, bg: 0},
-		Viewshed    {visible_tiles: Vec::new(), range: 5, dirty: true},
-		Mobile      { },
-		Obstructive { },
-		Opaque      { opaque: true },
-		CanOpen     { },
-		CanOperate  { },
-	));
-	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0), "debug".to_string(), 1, 1);
-}
-/// Spawns the player's PLANQ [TODO: in the starting locker]
-pub fn new_planq_spawn(mut commands:    Commands,
-	                     mut msglog:      ResMut<MessageLog>,
-	                     mut global_rng:  ResMut<GlobalRng>,
-) {
-	commands.spawn((
-		Planq { },
-		Thing {
-			item: Item {
-				name: Name { name: "PLANQ".to_string() },
-				posn: Position::new(25, 30, 0),
-				render: Renderable { glyph: "¶".to_string(), fg: 3, bg: 0 },
-			},
-			portable: Portable { carrier: Entity::PLACEHOLDER },
-		},
-		Device {
-			pw_switch: false,
-			batt_voltage: 100,
-			batt_discharge: -1, // TODO: implement battery charge loss
-			state: DeviceState::Offline, // TODO: sync this to the PLANQ's mode, don't try to use it!
-		},
-		RngComponent::from(&mut global_rng),
-	));
-	msglog.add(format!("planq spawned at {}, {}, {}", 25, 30, 0), "debug".to_string(), 1, 1);
-}
-
-//  CONTINUOUS SYSTEMS (run frequently)
-/// Runs assessment of the game state for things like victory/defeat conditions, &c
-pub fn engine_system(mut state:         ResMut<GameSettings>,
-	                   mut ereader:       EventReader<GameEvent>,
-	                   p_query:           Query<(Entity, &Position), With<Player>>,
-	                   p_items_query:     Query<(Entity, &Portable), Without<Position>>,
-	                   q_query:           Query<(Entity, &Portable), With<Planq>>,
-) {
-	for event in ereader.iter() {
-		match event.etype {
-			ModeSwitch(mode) => {// Immediately switch to the specified mode
-				//eprintln!("Switching engine mode: {mode:?}"); // DEBUG:
-				state.mode = mode;
-			}
-			PauseToggle => {
-				//eprintln!("Pause toggled"); // DEBUG:
-				if state.mode == EngineMode::Running { state.mode = EngineMode::Paused; }
-				else if state.mode == EngineMode::Paused { state.mode = EngineMode::Running; }
-			}
-			_ => { } // Throw out all other event types
-		}
-	}
-	// Check for the victory state
-	let player = p_query.get_single().unwrap();
-	let planq = q_query.get_single().unwrap();
-	let mut p_inventory = Vec::new();
-	for item in p_items_query.iter() {
-		if item.1.carrier == player.0 { p_inventory.push(item.0); }
-	}
-	// version 0.1: Player must be standing in the specified Position
-	//if *player.1 == Position::new(28, 1, 1) { state.mode = EngineMode::GoodEnd; }
-	// version 0.2: v0.1 AND Player.has == planq
-	// version 0.3: constraint: the Door to the Elevator is stuck shut, the Planq can reboot it
-	if *player.1 == Position::new(28, 1, 1) && p_inventory.contains(&planq.0) {
-		eprintln!("VICTORY condition achieved!"); // DEBUG:
-		state.mode = EngineMode::GoodEnd;
-		state.mode_changed = true;
-	}
-}
-/// Handles entities that can move around the map
-pub fn movement_system(mut ereader:     EventReader<GameEvent>,
-	                     mut msglog:      ResMut<MessageLog>,
-	                     mut p_posn_res:  ResMut<Position>,
-	                     mut p_query:     Query<(&mut Position, &mut Viewshed), With<Player>>,
-	                     model:           Res<Model>,
-	                     enty_query:      Query<(&Position, &Name, Option<&mut Viewshed>), Without<Player>>,
-) {
-	// NOTE: the enty_query doesn't need to include Obstructive component because the map's
-	// blocked_tiles sub-map already includes that information in an indexed vector
-	// This allows us to only worry about consulting the query when we know we need it, as it is
-	// much more expensive to iterate a query than to generate it
-	for event in ereader.iter() {
-		//eprintln!("player attempting to move"); // DEBUG:
-		match event.etype {
-			PlayerMove(dir) => {
-				let mut feedback;
-				let (mut p_pos, mut p_view) = p_query.single_mut();
-				let mut xdiff = 0;
-				let mut ydiff = 0;
-				let mut zdiff = 0; // NOTE: not a typical component: z-level indexes to map stack
-				match dir {
-					Direction::N    =>             { ydiff -= 1 }
-					Direction::NW   => { xdiff -= 1; ydiff -= 1 }
-					Direction::W    => { xdiff -= 1 }
-					Direction::SW   => { xdiff -= 1; ydiff += 1 }
-					Direction::S    =>             { ydiff += 1 }
-					Direction::SE   => { xdiff += 1; ydiff += 1 }
-					Direction::E    => { xdiff += 1 }
-					Direction::NE   => { xdiff += 1; ydiff -= 1 }
-					Direction::UP   =>      { zdiff += 1 }
-					Direction::DOWN =>      { zdiff -= 1 }
-				}
-				// Calculate the desired position's components
-				let mut target = Position{x: p_pos.x + xdiff, y: p_pos.y + ydiff, z: p_pos.z + zdiff};
-				let t_index = model.levels[target.z as usize].to_index(target.x, target.y);
-				// NOTE: IF the actor is changing z-levels, some extra logic is required:
-				if dir == Direction::UP || dir == Direction::DOWN {
-					// Prevent movement if an invalid z-level was obtained
-					if target.z < 0 || target.z as usize >= model.levels.len() { continue; }
-					// Prevent movement if the entity is not on a stairway
-					let p_index = model.levels[p_pos.z as usize].to_index(p_pos.x, p_pos.y);
-					if model.levels[p_pos.z as usize].tiles[p_index].ttype != TileType::Stairway {
-						feedback = "There is nothing here to ".to_string();
-						if zdiff == 1 { feedback.push_str("ascend.") }
-						else { feedback.push_str("descend.") }
-						msglog.tell_player(feedback);
-						continue;
-					}
-					// If we arrived here, then all's good; get the destination coords
-					let possible = model.portals.get(&(p_pos.x, p_pos.y, p_pos.z));
-					//eprintln!("poss: {possible:?}"); // DEBUG:
-					if let Some(actual) = possible {
-						target.x = actual.0;
-						target.y = actual.1;
-						target.z = actual.2;
-					}
-				}
-				assert!(model.levels[target.z as usize].tiles.len() > 1, "Destination map is empty!");
-				if model.levels[target.z as usize].blocked_tiles[t_index] {
-					// Find out who's in the way and tell the player about it
-					// CASE 1: there's an entity at that location
-					for guy in enty_query.iter() {
-						if guy.0 == &target {
-							msglog.tell_player(format!("The way {} is blocked by a {}.", dir, guy.1));
-							return;
+	// DEBUG: this is largely the placeholder/debug proof of concept thing, see below for what this will really do
+	for mut actor in a_query.iter_mut() {
+		if actor.1.outdated {
+			//eprintln!("* Running update on an ActionSet..."); // DEBUG: announce ActionSet update
+			let mut new_set = HashSet::new();
+			for comp_id in get_components_for_entity(actor.0, archetypes).unwrap() {
+				if let Some(comp_info) = components.get_info(comp_id) {
+					let split_str: Vec<&str> = comp_info.name().split("::").collect();
+					let comp_name = split_str[split_str.len() - 1];
+					match comp_name {
+						"Description" => { new_set.insert(ActionType::Examine); }
+						"Portable"    => {
+							new_set.insert(ActionType::MoveItem);
+							new_set.insert(ActionType::DropItem);
 						}
-					}
-					// CASE 2: it's a wall or similar
-					msglog.tell_player(format!("The way {} is blocked by the {}.",
-						              dir, &model.levels[target.z as usize].tiles[t_index].ttype.to_string()));
-					return;
-				}
-				// If we arrived here, there's nothing in that space blocking the movement
-				// Therefore, update the player's position
-				(p_pos.x, p_pos.y, p_pos.z) = (target.x, target.y, target.z);
-				// Don't forget to update the player position Resource too
-				(p_posn_res.x, p_posn_res.y, p_posn_res.z) = (target.x, target.y, target.z);
-				// Make sure the player's viewshed will be updated on the next pass
-				p_view.dirty = true;
-				// A tile's contents are implicitly defined as those non-blocking entities at a given Posn
-				// If we use the player's position, then we may conclude that any entities at that
-				// position that are not the player must be non-blocking, since the player's
-				// movement rules prevent them from entering a tile with any other Obstructive enty
-				let mut contents = Vec::new();
-				for enty in enty_query.iter() {
-					if *enty.0 == *p_pos {
-						contents.push(&enty.1.name);
-					}
-				}
-				if !contents.is_empty() {
-					if contents.len() <= 3 {
-						// Use a short summary
-						let mut text = "There's a ".to_string();
-						loop {
-							text.push_str(contents.pop().unwrap());
-							if contents.is_empty() { break; }
-							else { text.push_str(", and a "); }
+						"Openable"    => {
+							new_set.insert(ActionType::OpenItem);
+							new_set.insert(ActionType::CloseItem);
 						}
-					text.push_str(" here.");
-					msglog.tell_player(text);
-					} else {
-						// Use a long summary
-						msglog.tell_player("There's some stuff here on the ground.".to_string());
+						"Lockable"    => {
+							new_set.insert(ActionType::UnlockItem);
+							new_set.insert(ActionType::LockItem);
+						}
+						"Key"         => {
+							new_set.insert(ActionType::UnlockItem);
+							new_set.insert(ActionType::LockItem);
+						}
+						"Device"      => {
+							new_set.insert(ActionType::UseItem);
+						}
+						_ => { }
 					}
 				}
 			}
-			// TODO: this is where we'd handle an NPCMove action
-			_ => { } // Throw out anything we're not specifically interested in
+			//eprintln!("* {:?}", new_set); // DEBUG: display the newly made action set
+			actor.1.actions = new_set;
+			actor.1.outdated = false;
 		}
 	}
+	// HINT: might also choose to set up the "dead entity collector" logic here...
 }
-/// Handles updates to the 'meta' maps, ie the blocked and opaque tilemaps
-pub fn map_indexing_system(mut model:         ResMut<Model>,
-	                         mut blocker_query: Query<&Position, With<Obstructive>>,
-	                         mut opaque_query:  Query<(&Position, &Opaque)>,
+/// Handles requests for descriptions of entities by the player
+pub fn examination_system(mut ereader:  EventReader<GameEvent>,
+	                        mut msglog:   ResMut<MessageLog>,
+	                        e_query:      Query<(Entity, &Description)>,
 ) {
-	// TODO: consider possible optimization for not updating levels that the player is not on?
-	// might require some extra smartness to allow updates if the LMR does something out of sight
-	// First, rebuild the blocking map by the map tiles
-	let mut f_index = 0;
-	let mut index;
-	for floor in model.levels.iter_mut() {
-		floor.update_tilemaps(); // Update tilemaps based on their tiletypes
-		// Then, step through all blocking entities and flag their locations on the map as well
-		for guy in blocker_query.iter_mut() {
-			if guy.z != f_index { continue; }
-			index = floor.to_index(guy.x, guy.y);
-			floor.blocked_tiles[index] = true;
-		}
-		// Do the same for the opaque entities
-		for guy in opaque_query.iter_mut() {
-			if guy.0.z != f_index { continue; }
-			index = floor.to_index(guy.0.x, guy.0.y);
-			floor.opaque_tiles[index] = guy.1.opaque;
-		}
-		f_index += 1;
-	}
-}
-/// Handles CanOpen component action via ActorOpen/Close events
-pub fn openable_system(mut commands:    Commands,
-	                     mut ereader:     EventReader<GameEvent>,
-	                     mut msglog:      ResMut<MessageLog>,
-	                     mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
-	                     //mut e_query:     Query<(Entity, &Position, &Name, Option<&Player>, Option<&mut Viewshed>), With<CanOpen>>,
-	                     mut e_query:     Query<(Entity, &Position, &Name, Option<&Player>, &mut Viewshed), With<CanOpen>>,
-) {
+	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
-		if event.etype != ActorOpen
-		&& event.etype != ActorClose { continue; }
+		if event.etype != PlayerAction(ActionType::Examine) { continue; }
+		let econtext = event.context.as_ref().unwrap();
+		if econtext.object == Entity::PLACEHOLDER {
+			eprintln!("* Attempted to Examine the Entity::PLACEHOLDER"); // DEBUG: warn if this case occurs
+			continue;
+		}
+		let output_ref = e_query.get(econtext.object).unwrap();
+		let output = output_ref.1.desc.clone();
+		msglog.tell_player(output);
+	}
+}
+/// Handles pickup/drop/destroy requests for Items
+pub fn item_collection_system(mut cmd:      Commands,
+	                            mut ereader:  EventReader<GameEvent>,
+	                            mut msglog:   ResMut<MessageLog>,
+	                            // The list of Entities that also have Containers
+	                            e_query:      Query<(Entity, &Description, &Position, &Container, Option<&Player>)>,
+	                            // The list of every Item that may or may not be in a container
+	                            i_query:      Query<(Entity, &Description, &Portable, Option<&Position>)>,
+) {
+	// Don't even bother trying if there's no events to worry about
+	if ereader.is_empty() { return; }
+	for event in ereader.iter() {
+		// Skip any events with the wrong type
+		let atype: ActionType;
+		match event.etype {
+			PlayerAction(action) | ActorAction(action) => {
+				match action {
+					ActionType::MoveItem
+					| ActionType::DropItem
+					| ActionType::KillItem => { atype = action; }
+					_ => { continue; }
+				}
+			}
+			_ => { continue; }
+		};
+		// All of the item events require an event context, so if there isn't any then don't try to handle the event
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
-		//eprintln!("actor opening door {0:?}", econtext.object); // DEBUG:
-		let mut actor = e_query.get_mut(econtext.subject).unwrap();
-		let player_action = actor.3.is_some();
+		// We know that it is safe to unwrap these because calling is_invalid() checked that they are not placeholders
+		let subject = e_query.get(econtext.subject).unwrap();
+		let subject_name = subject.1.name.clone();
+		let is_player_action = subject.4.is_some();
+		let object = i_query.get(econtext.object).unwrap();
+		let item_name = object.1.name.clone();
+		// We have all of our context values now, so proceed to actually doing the requested action
 		let mut message: String = "".to_string();
-		match event.etype {
-			GameEventType::ActorOpen => {
-				//eprintln!("Trying to open a door"); // DEBUG:
-				for mut door in door_query.iter_mut() {
-					if door.0 == econtext.object {
-						if door.2.is_stuck {
-							if player_action {
-								message = "The door seems to be stuck.".to_string();
-							} else {
-								message = format!("The {} tries to open a stuck door, but fails.", actor.2.name.clone());
-								//message = "The foo tries to open a stuck door, but fails.".to_string();
-							}
-						} else {
-							door.2.is_open = true;
-							door.3.glyph = door.2.open_glyph.clone();
-							door.4.opaque = false;
-							commands.entity(door.0).remove::<Obstructive>();
-							if player_action {
-								message = "The door slides open at your touch.".to_string();
-							} else {
-								message = format!("The {} opens a door.", actor.2.name.clone());
-							}
-							actor.4.dirty = true; // Entities without vision have no business opening doors
-						}
-					}
-					//if actor.4.is_some() { actor.4.unwrap().dirty = true; }
-				}
-			}
-			GameEventType::ActorClose => {
-				//eprintln!("Trying to close a door"); // DEBUG:
-				for mut door in door_query.iter_mut() {
-					if door.0 == econtext.object {
-						door.2.is_open = false;
-						door.3.glyph = door.2.closed_glyph.clone();
-						door.4.opaque = true;
-						commands.entity(door.0).insert(Obstructive {});
-					}
-				}
-				if player_action {
-					message = "The door slides shut.".to_string();
+		match atype {
+			ActionType::MoveItem => { // Move an Item into an Entity's possession
+				//eprintln!("* Moving item..."); // DEBUG: announce item movement
+				cmd.entity(object.0)
+				.insert(Portable{carrier: subject.0}) // put the container's ID to the target's Portable component
+				.remove::<Position>(); // remove the Position component from the target
+				// note that the above simply does nothing if it doesn't exist,
+				// and inserting a Component that already exists overwrites the previous one,
+				// so it's safe to call even on enty -> enty transfers
+				if is_player_action {
+					message = format!("Obtained a {}.", item_name);
 				} else {
-					message = format!("The {} closes a door.", actor.2.name.clone());
+					message = format!("The {} takes a {}.", subject_name, item_name);
 				}
-				actor.4.dirty = true;
 			}
-			_ => { }
+			ActionType::DropItem => { // Remove an Item and place it into the World
+				//eprintln!("* Dropping item..."); // DEBUG: announce item drop
+				let location = subject.2;
+				cmd.entity(object.0)
+				.insert(Portable{carrier: Entity::PLACEHOLDER}) // still portable but not carried
+				.insert(Position{x: location.x, y: location.y, z: location.z});
+				if is_player_action {
+					message = format!("Dropped a {}.", item_name);
+				} else {
+					message = format!("The {} drops a {}.", subject_name, item_name);
+				}
+			}
+			ActionType::KillItem => { // DESTROY an Item entirely, ie remove it from the game
+				//eprintln!("* KILLing item..."); // DEBUG: announce item destruction
+				cmd.entity(econtext.object).despawn();
+			}
+			action => {
+				eprintln!("* item_collection_system unhandled action: {}", action); // DEBUG: announce unhandled action for this item
+			}
 		}
 		if !message.is_empty() {
-			msglog.tell_player(message);
+			msglog.add(message, "world".to_string(), 0, 0);
 		}
 	}
 }
 /// Handles ActorLock/Unlock events
-pub fn lock_system(mut _commands:    Commands,
-                   mut ereader:     EventReader<GameEvent>,
-                   mut msglog:      ResMut<MessageLog>,
-                   mut lock_query:  Query<(Entity, &Position, &Name, &mut Lockable)>,
-                   mut e_query:     Query<(Entity, &Position, &Name, Option<&Player>), With<CanOpen>>,
-                   key_query:       Query<(Entity, &Portable, &Name, &Key), Without<Position>>,
+pub fn lockable_system(mut _commands:    Commands,
+	                     mut ereader:      EventReader<GameEvent>,
+	                     mut msglog:       ResMut<MessageLog>,
+	                     mut lock_query:   Query<(Entity, &Position, &Description, &mut Lockable)>,
+	                     mut e_query:      Query<(Entity, &Position, &Description, Option<&Player>)>,
+	                     key_query:        Query<(Entity, &Portable, &Description, &Key), Without<Position>>,
 ) {
+	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
-		if event.etype != ActorLock
-		&& event.etype != ActorUnlock { continue; }
+		let mut atype = ActionType::NoAction;
+		if let PlayerAction(action) | ActorAction(action) = event.etype {
+			if action != LockItem && action != UnlockItem {
+				continue;
+			} else {
+				atype = action;
+			}
+		}
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
 		let actor = e_query.get_mut(econtext.subject).unwrap();
 		let player_action = actor.3.is_some();
 		let mut target = lock_query.get_mut(econtext.object).unwrap();
 		let mut message: String = "".to_string();
-		match event.etype {
-			ActorLock => {
+		match atype {
+			ActionType::LockItem => {
 				// TODO: obtain the new key value and apply it to the lock
 				target.3.is_locked = true;
 				if player_action {
@@ -381,7 +219,7 @@ pub fn lock_system(mut _commands:    Commands,
 					message = format!("The {} locks the {}.", actor.2.name.clone(), target.2.name.clone());
 				}
 			}
-			ActorUnlock => {
+			ActionType::UnlockItem => {
 				// Obtain the set of keys that the actor is carrying
 				let mut carried_keys: Vec<(Entity, i32, String)> = Vec::new();
 				for key in key_query.iter() {
@@ -413,452 +251,252 @@ pub fn lock_system(mut _commands:    Commands,
 		}
 	}
 }
-/// Handles anything related to the CanOperate component: ActorUse, ToggleSwitch, &c
-pub fn operable_system(mut ereader: EventReader<GameEvent>,
-                       //mut o_query: Query<(Entity, &Position, &Name), With<CanOperate>>,
-                       mut d_query: Query<(Entity, &Name, &mut Device)>,
+/// Handles updates to the 'meta' worldmaps, ie the blocked and opaque tilemaps
+pub fn map_indexing_system(mut model:         ResMut<Model>,
+	                         mut blocker_query: Query<&Position, With<Obstructive>>,
+	                         mut opaque_query:  Query<(&Position, &Opaque)>,
 ) {
-	for event in ereader.iter() {
-		if event.etype != ItemUse { continue; }
-		let econtext = event.context.as_ref().unwrap();
-		if econtext.is_invalid() { continue; }
-		//let operator = o_query.get(econtext.subject).unwrap();
-		let mut device = d_query.get_mut(econtext.object).unwrap();
-		if !device.2.pw_switch { // If it's not powered on, assume that function first
-			device.2.power_toggle();
+	// First, rebuild the blocking map by the map tiles
+	let mut f_index = 0;
+	let mut index;
+	for floor in model.levels.iter_mut() {
+		floor.update_tilemaps(); // Update tilemaps based on their tiletypes
+		// Then, step through all blocking entities and flag their locations on the map as well
+		for guy in blocker_query.iter_mut() {
+			if guy.z != f_index { continue; }
+			index = floor.to_index(guy.x, guy.y);
+			floor.blocked_tiles[index] = true;
 		}
+		// Do the same for the opaque entities
+		for guy in opaque_query.iter_mut() {
+			if guy.0.z != f_index { continue; }
+			index = floor.to_index(guy.0.x, guy.0.y);
+			floor.opaque_tiles[index] = guy.1.opaque;
+		}
+		f_index += 1;
 	}
 }
-/// Handles entities that can see physical light
-pub fn visibility_system(mut model: ResMut<Model>,
-	                     mut seers: Query<(&mut Viewshed, &Position, Option<&Player>)>
+/// Handles updates for entities that can move around
+pub fn movement_system(mut ereader:     EventReader<GameEvent>,
+	                     mut msglog:      ResMut<MessageLog>,
+	                     mut p_posn_res:  ResMut<Position>,
+	                     model:           Res<Model>,
+	                     mut e_query:     Query<(Entity, &Description, &mut Position, Option<&mut Viewshed>)>
 ) {
-	for (mut viewshed, posn, player) in &mut seers {
-		//eprintln!("posn: {posn:?}"); // DEBUG:
-		if viewshed.dirty {
-			assert!(posn.z != -1);
-			let map = &mut model.levels[posn.z as usize];
-			viewshed.visible_tiles.clear();
-			viewshed.visible_tiles = field_of_view(posn_to_point(posn), viewshed.range, map);
-			viewshed.visible_tiles.retain(|p| p.x >= 0 && p.x < map.width
-				                             && p.y >= 0 && p.y < map.height
-			);
-			if let Some(_player) = player { // if this is the player...
-				for posn in &viewshed.visible_tiles { // For all the player's visible tiles...
-					// ... set the corresponding tile in the map.revealed_tiles to TRUE
-					let map_index = map.to_index(posn.x, posn.y);
-					map.revealed_tiles[map_index] = true;
+	if ereader.is_empty() { return; } // Don't even bother trying if there's no events to worry about
+	for event in ereader.iter() {
+		// Only process the event if it's an ____Action(MoveTo(dir)) type
+		if let PlayerAction(atype) | ActorAction(atype) = event.etype {
+			if let MoveTo(dir) = atype {
+				let is_player_action = same_enum_variant(&event.etype, &PlayerAction(NoAction));
+				if event.context.is_none() {
+					eprintln!("* ! no context for actor movement"); // DEBUG: warn if the actor's movement is broken
+					continue;
+				}
+				let econtext = event.context.unwrap();
+				let origin = e_query.get_mut(econtext.subject);
+				let (_, _, mut actor_posn, view_ref) = origin.unwrap();
+				let mut xdiff = 0;
+				let mut ydiff = 0;
+				let mut zdiff = 0; // NOTE: not a typical component: z-level indexes to map stack, not Euclidean space
+				match dir { // Calculate the offsets required from the specified direction
+					Direction::X    => { }
+					Direction::N    =>             { ydiff -= 1 }
+					Direction::NW   => { xdiff -= 1; ydiff -= 1 }
+					Direction::W    => { xdiff -= 1 }
+					Direction::SW   => { xdiff -= 1; ydiff += 1 }
+					Direction::S    =>             { ydiff += 1 }
+					Direction::SE   => { xdiff += 1; ydiff += 1 }
+					Direction::E    => { xdiff += 1 }
+					Direction::NE   => { xdiff += 1; ydiff -= 1 }
+					Direction::UP   =>      { zdiff += 1 }
+					Direction::DOWN =>      { zdiff -= 1 }
+				}
+				let mut new_location = Position::new(actor_posn.x + xdiff, actor_posn.y + ydiff, actor_posn.z + zdiff);
+				if dir == Direction::UP || dir == Direction::DOWN { // Is the actor moving between z-levels?
+					// Prevent movement if an invalid z-level was calculated, or if they are not standing on stairs
+					if new_location.z < 0 || new_location.z as usize >= model.levels.len() {
+						msglog.tell_player(format!("There's no way to go {} from here.", dir));
+						continue;
+					}
+					let actor_index = model.levels[actor_posn.z as usize].to_index(actor_posn.x, actor_posn.y);
+					if model.levels[actor_posn.z as usize].tiles[actor_index].ttype != TileType::Stairway {
+						msglog.tell_player(format!("You're not standing on anything that allows you to go {}.", dir));
+						continue;
+					}
+					let possible = model.portals.get(&(actor_posn.x, actor_posn.y, actor_posn.z));
+					if let Some(portal) = possible {
+						new_location = Position::new(portal.0, portal.1, portal.2);
+					}
+				}
+				let locn_index = model.levels[new_location.z as usize].to_index(new_location.x, new_location.y);
+				if model.levels[new_location.z as usize].blocked_tiles[locn_index] { // Is there anything blocking movement?
+					// CASE 1: Another Actor is blocking the way
+					for guy in e_query.iter() {
+						if guy.2 == &new_location {
+							msglog.tell_player(format!("The way {} is blocked by the {}.", dir, guy.1));
+							return;
+						}
+					}
+					// CASE 2: An inert Entity (ie a Thing or Fixture) is blocking the way
+					msglog.tell_player(format!("The way {} is blocked by a {}.",
+						                 dir, &model.levels[new_location.z as usize].tiles[locn_index].ttype.to_string()));
+					return;
+				}
+				if let Some(mut viewshed) = view_ref { // If the actor has a Viewshed, flag it as dirty to be updated
+					viewshed.dirty = true;
+				}
+				*actor_posn = new_location; // Nothing's in the way, so go ahead and update the actor's position
+				if is_player_action { // Was it the player that's moving around?
+					// Is there anything on the ground at the new location?
+					*p_posn_res = new_location; // Update the system-wide resource containing the player's location
+					let mut contents = Vec::new();
+					for enty in e_query.iter() {
+						if *enty.2 == new_location {
+							contents.push(&enty.1.name);
+						}
+					}
+					// If so, tell the player about it
+					if !contents.is_empty() {
+						let message = if contents.len() <= 3 { // Make a shortlist if there's only a couple items here
+							let mut text = "There's a ".to_string();
+							loop {
+								text.push_str(contents.pop().unwrap());
+								if contents.is_empty() { break; }
+								else { text.push_str(", and a "); }
+							}
+							text.push_str(" here.");
+							text
+						} else { // Just summarize since there's more there than we can list in one line
+							"There's some stuff here on the ground.".to_string()
+						};
+						msglog.tell_player(message);
+					}
 				}
 			}
-			viewshed.dirty = false;
 		}
 	}
 }
-/// Handles pickup/drop/destroy requests for Items
-pub fn item_collection_system(mut commands: Commands,
-	                            mut ereader:  EventReader<GameEvent>,
-	                            mut msglog:   ResMut<MessageLog>,
-	                            // The list of Entities that also have Containers
-	                            e_query:      Query<(Entity, &Name, &Position, &Container, Option<&Player>)>,
-	                            // The list of every Item that may or may not be in a container
-	                            i_query:      Query<(Entity, &Name, &Portable, Option<&Position>)>,
+/// Handles updates for entities that can open and close
+pub fn openable_system(mut commands:    Commands,
+	                     mut ereader:     EventReader<GameEvent>,
+	                     mut msglog:      ResMut<MessageLog>,
+	                     mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
+	                     mut e_query:     Query<(Entity, &Position, &Description, Option<&Player>, Option<&mut Viewshed>)>,
 ) {
+	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
-		// Do some event typechecking before variable initialization to prevent invalid data accesses
-		if event.etype != ItemMove
-		&& event.etype != ItemDrop
-		&& event.etype != ItemKILL { continue; }
+		let mut atype = ActionType::NoAction;
+		if let PlayerAction(action) | ActorAction(action) = event.etype {
+			if action != OpenItem && action != CloseItem {
+				continue;
+			} else {
+				atype = action;
+			}
+		}
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
-		if econtext.is_invalid() { continue; } // TODO: consider renaming this function...
+		//eprintln!("actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
+		let actor = e_query.get_mut(econtext.subject).unwrap();
+		let player_action = actor.3.is_some();
 		let mut message: String = "".to_string();
-		let subject = e_query.get(econtext.subject).unwrap();
-		let subject_name = subject.1.name.clone();
-		let player_action = subject.4.is_some();
-		let object = i_query.get(econtext.object).unwrap();
-		let item_name = object.1.name.clone();
-		match event.etype {
-			ItemMove => { // Move an Item into an Entity's possession
-				commands.entity(object.0)
-				.insert(Portable{carrier: subject.0}) // put the container's ID to the target's Portable component
-				.remove::<Position>(); // remove the Position component from the target
-				// note that the above simply does nothing if it doesn't exist,
-				// and inserting a Component that already exists overwrites the previous one,
-				// so it's safe to call even on enty -> enty transfers
-				if player_action {
-					message = format!("Obtained a {}.", item_name);
-				} else {
-					message = format!("The {} takes a {}.", subject_name, item_name);
+		match atype {
+			ActionType::OpenItem => {
+				//eprintln!("Trying to open a door"); // DEBUG: announce opening a door
+				for mut door in door_query.iter_mut() {
+					if door.0 == econtext.object {
+						door.2.is_open = true;
+						door.3.glyph = door.2.open_glyph.clone();
+						door.4.opaque = false;
+						commands.entity(door.0).remove::<Obstructive>();
+					}
 				}
-			}
-			ItemDrop => { // Remove an Item and place it into the World
-				let location = subject.2;
-				commands.entity(object.0)
-				.insert(Portable{carrier: Entity::PLACEHOLDER}) // still portable but not carried
-				.insert(Position{x: location.x, y: location.y, z: location.z});
 				if player_action {
-					message = format!("Dropped a {}.", item_name);
+					message = "You open the [door]".to_string();
 				} else {
-					message = format!("The {} drops a {}.", subject_name, item_name);
+					message = format!("The {} opens a [door].", actor.2.name.clone());
 				}
+				if actor.4.is_some() { actor.4.unwrap().dirty = true; }
 			}
-			ItemKILL => { // DESTROY an Item entirely, ie remove it from the game
-				commands.entity(econtext.object).despawn();
+			ActionType::CloseItem => {
+				//eprintln!("Trying to close a door"); // DEBUG: announce closing door
+				for mut door in door_query.iter_mut() {
+					if door.0 == econtext.object {
+						door.2.is_open = false;
+						door.3.glyph = door.2.closed_glyph.clone();
+						door.4.opaque = true;
+						commands.entity(door.0).insert(Obstructive {});
+					}
+				}
+				if player_action {
+					message = "The [door] slides shut.".to_string();
+				} else {
+					message = format!("The {} closes a [door].", actor.2.name.clone());
+				}
+				if actor.4.is_some() { actor.4.unwrap().dirty = true; }
 			}
-			_ => { /* do nothing */ }
+			_ => { }
 		}
 		if !message.is_empty() {
 			msglog.tell_player(message);
 		}
 	}
 }
-/// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
-pub fn planq_system(mut commands:   Commands,
-	                  mut ereader:    EventReader<GameEvent>,
-	                  mut preader:    EventReader<PlanqEvent>,
-	                  time:           Res<Time>,
-	                  mut msglog:     ResMut<MessageLog>,
-	                  mut planq:      ResMut<PlanqData>, // contains the PLANQ's settings and data storage
-	                  mut monitor:    ResMut<PlanqMonitor>, // contains the PLANQ's status bar info
-	                  p_query:        Query<(Entity, &Position), With<Player>>, // provides interface to player data
-	                  i_query:        Query<(Entity, &Portable), Without<Position>>, // inventory lists (TODO: consider deprecating?)
-	                  mut q_query:    Query<(Entity, &Planq, &Device, &mut RngComponent)>, // contains the PLANQ's component data
-	                  mut t_query:    Query<(Entity, &mut PlanqProcess)>, // contains the set of all PlanqTimers
+/// Handles anything related to the CanOperate component: ActorUse, ToggleSwitch, &c
+pub fn operable_system(mut ereader: EventReader<GameEvent>,
+                       //mut o_query: Query<(Entity, &Position, &Name), With<CanOperate>>,
+                       mut d_query: Query<(Entity, &Description, &mut Device)>,
 ) {
-	/* TODO: Implement level generation such that the whole layout can be created at startup from a
-	 * tree of rooms, rather than by directly loading a REXPaint map; by retaining this tree-list
-	 * of rooms in the layout, the PLANQ can then show the player's location as a room name
-	 */
-	// Update the planq's settings if there are any changes queued up
-	let player = p_query.get_single().unwrap();
-	let planq_enty = q_query.get_single_mut().unwrap();
-	//let planq_enty = q_query.get_single().unwrap();
-	let mut refresh_inventory = false;
-	// Handle any new comms
-	for event in ereader.iter() { // First, handle any GameEvents
-		match event.etype {
-			// Player interaction events that need to be monitored
-			ItemMove => { // The player (g)ot the PLANQ from somewhere external
-				let econtext = event.context.as_ref().unwrap();
-				if econtext.subject == player.0 {
-					refresh_inventory = true;
-					if econtext.object == planq_enty.0 {
-						planq.is_carried = true;
-						commands.spawn(DataSampleTimer::new().source("planq_mode".to_string()));
-						commands.spawn(DataSampleTimer::new().source("current_time".to_string()));
-						commands.spawn(DataSampleTimer::new().source("planq_battery".to_string()));
-					}
-				}
-			}
-			ItemDrop => { // The player (d)ropped the PLANQ
-				let econtext = event.context.as_ref().unwrap();
-				if econtext.subject == player.0 { refresh_inventory = true; }
-				if econtext.object == planq_enty.0 { planq.is_carried = false; }
-			}
-			ItemUse => { // The player (a)pplied the PLANQ
-				let econtext = event.context.as_ref().unwrap();
-				if econtext.subject == player.0
-				&& econtext.object == planq_enty.0 {
-					// Note that the Operable system already handles the ItemUse action for the
-					// PLANQ: it allows the player to operate the power switch
-					// This seems likely to change in the future to allow some better service
-					// commands, like battery swaps or peripheral attachment
-					msglog.tell_player("There is a faint 'click' as you press the PLANQ's power button.".to_string());
-				}
-			}
-			_ => { }
-		}
-	}
-	for event in preader.iter() { // Then, handle any PlanqEvents
-		match event.etype {
-			// PLANQ system commands
-			PlanqEventType::NullEvent => { /* do nothing */ }
-			Startup => { planq.cpu_mode = PlanqCPUMode::Startup; } // covers the entire boot stage
-			BootStage(lvl) => { planq.boot_stage = lvl; }
-			Shutdown => { planq.cpu_mode = PlanqCPUMode::Shutdown; }
-			Reboot => { /* do a Shutdown, then a Startup */ }
-			GoIdle => { planq.cpu_mode = PlanqCPUMode::Idle; }
-			CliOpen => {
-				if planq.cpu_mode != PlanqCPUMode::Startup
-				&& planq.cpu_mode != PlanqCPUMode::Shutdown
-				&& planq.cpu_mode != PlanqCPUMode::Offline {
-					planq.show_cli_input = true;
-					planq.action_mode = PlanqActionMode::CliInput;
-				}
-			}
-			CliClose => {
-				// FIXME: need to clear the CLI's input buffer! might need to do this at the time of key input?
-				planq.show_cli_input = false;
-				planq.action_mode = PlanqActionMode::Default; // FIXME: this might be a bad choice
-			}
-			InventoryUse => {
-				planq.inventory_toggle(); // display the inventory menu
-				planq.action_mode = PlanqActionMode::UseItem;
-			}
-			InventoryDrop => {
-				planq.inventory_toggle(); // display the inventory menu
-				planq.action_mode = PlanqActionMode::DropItem;
-			}
-			AccessLink => {
-				// The player has connected the PLANQ's access jack to an access port (PlanqConnect has fired)
-				// but has not yet executed "connect" on the PLANQ itself (PlanqCmd::Connect(target))
-				// planq.jack_cnxn should contain the Entity ID of the target
-				// - Set up whatever backend linkage is needed
-				// - Get the status output of the target
-				// - Display that status output and switch back to Idle
-				// OUTPUT:789_123456789_123456789_
-				// "P: Connected: $ENTY"
-				// "E: Status: $E_STATUS"
-				// "P: (idle)"
-			}
-			AccessUnlink => {
-				// The player has disconnected their PLANQ from the device
-				// - If PlanqCmd::Disconnect() was not run prior, may wish to capture that and cause errors
-				// - stop any running processes/jobs
-				// - stop/clean up any leftover bits
-				// - return to the main PLANQ input state (Working/Idle)
-				// OUTPUT:789_123456789_123456789_
-				// "P: Connection closed"
-				// "P: (idle)"
+	if ereader.is_empty() { return; }
+	for event in ereader.iter() {
+		if let PlayerAction(action) | ActorAction(action) = event.etype {
+			if action != UseItem {
+				continue;
 			}
 		}
-	}
-	// Update the PLANQData resources:
-	// - Get the device hardware info
-	if !planq.power_is_on && planq_enty.2.pw_switch { // If the power's off but the switch is set to ON...
-		planq.power_is_on = planq_enty.2.pw_switch; // Update the power switch setting
-		//planq.output_1_enabled = true; // DEBUG:
-		planq.show_terminal = true;
-		planq.cpu_mode = PlanqCPUMode::Startup; // Begin booting the PLANQ's OS
-	}
-	if planq.power_is_on && !planq_enty.2.pw_switch { // If the power's on but the switch is set to OFF...
-		planq.power_is_on = planq_enty.2.pw_switch; // Update the power switch setting
-		planq.cpu_mode = PlanqCPUMode::Shutdown; // Initiate a shutdown
-	}
-	// HINT: Get the current battery voltage with planq_enty.2.batt_voltage
-	// - Handle the Planq's CPU mode logic
-	// TODO: catch the edge case where the proc_table.len() == 0 but the CPUMode != Offline/Startup/Error/&c
-	match planq.cpu_mode {
-		PlanqCPUMode::Error(_) => { /* TODO: implement Error modes */ }
-		PlanqCPUMode::Offline => { /* do nothing */ }
-		PlanqCPUMode::Startup => {
-			// do the boot process: send outputs, progress bars, the works
-			// then kick over to PAM::Idle
-			if !planq.proc_table.is_empty() {
-				// if there are any running processes, check to see if they're done
-				for id in planq.proc_table.clone() {
-					let enty = t_query.get(id).unwrap();
-					if enty.1.timer.just_finished() {
-						match enty.1.outcome.etype {
-							BootStage(lvl) => {
-								planq.boot_stage = lvl;
-							}
-							PlanqEventType::GoIdle => { planq.cpu_mode = PlanqCPUMode::Idle; }
-							_ => { }
-						}
-					}
-				}
-			}
-			// Get proc 0, aka the boot process
-			let proc_ref = if !planq.proc_table.is_empty() {
-				t_query.get_mut(planq.proc_table[0])
-			} else {
-				Err(QueryEntityError::NoSuchEntity(Entity::PLACEHOLDER))
-			};
-			// NOTE: might be able to deal with some formatting if i rewrote the boot msgs in a Table
-			match planq.boot_stage {
-				0 => {
-					if planq.proc_table.is_empty() {
-						eprintln!("¶ running boot stage {}", planq.boot_stage);
-						msglog.boot_message(planq.boot_stage);
-						// kick off boot stage 1
-						planq.proc_table.push(commands.spawn(
-								PlanqProcess::new()
-								.time(3)
-								.event(PlanqEvent::new(PlanqEventType::BootStage(1))))
-							.id()
-						);
-					}
-				}
-				1 => {
-					if let Ok(mut proc) = proc_ref {
-						if proc.1.timer.just_finished() {
-							eprintln!("¶ running boot stage {}", planq.boot_stage);
-							msglog.boot_message(planq.boot_stage);
-							// set its duration, if needed
-							//proc.1.timer.set_duration(Duration::from_secs(5));
-							// reset it
-							proc.1.timer.reset(); // will be iterated on at next system run
-							proc.1.outcome = PlanqEvent::new(PlanqEventType::BootStage(2));
-						}
-					}
-				}
-				2 => {
-					if let Ok(mut proc) = proc_ref {
-						if proc.1.timer.just_finished() {
-							eprintln!("¶ running boot stage {}", planq.boot_stage);
-							msglog.boot_message(planq.boot_stage);
-							// set its duration, if needed
-							//proc.1.timer.set_duration(Duration::from_secs(5));
-							// reset it and start it
-							proc.1.timer.reset(); // will be iterated on at next system run
-							proc.1.outcome = PlanqEvent::new(PlanqEventType::BootStage(3));
-						}
-					}
-				}
-				3 => {
-					if let Ok(mut proc) = proc_ref {
-						if proc.1.timer.just_finished() {
-							eprintln!("¶ running boot stage {}", planq.boot_stage);
-							msglog.boot_message(planq.boot_stage);
-							// set its duration, if needed
-							//proc.1.timer.set_duration(Duration::from_secs(5));
-							// reset it and start it
-							proc.1.timer.reset(); // will be iterated on at next system run
-							proc.1.outcome = PlanqEvent::new(PlanqEventType::BootStage(4));
-						}
-					}
-				}
-				4 => {
-					if let Ok(mut proc) = proc_ref {
-						if proc.1.timer.just_finished() {
-							eprintln!("¶ running boot stage {}", planq.boot_stage);
-							msglog.boot_message(planq.boot_stage);
-							// TODO: implement an add() method on the monitor: monitor.add("player_location");
-							// DEBUG: these status bars are for testing/debugging
-							monitor.status_bars.push("player_location".to_string());
-							monitor.raw_data.insert("player_location".to_string(), PlanqDataType::Text("".to_string()));
-							commands.spawn(DataSampleTimer::new().source("player_location".to_string()));
-							//monitor.status_bars.push("test_line".to_string());
-							//monitor.raw_data.insert("test_line".to_string(), PlanqDataType::Decimal {numer: 1, denom: 10});
-							//commands.spawn(DataSampleTimer::new().duration(2).source("test_line".to_string()));
-							//monitor.status_bars.push("test_sparkline".to_string());
-							//monitor.raw_data.insert("test_sparkline".to_string(), PlanqDataType::Series(VecDeque::new()));
-							//commands.spawn(DataSampleTimer::new().duration(1).source("test_sparkline".to_string()));
-							//monitor.status_bars.push("test_gauge".to_string());
-							//monitor.raw_data.insert("test_gauge".to_string(), PlanqDataType::Percent(0));
-							//commands.spawn(DataSampleTimer::new().duration(3).source("test_gauge".to_string()));
-							// END DEBUG:
-							proc.1.outcome = PlanqEvent::new(PlanqEventType::NullEvent);
-							planq.cpu_mode = PlanqCPUMode::Idle;
-							eprintln!("¶ Adding status bars to PLANQ");
-							// TODO: ensure that the status bar stack is cleaned up on PLANQ shutdown
-						}
-					}
-				}
-				_ => { }
-			}
+		let econtext = event.context.as_ref().unwrap();
+		if econtext.is_blank() { continue; }
+		//let operator = o_query.get(econtext.subject).unwrap();
+		let mut device = d_query.get_mut(econtext.object).unwrap();
+		if !device.2.pw_switch { // If it's not powered on, assume that function first
+			device.2.power_toggle();
 		}
-		PlanqCPUMode::Shutdown => {
-			// TODO: Make sure the proc_table is clear
-			// Set the CPU's mode
-			// When finished, set the power_is_on AND planq_enty.2.pw_switch to false
-		}
-		PlanqCPUMode::Idle => {
-			// given a sequence of integers 0-9,
-			// produce a smoothly scaled integer 1-21
-			let smooth_input = (time.elapsed().as_secs() % 10) as f64;
-			//let angle: f64 = 0.6282 * smooth_input - 1.571;
-			//let output = (10.5 * angle.sin() + 10.5) as usize;
-			let output = (4.4 * smooth_input - 23.0).abs() as usize;
-			let idle_message = format!("{:width$}", "", width=output) + "-=[ ]=-";
-			if planq.proc_table.len() == 1 { // Is there anything besides the boot process running?
-				// update the idle graphic if we're still idling, or send a new one if not
-				msglog.replace(idle_message, "planq".to_string(), 0, 0);
-			}
-			// FIXME: what to do if CPUMode = Idle but proc_table.len() > 1 (there are tasks to finish)?
-		}
-		PlanqCPUMode::Working => {
-			// TODO: Display the outputs from the workloads
-			// ...
-			// Finally, if all the workloads are done, shift back to Idle mode
-			if planq.proc_table.len() == 1 { planq.cpu_mode = PlanqCPUMode::Idle; }
-		}
-	}
-	// - Iterate any active PlanqProcesses
-	for mut pq_timer in t_query.iter_mut() {
-		if !pq_timer.1.timer.finished() {
-			pq_timer.1.timer.tick(time.delta());
-		}
-	}
-	// - Refill the planq's inventory list
-	if refresh_inventory {
-		planq.inventory_list = Vec::new();
-		for item in i_query.iter().enumerate() {
-			if item.1.1.carrier == player.0 {
-				planq.inventory_list.push(item.1.0);
-			}
-		}
+		// TODO: there's definitely going to be more stuff to implement here depending on the actual Device
 	}
 }
-/// Handles the 'backend' automated stuff for the PLANQ, such as the status bars
-pub fn planq_monitor_system(time:           Res<Time>,
-	                          msglog:         Res<MessageLog>,
-	                          mut planq:      ResMut<PlanqData>, // contains the PLANQ's settings and data storage
-	                          mut monitor:    ResMut<PlanqMonitor>, // contains the PLANQ's status bar info
-	                          p_query:        Query<(Entity, &Position), With<Player>>, // provides interface to player data
-	                          mut q_query:    Query<(Entity, &Planq, &Device, &mut RngComponent)>, // contains the PLANQ's component data
-	                          mut s_query:    Query<(Entity, &mut DataSampleTimer)>, // the set of datasources that need updates
+/// Handles entities that can see physical light
+pub fn visibility_system(mut model:  ResMut<Model>,
+	                       mut seers:  Query<(&mut Viewshed, &Position, Option<&Player>, Option<&mut Memory>), Changed<Viewshed>>,
+	                       observable: Query<(Entity, &Position, &Renderable)>,
 ) {
-	let player = p_query.get_single().unwrap();
-	let mut planq_enty = q_query.get_single_mut().unwrap();
-	// - Refresh the planq's scrollback
-	// TODO: optimize this to avoid doing a full copy of the log every single time
-	planq.stdout = msglog.get_log_as_messages("planq".to_string(), 0);
-	// - Get the player's location
-	planq.player_loc = *player.1;
-	// - Update the status bar data from externals
-	// METHOD
-	// 1 Get the list of active status bars from the PLANQ monitor
-	// 2 Incr all timers in the list
-	// 3 If any timers have finished, call the data source's update method, then reset the timer
-	for mut data_timer in s_query.iter_mut() {
-		if data_timer.1.timer.finished() {
-			let source_name = data_timer.1.source.clone();
-			match source_name.as_str() {
-				"planq_mode" => {
-					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(planq.cpu_mode.to_string()));
+	for (mut viewshed, s_posn, player, memory) in &mut seers {
+		//eprintln!("* [vis_sys] s_posn: {posn:?}"); // DEBUG: print the position of the entity being examined
+		if viewshed.dirty {
+			assert!(s_posn.z != -1);
+			let map = &mut model.levels[s_posn.z as usize];
+			viewshed.visible_tiles.clear();
+			viewshed.visible_tiles = field_of_view(posn_to_point(s_posn), viewshed.range, map);
+			viewshed.visible_tiles.retain(|p| p.x >= 0 && p.x < map.width
+				                           && p.y >= 0 && p.y < map.height
+			);
+			if let Some(_player) = player { // if this is the player...
+				for s_posn in &viewshed.visible_tiles { // For all the player's visible tiles...
+					// ... set the corresponding tile in the map.revealed_tiles to TRUE
+					let map_index = map.to_index(s_posn.x, s_posn.y);
+					map.revealed_tiles[map_index] = true;
 				}
-				"player_location" => {
-					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(planq.player_loc.to_string()));
-				}
-				"current_time" => { // TODO: this needs to be rewritten into a 24h clock, not a stopwatch
-					let start_time_offset = Duration::new(2096, 789); // 12:34:56.789
-					let current_time = time.elapsed() + start_time_offset;
-					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(current_time.get_as_string()));
-				}
-				"planq_battery" => {
-					monitor.raw_data.entry(source_name)
-						.and_modify(|x| *x = PlanqDataType::Percent(planq_enty.2.batt_voltage as u32));
-				}
-				"test_line" => {
-					monitor.raw_data.entry(source_name)
-						.and_modify(|x| *x = PlanqDataType::Decimal {numer: planq_enty.3.i32(0..100), denom: 100});
-				}
-				"test_sparkline" => {
-					// This update method is a little 'backwards': instead of passing a new value to raw_data via entry(),
-					// we modify the raw_data's values directly using the mutable reference we obtain with get_mut()
-					let entry = monitor.raw_data.get_mut(&source_name).unwrap();
-					if let PlanqDataType::Series(ref mut arr) = entry {
-						arr.push_back(planq_enty.3.u64(0..10));
-						loop {
-							if arr.len() >= 31 {
-								arr.pop_front();
-							} else {
-								break;
-							}
+			}
+			if let Some(mut recall) = memory { // If the seer entity has a memory...
+				for v_posn in &viewshed.visible_tiles { // Iterate on all tiles they can see:
+					let new_posn = Position::new(v_posn.x, v_posn.y, s_posn.z);
+					for target in observable.iter() {
+						if *target.1 == new_posn {
+							recall.visual.insert(target.0, new_posn);
 						}
 					}
 				}
-				"test_gauge" => {
-					monitor.raw_data.entry(source_name)
-					.and_modify(|x| *x = PlanqDataType::Percent(planq_enty.3.u32(0..=100)));
-				}
-				_ => {  }
 			}
-			data_timer.1.timer.reset();
-		} else {
-			data_timer.1.timer.tick(time.delta());
+			viewshed.dirty = false;
 		}
 	}
 }
@@ -867,20 +505,20 @@ pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
 	                        mut preader:      EventWriter<PlanqEvent>,
 	                        mut msglog:       ResMut<MessageLog>,
 	                        mut planq:        ResMut<PlanqData>,
-	                        a_query:          Query<(Entity, &Name), With<AccessPort>>,
+	                        a_query:          Query<(Entity, &Description), With<AccessPort>>,
 ) {
 	for event in ereader.iter() {
 		match event.etype {
-			PlanqConnect => {
-				planq.jack_cnxn = event.context.unwrap().object;
-				msglog.tell_player("The PLANQ's access jack clicks into place.".to_string());
-				preader.send(PlanqEvent::new(PlanqEventType::AccessLink))
-			}
-			PlanqDisconnect => {
-				let object_name = a_query.get(planq.jack_cnxn).unwrap().1;
+			GameEventType::PlanqConnect(Entity::PLACEHOLDER) => {
 				planq.jack_cnxn = Entity::PLACEHOLDER;
+				let object_name = a_query.get(planq.jack_cnxn).unwrap().1;
 				msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name));
 				preader.send(PlanqEvent::new(PlanqEventType::AccessUnlink))
+			}
+			GameEventType::PlanqConnect(target) => {
+				planq.jack_cnxn = event.context.unwrap().object;
+				msglog.tell_player(format!("The PLANQ's access jack clicks into place on the {:?}.", target));
+				preader.send(PlanqEvent::new(PlanqEventType::AccessLink))
 			}
 			_ => { }
 		}
@@ -916,13 +554,107 @@ impl DurationFmtExt for Duration {
 	}
 }
 
-/* TODO: "memory_system":
- * Maintains an enhanced Map of Tiles where the Tile glyphs are painted to include the locations of
- * existing Renderables in addition to the terrain
- * When this system is initialized (after the initial level setup, before the disaster design
- * phase), it provides a 'prior memory' of the ship layout
- * When this system is updated, it provides the player with a visual mapping of where to find
- * complex machines and other gameplay objectives
- */
+// *** SINGLETON SYSTEMS
+/// Adds a new player entity to a new game world
+pub fn new_player_spawn(mut commands: Commands,
+	                      spawnpoint:   Res<Position>,
+	                      mut p_query:  Query<(Entity, &Player)>,
+	                      mut global_rng: ResMut<GlobalRng>,
+) {
+	if !p_query.is_empty() {
+		eprintln!("* Existing player found, treating as a loaded game"); // DEBUG: announce possible game load
+		let player = p_query.get_single_mut().unwrap();
+		commands.entity(player.0).insert(Viewshed::new(8));
+		return;
+	}
+	let player = commands.spawn((
+		Player { },
+		ActionSet::new(),
+		Description::new("Pleyeur".to_string(), "Still your old self.".to_string()),
+		*spawnpoint,
+		Renderable::new("@".to_string(), 2, 0),
+		Viewshed::new(8),
+		Mobile::default(),
+		Obstructive::default(),
+		Container::default(),
+		Memory::new(),
+	)).id();
+	eprintln!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
+	commands.spawn((
+		Planq::new(),
+		ActionSet::new(),
+		Description::new("PLANQ".to_string(), "It's your PLANQ.".to_string()),
+		Renderable::new("¶".to_string(), 3, 0),
+		Portable::new(player),
+		Device::new(-1),
+		RngComponent::from(&mut global_rng),
+	));
+	eprintln!("* new planq spawned into player inventory"); // DEBUG: announce creation of player's planq
+	commands.spawn(DataSampleTimer::new().source("current_time".to_string()));
+	commands.spawn(DataSampleTimer::new().source("planq_battery".to_string()));
+	commands.spawn(DataSampleTimer::new().source("planq_mode".to_string()));
+}
+/// Spawns a new LMR at the specified Position, using default values
+pub fn new_lmr_spawn(mut commands:  Commands,
+	                   mut msglog:    ResMut<MessageLog>,
+) {
+	commands.spawn((
+		LMR         { },
+		ActionSet::new(),
+		Description::new("LMR".to_string(), "The Light Maintenance Robot is awaiting instructions.".to_string()),
+		Position::new(12, 12, 0), // TODO: remove magic numbers
+		Renderable::new("l".to_string(), 14, 0),
+		Viewshed::new(5),
+		Mobile::default(),
+		Obstructive::default(),
+		Container::default(),
+		Opaque::new(true),
+	));
+	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0), "debug".to_string(), 1, 1);
+}
+/// Adds a demo NPC to the game world
+pub fn test_npc_spawn(mut commands: Commands,
+	                    mut rng:      ResMut<GlobalRng>,
+	                    e_query:      Query<(Entity, &Position)>,
+) {
+	let spawnpoint = Position::new(rng.i32(1..30), rng.i32(1..30), 0);
+	// Check the spawnpoint for collisions
+	loop {
+		let mut found_open_tile = true;
+		for enty in e_query.iter() { // FIXME: this should probably be a call to Model.is_occupied instead
+			if enty.1 == &spawnpoint { found_open_tile = false; }
+		}
+		if found_open_tile { break; }
+	}
+	commands.spawn((
+		ActionSet::new(),
+		Description::new("Jenaryk".to_string(), "Behold, a generic virtual cariacature of a man.".to_string()),
+		spawnpoint,
+		Renderable::new("&".to_string(), 1, 0),
+		Viewshed::new(8),
+		Mobile::default(),
+		Obstructive::default(),
+		Container::default(),
+	));
+	eprintln!("* Spawned new npc at {}", spawnpoint); // DEBUG: announce npc creation
+}
+
+// *** UTILITIES
+/// Converts my Position type into a bracket_pathfinding::Point
+pub fn posn_to_point(input: &Position) -> Point { Point { x: input.x, y: input.y } }
+/// If the Entity exists, will return an Iterator that contains info on all the Components that belong to that Entity
+/// rust-clippy insists that the lifetime annotation here is useless, however!
+/// removing the annotation causes errors, because there is a *hidden type* that *does* capture a lifetime parameter
+/// not sure how to get clippy to not report a false-positive, but this code is 100% known to work, i've tested it
+pub fn get_components_for_entity<'a>(entity: Entity,
+	                                   archetypes: &'a Archetypes
+) -> Option<impl Iterator<Item=ComponentId> + 'a> {
+	for archetype in archetypes.iter() {
+		if archetype.entities().iter().any(|x| x.entity() == entity) {
+			return Some(archetype.components());
+		}
+	}
+	None
+}
 
 // EOF

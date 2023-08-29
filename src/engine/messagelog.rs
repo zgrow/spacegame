@@ -1,10 +1,11 @@
 // messagelog.rs
 // Provides some logical handles to facilitate game logging and display via ratatui
 
-use ratatui::text::Spans;
-
 use bevy::prelude::*;
-#[derive(PartialEq, Eq, Clone, Reflect, FromReflect, Debug)]
+use ratatui::text::Line;
+
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Resource)]
 pub struct Message {
 	pub timestamp: i32,
 	pub priority: i32,
@@ -21,7 +22,8 @@ impl Message {
 		}
 	}
 }
-#[derive(PartialEq, Clone, Reflect, FromReflect)]
+#[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
+//#[reflect(Resource)]
 pub struct MessageChannel {
 	pub name: String,
 	pub contents: Vec<Message>,
@@ -40,7 +42,7 @@ impl MessageChannel {
 		self.contents.pop()
 	}
 }
-#[derive(PartialEq, Clone, Resource, Reflect, Default)]
+#[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
 pub struct MessageLog {
 	pub logs: Vec<MessageChannel>
@@ -96,14 +98,6 @@ impl MessageLog {
 		}
 		0
 	}
-	/// Helper method: adds a new message directly to the "world" channel [TODO: with an immediate timestamp]
-	pub fn tell_player(&mut self, msg_text: String) {
-		self.add(msg_text, "world".to_string(), 0, 0);
-	}
-	/// Helper method: adds a new message directly to the "planq" channel (aka 'stdout')
-	pub fn tell_planq(&mut self, msg_text: String) {
-		self.add(msg_text, "planq".to_string(), 0, 0);
-	}
 	/// Sends a boot message associated with the given boot_stage to the PLANQ's channel
 	pub fn boot_message(&mut self, boot_stage: u32) {
 		if boot_stage > 4 {
@@ -145,13 +139,13 @@ impl MessageLog {
 		}
 		false
 	}
-	/// Retrieves a set of log messages from a specified channel as ratatui::Spans
+	/// Retrieves a set of log messages from a specified channel as ratatui::Line
 	/// This means the text will be formatted for display in a ratatui::Paragraph!
 	/// If the given channel does not exist, an empty vector will be returned
 	/// Specify a count of 0 to obtain the full log for that channel
-	pub fn get_log_as_spans(&self, req_channel: String, count: usize) -> Vec<Spans> {
+	pub fn get_log_as_lines(&self, req_channel: String, count: usize) -> Vec<Line> {
 		// TODO: See if possible to optimize this by not building the whole list each time
-		let mut backlog: Vec<Spans> = Vec::new();
+		let mut backlog: Vec<Line> = Vec::new();
 		if self.logs.is_empty() { return backlog; }
 		for channel in &self.logs {
 			if channel.name == req_channel {
@@ -181,6 +175,15 @@ impl MessageLog {
 		}
 		Vec::new()
 	}
+	/// Helper method for writing a message directly to the "world" channel, ie the main feedback message channel
+	pub fn tell_player(&mut self, msg_text: String) {
+		self.add(msg_text, "world".to_string(), 0, 0);
+	}
+	/// Helper method: adds a new message directly to the "planq" channel (aka 'stdout')
+	pub fn tell_planq(&mut self, msg_text: String) {
+		self.add(msg_text, "planq".to_string(), 0, 0);
+	}
+
 }
 /// Implements the Default trait for the reference type
 impl<'a> Default for &'a MessageLog {

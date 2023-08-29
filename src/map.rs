@@ -1,19 +1,26 @@
 // map.rs
 // Defines the gameworld's terrain and interlocks with some bracket-lib logic
-use std::collections::HashMap;
+
+// *** EXTERNAL LIBS
+use bevy::utils::HashMap;
+use std::fmt;
+use std::fmt::Display;
 use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
 use bracket_geometry::prelude::*;
 use bevy::prelude::*;
-use crate::components::*;
-use std::fmt::Display;
-use std::fmt;
 
+// *** INTERNAL LIBS
+use crate::components::*;
+
+// *** CONSTANTS
 pub const MAPWIDTH: i32 = 80;
 pub const MAPHEIGHT: i32 = 60;
 pub const MAPSIZE: i32 = MAPWIDTH * MAPHEIGHT;
 
+// *** METHODS
 ///Decides whether the Tile is open terrain, a wall, et cetera
-#[derive(Reflect, PartialEq, Copy, Clone, Debug, Default, FromReflect)]
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Reflect)]
+#[reflect(Resource)]
 pub enum TileType {
 	#[default]
 	Vacuum,
@@ -33,7 +40,7 @@ impl Display for TileType {
 	}
 }
 ///Represents a single position within the game world
-#[derive(Reflect, PartialEq, Clone, Debug, Resource, FromReflect)]
+#[derive(Resource, Clone, Debug, PartialEq, Reflect)]
 #[reflect(Resource)]
 pub struct Tile {
 	pub ttype: TileType,
@@ -43,14 +50,8 @@ pub struct Tile {
 	pub mods: String,
 }
 impl Default for Tile {
-	fn default() -> Tile {
-		Tile {
-			ttype: TileType::Vacuum,
-			glyph: "ø".to_string(),
-			fg: 5,
-			bg: 0,
-			mods: "".to_string(),
-		}
+	fn default() -> Self {
+		Tile::new_floor()
 	}
 }
 impl Tile {
@@ -97,7 +98,7 @@ impl Tile {
 	// Produces a default 'doorway' 
 }
 ///Represents a single layer of physical space in the game world
-#[derive(Reflect, Clone, Debug, Resource, Default, FromReflect)]
+#[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
 pub struct Map {
 	pub tiles: Vec<Tile>,
@@ -153,7 +154,7 @@ impl Map {
 	*/
 }
 /// Represents the entire stack of Maps that comprise a 3D space
-#[derive(Reflect, Clone, Debug, Resource, Default, FromReflect)]
+#[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
 pub struct Model {
 	pub levels: Vec<Map>,
@@ -170,10 +171,10 @@ impl Model {
 	}
 }
 /// Reference method that allows calculation from an arbitrary width
-pub fn xy_to_index(x: i32, y: i32, w: i32) -> usize {
-	(y as usize * w as usize) + x as usize
+pub fn xy_to_index(x: usize, y: usize, w: usize) -> usize {
+	(y * w) + x
 }
-// NOTE: the Algorithm2D, BaseMap, and Point objects all come out of bracket-lib
+// bracket-lib uses the Algorithm2D, BaseMap, and Point objects
 impl Algorithm2D for Map {
 	fn dimensions(&self) -> Point {
 		Point::new(self.width, self.height)
