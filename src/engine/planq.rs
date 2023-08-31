@@ -37,18 +37,13 @@ pub fn planq_update_system(mut commands: Commands,
 	                         mut planq:    ResMut<PlanqData>, // contains the PLANQ's settings and data storage
 	                         //mut monitor:  ResMut<PlanqMonitor>, // contains the PLANQ's output values and certain diagnostic info
 	                         p_query:      Query<(Entity, &Position), With<Player>>, // provides interface to player data
-	                         q_query:      Query<(Entity, &Device, &Portable), With<Planq>>, // contains the PLANQ's component data
+	                         mut q_query:  Query<(Entity, &Device, &Portable, &mut RngComponent), With<Planq>>, // contains the PLANQ's component data
 	                         mut t_query:  Query<(Entity, &mut PlanqProcess)>, // contains the set of all PlanqTimers
 ) {
-	/* TODO: Implement level generation such that the whole layout can be created at startup from a
-	 * tree of rooms, rather than by directly loading a REXPaint map; by retaining this tree-list
-	 * of rooms in the layout, the PLANQ can then show the player's location as a room name
-	 */
 	if p_query.is_empty() { return; }
 	if q_query.is_empty() { return; }
 	let player = p_query.get_single().unwrap();
-	let planq_enty = q_query.get_single().unwrap();
-	// TODO: implement a 'crash failure mode' where the process 0 has stopped: if so, show a 'crash diagnostic' screen and wait for reboot
+	let mut planq_enty = q_query.get_single_mut().unwrap();
 	// Handle any new GameEvents we're interested in
 	if !ereader.is_empty() {
 		for event in ereader.iter() {
@@ -92,7 +87,7 @@ pub fn planq_update_system(mut commands: Commands,
 				PlanqEventType::Startup        => { planq.cpu_mode = PlanqCPUMode::Startup; } // covers the entire boot stage
 				PlanqEventType::BootStage(lvl) => { planq.boot_stage = lvl; }
 				PlanqEventType::Shutdown       => { planq.cpu_mode = PlanqCPUMode::Shutdown; }
-				PlanqEventType::Reboot         => { /* TODO: do a Shutdown, then a Startup */ }
+				PlanqEventType::Reboot         => { todo!(">>> planq.rs:planq_update_system(), l95 - implement PlanqEventType::Reboot"); /* TODO: do a Shutdown, then a Startup */ }
 				PlanqEventType::GoIdle         => { planq.cpu_mode = PlanqCPUMode::Idle; }
 				PlanqEventType::CliOpen => {
 					planq.show_cli_input = true;
@@ -102,14 +97,6 @@ pub fn planq_update_system(mut commands: Commands,
 					// FIXME: need to clear the CLI's input buffer! might need to do this at the time of key input?
 					planq.show_cli_input = false;
 					planq.action_mode = PlanqActionMode::Default; // FIXME: this might be a bad choice
-				}
-				PlanqEventType::InventoryUse => {
-					planq.inventory_toggle(); // display the inventory menu
-					planq.action_mode = PlanqActionMode::UseItem;
-				}
-				PlanqEventType::InventoryDrop => {
-					planq.inventory_toggle(); // display the inventory menu
-					planq.action_mode = PlanqActionMode::DropItem;
 				}
 				PlanqEventType::AccessLink => {
 					// The player has connected the PLANQ's access jack to an AccessPort (PlanqConnect has fired)
@@ -122,6 +109,7 @@ pub fn planq_update_system(mut commands: Commands,
 					// "P: Connected: $ENTY"
 					// "E: Status: $E_STATUS"
 					// "P: (idle)"
+					todo!(">>> planq.rs:planq_update_system(), l125 - implement PlanqEventType::AccessLink");
 				}
 				PlanqEventType::AccessUnlink => {
 					// The player has disconnected their PLANQ from the AccessPort
@@ -132,6 +120,7 @@ pub fn planq_update_system(mut commands: Commands,
 					// OUTPUT:789_123456789_123456789_
 					// "P: Connection closed"
 					// "P: (idle)"
+					todo!(">>> planq.rs:planq_update_system(), l125 - implement PlanqEventType::AccessUnlink");
 				}
 			}
 		}
@@ -147,20 +136,19 @@ pub fn planq_update_system(mut commands: Commands,
 		planq.power_is_on = planq_enty.1.pw_switch; // Update the power switch setting
 		planq.cpu_mode = PlanqCPUMode::Shutdown; // Initiate a shutdown
 	}
-	// HINT: Get the current battery voltage with planq_enty.2.batt_voltage
-	// - Iterate any active PlanqProcesses
-	for mut pq_timer in t_query.iter_mut() {
-		if !pq_timer.1.timer.finished() {
-			pq_timer.1.timer.tick(time.delta());
-		}
-	}
 	// - Handle the Planq's CPU mode logic
+	// CRASH CHECK:
+	if planq.power_is_on // IF the PLANQ is powered on,
+	&& planq.proc_table.is_empty() // BUT there are no running processes (!),
+	&& (planq.cpu_mode == PlanqCPUMode::Working || planq.cpu_mode == PlanqCPUMode::Idle) { // BUT the PLANQ is supposed to be running (!!)
+		planq.cpu_mode = PlanqCPUMode::Error(420); // Switch to an error mode
+	}
 	match planq.cpu_mode {
-		PlanqCPUMode::Error(_) => { /* TODO: implement Error modes */ }
-		PlanqCPUMode::Offline => { /* do nothing */ }
-		PlanqCPUMode::Startup => {
+		PlanqCPUMode::Error(_) => { todo!(">>> planq.rs:planq_update_system(), l147 - implement Error state"); }
+		PlanqCPUMode::Offline  => { /* do nothing */ }
+		PlanqCPUMode::Startup  => {
 			// do the boot process: send outputs, progress bars, the works
-			// then kick over to PAM::Idle
+			// then kick over to PCM::Idle
 			if !planq.proc_table.is_empty() {
 				// if there are any running processes, check to see if they're done
 				for id in planq.proc_table.clone() {
@@ -182,8 +170,6 @@ pub fn planq_update_system(mut commands: Commands,
 			} else {
 				Err(QueryEntityError::NoSuchEntity(Entity::PLACEHOLDER))
 			};
-			// TODO: rewrite these messages to appear as a ratatui::Table instead of a Paragraph
-			//eprintln!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 			match planq.boot_stage {
 				0 => {
 					if planq.proc_table.is_empty() {
@@ -255,25 +241,45 @@ pub fn planq_update_system(mut commands: Commands,
 			// Make sure the proc_table is clear
 			// Set the CPU's mode
 			// When finished, set the power_is_on AND planq_enty.2.pw_switch to false
+			todo!(">>> planq.rs:planq_update_system(), l258 - implement PlanqCPUMode::Shutdown");
 		}
-		PlanqCPUMode::Idle => {
-			// Given a sequence of integers 0-9,
-			//   produce a smoothly scaled integer 1-21:
+		PlanqCPUMode::Idle     => {
+			/*
+			// IDLE GRAPHIC: Bouncing Box
+			// Given a sequence of integers 0-9, produce a smoothly scaled integer 1-21:
 			let smooth_input = (time.elapsed().as_secs() % 10) as f64;
 			//let angle: f64 = 0.6282 * smooth_input - 1.571;
 			//let output = (10.5 * angle.sin() + 10.5) as usize;
 			let output = (4.4 * smooth_input - 23.0).abs() as usize;
+			// Creates the new idle image by prepending with a variable number of spaces, so that the graphic 'moves'
 			let idle_message = format!("{:width$}", "", width=output) + "-=[ ]=-";
-			if planq.proc_table.len() == 1 { // Is there anything besides the boot process running?
-				// update the idle graphic if we're still idling, or send a new one if not
-				msglog.replace(idle_message, "planq".to_string(), 0, 0);
+			*/
+			// IDLE GRAPHIC: Bizarre Data
+			let sample = vec!['▖', '▗', '▘', '▝', '▀', '▄', '▌', '▐', '▚', '▞', '▙', '▛', '▜', '▟', '█'];
+			// randomly pick chars from sample until we have a line of the correct width
+			// Check for any waiting jobs to be worked
+			let mut idle_message = "".to_string();
+			for _ in 0..30 {
+				let choice = planq_enty.3.usize(0..sample.len());
+				idle_message.push(sample[choice]);
 			}
-			// FIXME: what to do if CPUMode = Idle but proc_table.len() > 1 (there are tasks to finish)?
+			// Update the idle message if there's nothing waiting for processing
+			if planq.proc_table.len() == 1 {
+				msglog.replace(idle_message, "planq".to_string(), 0, 0);
+			} else {
+				planq.cpu_mode = PlanqCPUMode::Working;
+			}
 		}
-		PlanqCPUMode::Working => {
+		PlanqCPUMode::Working  => {
 			// Display the outputs from the workloads
 			// If all workloads are done, shift back to Idle mode
 			if planq.proc_table.len() == 1 { planq.cpu_mode = PlanqCPUMode::Idle; }
+		}
+	}
+	// - Iterate any active PlanqProcesses (these are NOT DataSampleTimers!)
+	for mut proc in t_query.iter_mut() {
+		if !proc.1.timer.finished() {
+			proc.1.timer.tick(time.delta());
 		}
 	}
 	// - Check for some edge cases and other things that we'd like to avoid
@@ -293,7 +299,14 @@ pub fn planq_monitor_system(time:        Res<Time>,
 	if q_query.is_empty() { return; }
 	let player = p_query.get_single().unwrap();
 	let mut planq_enty = q_query.get_single_mut().unwrap();
-	// ... (see sys.rs in commit a97f5b1 for the original version of this system)
+	// Iterate any active PlanqProcesses
+	// These should be iterated locally here so that they are consistent from frame to frame; this is because
+	//   Bevy's Systems implement a multithreading model that does NOT guarantee anything about consistent concurrency
+	for mut pq_timer in s_query.iter_mut() {
+		if !pq_timer.1.timer.finished() {
+			pq_timer.1.timer.tick(time.delta());
+		}
+	}
 	// -- STATUS BARS
 	for mut process in s_query.iter_mut() {
 		if process.1.timer.finished() {
@@ -343,10 +356,10 @@ pub fn planq_monitor_system(time:        Res<Time>,
 		}
 	}
 	// -- SIMPLE DATA
-	// - Refresh the planq's scrollback
+	// Refresh the planq's scrollback
 	// TODO: optimize this to avoid doing a full copy of the log every single time
 	planq.stdout = msglog.get_log_as_messages("planq".to_string(), 0);
-	// - Get the player's location
+	// Get the player's location
 	planq.player_loc = *player.1;
 }
 
@@ -405,27 +418,6 @@ impl PlanqData {
 			proc_table: Vec::new(),
 			jack_cnxn: Entity::PLACEHOLDER,
 		}
-	}
-	pub fn inventory_toggle(&mut self) {
-		self.show_inventory = !self.show_inventory;
-	}
-	/// Renders the status bars of the PLANQ
-	pub fn render_status_bars<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		let mut planq_text = vec!["test string".to_string()]; // DEBUG:
-		planq_text.push(format!("*D* x: {}, y: {}, z: {}",
-		                        self.player_loc.x, self.player_loc.y, self.player_loc.z)); // DEBUG:
-		planq_text.push("1234567890123456789012345678".to_string()); // DEBUG: ruler
-		frame.render_widget(
-			PlanqStatus::new(&planq_text)
-			.block(Block::default()
-					.title("PLANQOS v29.3/rev30161124")
-					.title_alignment(Alignment::Center)
-					.borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
-					.border_type(BorderType::Thick)
-					.border_style(Style::default().fg(Color::White)),
-			),
-			area,
-		);
 	}
 	/// Renders the CLI input box
 	pub fn render_cli<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect, stdin: &mut PlanqInput) {
@@ -512,7 +504,6 @@ impl PlanqMonitor {
 	/// Describes how the PLANQ's monitor will render to the screen
 	/// Note that the area parameter should be just the sidebar area, not including the terminal
 	pub fn render<B: Backend>(&mut self, frame: &mut Frame<'_, B>, mut area: Rect) {
-		// TODO: Sparkline's height can be constrained by its area.height, need to check Gauge widget
 		area.height = 1;
 		let default_block = Block::default().borders(Borders::LEFT | Borders::RIGHT).border_type(BorderType::Plain)
 			.border_style(Style::default().fg(Color::Gray));
@@ -528,11 +519,9 @@ impl PlanqMonitor {
 		// 3: for that PDT, check if the data source is a special case, and if so, use that logic for display
 		// 4: else, just display the data using a generic pattern for that PDT
 		for source in &self.status_bars {
-			// TODO: These will need a revisit for formatting, sanity, &c
 			if let Some(source_type) = self.raw_data.get(source) {
 				match source_type {
 					PlanqDataType::Text(text) => {
-						// TODO: these prefixes could probably get promoted into a dict or something faster/precompiled
 						let prefix = match source.as_str() {
 							"planq_mode" => { "MODE: ".to_string() }
 							"player_location" => { "LOCN: ".to_string() }
@@ -585,7 +574,6 @@ impl PlanqMonitor {
 	}
 	/// Prepends whitespace to the given string until it is of the given width, for right-aligning PLANQ text
 	/// Can be used to build empty lines by giving an empty string to prepend to
-	// TODO: perhaps write a "hard_right_align" that truncates if the string is too long?
 	// NOTE: Rust technically allows padding with an arbitrary char, but the std::fmt macros do not provide any way
 	//         to change this at runtime, since it has to be included as part of the format! macro
 	//       If string padding with arbitrary chars is desired, must either:
@@ -595,18 +583,6 @@ impl PlanqMonitor {
 		if input.len() >= width { return input; }
 		format!("{:>str_width$}", input, str_width = width)
 	}
-	/*
-	fn render_idle_mode<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		frame.render_widget(
-			Paragraph::new("\n\n  (idling)")
-			.block(Block::default()
-			       .borders(Borders::ALL)
-			       .border_style(Style::default().fg(Color::Green)),
-			),
-			area,
-		);
-	}
-	*/
 }
 impl Default for PlanqMonitor {
 	fn default() -> PlanqMonitor {
@@ -629,7 +605,8 @@ pub enum PlanqDataType {
 	Percent(u32),
 	Decimal{numer: i32, denom: i32}, // Floating point numbers don't impl Eq, only PartialEq, so we have to use this pair of ints as a fractional representation instead
 	Series(VecDeque<u64>),
-}/// TUI-TEXTAREA/RATATUI: Defines the CLI input system and its logic
+}
+/// TUI-TEXTAREA/RATATUI: Defines the CLI input system and its logic
 /// Note that tui-textarea is a part of the ratatui ecosystem, and therefore
 /// is ineligible, *by definition*, for addition to the Bevy ecosystem
 #[derive(Clone, Default)]
@@ -694,7 +671,6 @@ pub enum PlanqCmd {
 }
 impl std::fmt::Display for PlanqCmd {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		//write!(f, "{}", self.field)
 		match *self {
 			NoOperation => { write!(f, "(NoOperation)") }
 			Error(_) => { write!(f, "(Error)") }
@@ -706,6 +682,7 @@ impl std::fmt::Display for PlanqCmd {
 		}
 	}
 }
+
 /// BEVY: Provides the Bevy-backed tools for doing things on the PLANQ involving time intervals
 /// That is, this represents a 'process' or task within the PLANQ that needs processing time to complete
 #[derive(Component, Clone, Debug, Default, Reflect)]
@@ -730,28 +707,7 @@ impl PlanqProcess {
 		self
 	}
 }
-/// Provides a means for setting regular intervals for the PLANQ's monitoring, so that we are not
-/// forced to provide updates at the framerate (and possibly cause flickering, &c)
-/// If no duration is specified, the DataSample source will always be updated
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct DataSampleTimer {
-	pub timer: Timer,
-	pub source: String,
-}
-impl DataSampleTimer {
-	pub fn new() -> DataSampleTimer {
-		DataSampleTimer::default()
-	}
-	pub fn duration(mut self, duration: u64) -> Self {
-		self.timer = Timer::new(Duration::from_secs(duration), TimerMode::Repeating);
-		self
-	}
-	pub fn source(mut self, source: String) -> Self {
-		self.source = source;
-		self
-	}
-}
+
 /// RATATUI: Defines the Planq status widget for ratatui, provides outputs directly from the Planq
 /// as opposed to the CameraView, inventory display, &c, which use other Widgets
 pub struct PlanqStatus<'a> {
@@ -797,8 +753,6 @@ impl<'a> Widget for PlanqStatus<'a> {
 		// anything wider than this is going to get truncated!
 		let _max_width = area.right() - area.left();
 		// The top and bottom panes are 'fixed' size, while the middle pane is expandable
-		// TODO: The middle pane should be 'smart', and can count how many slots it has available
-		//       for the player to load things into
 		let textstyle = Style::default().fg(Color::White);
 		// put the contents of self.data on the screen
 		let mut y_index = area.top();
@@ -806,6 +760,28 @@ impl<'a> Widget for PlanqStatus<'a> {
 			buf.set_string(area.left(), y_index, line, textstyle);
 			y_index += 1;
 		}
+	}
+}
+/// Provides a means for setting regular intervals for the PLANQ's monitoring, so that we are not
+/// forced to provide updates at the framerate (and possibly cause flickering, &c)
+/// If no duration is specified, the DataSample source will always be updated
+#[derive(Component, Clone, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct DataSampleTimer {
+	pub timer: Timer,
+	pub source: String,
+}
+impl DataSampleTimer {
+	pub fn new() -> DataSampleTimer {
+		DataSampleTimer::default()
+	}
+	pub fn duration(mut self, duration: u64) -> Self {
+		self.timer = Timer::new(Duration::from_secs(duration), TimerMode::Repeating);
+		self
+	}
+	pub fn source(mut self, source: String) -> Self {
+		self.source = source;
+		self
 	}
 }
 
@@ -823,7 +799,7 @@ impl PlanqEvent {
 	}
 }
 impl Event for PlanqEvent {
-
+	// This is required here to make the PlanqEvent compatible with Bevy's Event trait
 }
 /// Defines the set of control and input events that the Planq needs to handle
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
@@ -837,14 +813,12 @@ pub enum PlanqEventType {
 	GoIdle,
 	CliOpen,
 	CliClose,
-	InventoryUse,
-	InventoryDrop,
 	AccessLink,
 	AccessUnlink,
 }
 
 //  *** UTILITIES and COMPONENTS
-/// Defines the Planq 'tag' component within Bevy
+/// Defines the PLANQ 'tag' component within Bevy
 #[derive(Component, Copy, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Planq { }
@@ -852,22 +826,6 @@ impl Planq {
 	pub fn new() -> Planq {
 		Planq::default()
 	}
-}
-/// Provides the Component Bundle that creates a PLANQ object in the game
-#[derive(Bundle)]
-pub struct PlanqBundle {
-	pub planq: Planq,
-	pub thing: Thing,
-	pub device: Device,
-}
-/// Defines the set of output modes for the PLANQ's dual output windows
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Reflect)]
-pub enum PlanqOutputMode {
-	#[default]
-	Idle,
-	InventoryChooser,
-	Terminal,
-	Settings,
 }
 
 // EOF

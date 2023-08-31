@@ -112,13 +112,6 @@ impl MapBuilder for DevMapBasement {
 		for y in 0..self.map.height {
 			for x in 0..self.map.width {
 				index = self.map.to_index(x, y);
-				/*
-				if y == 0 { self.map.tiles[index] = Tile::new_wall(); }
-				else if y == y_max { self.map.tiles[index] = Tile::new_wall(); }
-				else if x == 0 { self.map.tiles[index] = Tile::new_wall(); }
-				else if x == x_max { self.map.tiles[index] = Tile::new_wall(); }
-				else { self.map.tiles[index] = Tile::new_floor(); }
-				*/
 				if y == 0
 				|| y == y_max
 				|| x == 0

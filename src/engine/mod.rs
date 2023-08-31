@@ -68,8 +68,6 @@ pub struct GameEngine<'a> {
 	pub artisan:        ItemBuilder,
 	pub visible_menu:   MenuType,
 	pub menu_main:      MenuState<Cow<'static, str>>,
-	pub menu_actions:   MenuState<ActionType>,
-	pub menu_entities:  MenuState<Entity>,
 	pub menu_context:   MenuState<GameEvent>,
 	pub menu_posn:      (u16, u16),
 	pub ui_grid:        UIGrid,
@@ -93,8 +91,6 @@ impl GameEngine<'_> {
 			// HINT: These menu items are handled via a match case in GameEngine::tick()
 			visible_menu: MenuType::None,
 			menu_main: MenuState::new(vec![]),
-			menu_actions: MenuState::new(vec![]),
-			menu_entities: MenuState::new(vec![]),
 			menu_context: MenuState::new(vec![]),
 			menu_posn: (0, 0),
 			ui_grid: UIGrid::new(),
@@ -278,10 +274,8 @@ impl GameEngine<'_> {
 			self.ui_grid.p_status_height = monitor.status_bars.len();
 		}
 		let mut planq = self.bevy.world.get_resource_mut::<PlanqData>().unwrap();
-		// TODO: optimize this to only fire if the number of status bars actually changes
 		self.ui_grid.calc_planq_layout(self.ui_grid.planq_sidebar);
 		// Display some kind of 'planq offline' state if not carried
-		// TODO: replace the 'no planq detected' message with something nicer
 		if !planq.is_carried { // Player is not carrying a planq
 			frame.render_widget(
 				Paragraph::new("[no PLANQ detected]").block(
@@ -336,15 +330,6 @@ impl GameEngine<'_> {
 	pub fn set_menu(&mut self, m_type: MenuType, posn: (u16, u16)) {
 		//eprintln!("* Enabling menu {:?} at {}, {}", m_type, posn.0, posn.1); // DEBUG: announce menu display
 		if m_type == MenuType::Main {
-			/*
-			self.menu_main = MenuState::new(vec![
-				MenuItem::item("New Game", "main.new_game".into()),
-				MenuItem::item("Load Game", "main.load_game".into()),
-				MenuItem::item("Save Game", "main.save_game".into()),
-				MenuItem::item("Abandon", "main.abandon_game".into()),
-				MenuItem::item("Quit", "main.quit".into()),
-			]);
-			*/
 			let mut menu_items: Vec<MenuItem<Cow<'_, str>>> = Vec::new();
 			menu_items.push(MenuItem::item("New Game", "main.new_game".into(), None));
 			let filepath = bevy_save::get_save_file(&self.savegame_filename);
@@ -370,7 +355,6 @@ impl GameEngine<'_> {
 	}
 	/// Causes the GameEngine to halt and quit
 	pub fn quit(&mut self) {
-		// NOTE: this should probably instead execute a mode shift on the engine to allow for more graceful shutdowns
 		self.running = false;
 	}
 	/// Starts a new game from scratch
@@ -401,7 +385,6 @@ impl GameEngine<'_> {
 	//  INFO: By default (not sure how to change this!), on Linux, this savegame will be at
 	//      ~/.local/share/spacegame/saves/FILENAME.sav
 	pub fn save_game(&mut self, filename: String) {
-		// TODO: add an "are you sure" prompt
 		eprintln!("* save_game() called on {}", filename); // DEBUG: alert when save_game is called
 		if let Err(e) = self.bevy.world.save(&filename) {
 			eprintln!("! ! save_game() failed on '{}', error: {}", filename, e); // DEBUG: warn about save game error
@@ -411,7 +394,6 @@ impl GameEngine<'_> {
 	}
 	/// Loads a saved game from the given external file
 	pub fn load_game(&mut self, filename: String) {
-		// TODO: add an "are you sure" prompt
 		eprintln!("* load_game() called on {} ({})", filename, self.standby); // DEBUG: alert when load_game is called
 		if !self.standby {
 			eprintln!("* ! game is in progress!"); // DEBUG: warn about running game
@@ -509,8 +491,14 @@ impl GameEngine<'_> {
 		.register_type::<HashMap<(i32, i32, i32), (i32, i32, i32)>>()
 		.register_type::<HashMap<Entity, Position>>()
 		.register_type::<bevy::utils::HashSet<ActionType>>()
+		.register_type::<DeviceState>()
+		.register_type::<TimerMode>()
+		.register_type::<PlanqEvent>()
+		.register_type::<PlanqEventType>()
+		.register_type::<PlanqEvent>()
 		// from components.rs:
 		.register_saveable::<Player>()
+		.register_saveable::<LMR>()
 		.register_saveable::<ActionSet>()
 		.register_saveable::<bevy::utils::hashbrown::HashSet<ActionType>>()
 		.register_saveable::<Position>()
@@ -522,8 +510,15 @@ impl GameEngine<'_> {
 		.register_saveable::<Container>()
 		.register_saveable::<Opaque>()
 		.register_saveable::<Openable>()
-		.register_saveable::<Planq>()
 		.register_saveable::<Lockable>()
+		.register_saveable::<Key>()
+		.register_saveable::<Device>()
+		.register_saveable::<AccessPort>()
+		.register_saveable::<Networkable>()
+		// planq.rs
+		.register_saveable::<Planq>()
+		.register_saveable::<PlanqProcess>()
+		.register_saveable::<DataSampleTimer>()
 		.insert_resource(Events::<GameEvent>::default())
 		.insert_resource(Events::<PlanqEvent>::default())
 		.insert_resource(MessageLog::new(chanlist))
@@ -568,8 +563,8 @@ impl GameEngine<'_> {
 		// Build the DevMapBasement
 		self.mason.build_map();
 		let mut worldmap = self.mason.get_map();
-		// get_item_spawn_list();
-		// artisan.spawn_batch(item_spawn_list);
+		//get_item_spawn_list();
+		//artisan.spawn_batch(item_spawn_list);
 		//self.artisan.spawn_at(&mut self.bevy.world, ItemType::Door, (10, 10, 0).into());
 		self.artisan.create(ItemType::Door).at(Position::new(10, 10, 0)).build(&mut self.bevy.world);
 		model.levels.push(worldmap);
@@ -577,8 +572,8 @@ impl GameEngine<'_> {
 		self.mason = get_builder(2);
 		self.mason.build_map();
 		worldmap = self.mason.get_map();
-		// get_item_spawn_list();
-		// artisan.spawn_batch(item_spawn_list);
+		//get_item_spawn_list();
+		//artisan.spawn_batch(item_spawn_list);
 		//self.artisan.spawn_at(&mut self.bevy.world, ItemType::Door, (13, 17, 1).into());
 		self.artisan.create(ItemType::Door).at(Position::new(13, 17, 1)).build(&mut self.bevy.world);
 		model.levels.push(worldmap);
@@ -626,7 +621,7 @@ impl GameEngine<'_> {
 			}
 			PlanqCmd::Shutdown => { todo!(); /* trigger a shutdown */ }
 			PlanqCmd::Reboot => { todo!(); /* execute a reboot */ }
-			PlanqCmd::Connect(target) => { todo!(); /* run the planq.connect subroutine */ }
+			PlanqCmd::Connect(_target) => { todo!(); /* run the planq.connect subroutine */ }
 			PlanqCmd::Disconnect => { todo!(); /* run the planq.disconnect subroutine */ }
 			_ => { /* NoOperation */ }
 		}

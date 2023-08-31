@@ -16,7 +16,6 @@ use crate::engine::event::*;
 /// such that it can be read by the Viewport object when it comes time to render the view
 /// Provides an abstraction to the Viewport widget with hooks into Bevy's systems for updates
 #[derive(Component, Resource, Clone, Debug, Default, Reflect)]
-//#[reflect(Component, Resource)]
 pub struct CameraView {
 	pub map: Vec<Tile>,
 	pub width: i32,
@@ -36,6 +35,7 @@ impl CameraView {
 			reticle_glyphs: "⌟⌞⌝⌜".to_string(), // Corner frame
 		}
 		// Other options for reticles might include: (not all tested)
+		// The reticle glyph order is UL, UR, DL, DR
 		//	reticle_glyphs: "JL7F".to_string(), // 1337code fallback, guaranteed to work everywhere lol
 		//	reticle_glyphs: "\\//\\".to_string(), // Slashes in the corners
 		//	reticle_glyphs: "▗▖▝▘".to_string(), // Four small corner boxes
@@ -117,8 +117,6 @@ pub fn camera_update_system(mut camera:   ResMut<CameraView>,
 							}
 						}
 					}
-					// TODO: check for a scenery effect
-					// TODO: check for an animation effect
 				} else { // Render everything that is 'out of sight', ie the previously-seen tiles and entities
 					// Otherwise, just assume this is a real-but-not-visible tile and recolor it
 					new_tile.fg = 8;

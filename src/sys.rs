@@ -3,7 +3,6 @@
 
 // Disable some of the more irritating clippy warnings
 #![allow(clippy::type_complexity)]
-//#![allow(clippy::too_many_arguments)]
 #![allow(clippy::single_match)]
 #![allow(clippy::needless_lifetimes)]
 
@@ -26,7 +25,6 @@ use bevy::ecs::system::{
 use bevy::utils::{Duration, HashSet};
 use bevy_turborand::*;
 use bracket_pathfinding::prelude::*;
-//use bevy_turborand::prelude::*;
 
 // *** INTERNAL LIBS
 use crate::components::*;
@@ -45,12 +43,37 @@ use crate::engine::planq::*;
 use crate::map::*;
 
 // *** CONTINUOUS SYSTEMS
+/// Handles connections between maintenance devices like the PLANQ and access ports on external entities
+pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
+	                        mut preader:      EventWriter<PlanqEvent>,
+	                        mut msglog:       ResMut<MessageLog>,
+	                        mut planq:        ResMut<PlanqData>,
+	                        a_query:          Query<(Entity, &Description), With<AccessPort>>,
+) {
+	for event in ereader.iter() {
+		match event.etype {
+			GameEventType::PlanqConnect(Entity::PLACEHOLDER) => {
+				planq.jack_cnxn = Entity::PLACEHOLDER;
+				let object_name = a_query.get(planq.jack_cnxn).unwrap().1;
+				msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name));
+				preader.send(PlanqEvent::new(PlanqEventType::AccessUnlink))
+			}
+			GameEventType::PlanqConnect(target) => {
+				planq.jack_cnxn = event.context.unwrap().object;
+				msglog.tell_player(format!("The PLANQ's access jack clicks into place on the {:?}.", target));
+				preader.send(PlanqEvent::new(PlanqEventType::AccessLink))
+			}
+			_ => { }
+		}
+	}
+}
+/// Maintains accurate ActionSets on Entities, among other future things
 pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually if i want to despawn entys
 	                           archetypes:    &Archetypes,
 	                           components:    &Components,
 	                           mut a_query:   Query<(Entity, &mut ActionSet)>,
 ) {
-	// DEBUG: this is largely the placeholder/debug proof of concept thing, see below for what this will really do
+	// QUERY: is there a way to set this such that it only fires on Entities whose Components have changed?
 	for mut actor in a_query.iter_mut() {
 		if actor.1.outdated {
 			//eprintln!("* Running update on an ActionSet..."); // DEBUG: announce ActionSet update
@@ -89,7 +112,6 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 			actor.1.outdated = false;
 		}
 	}
-	// HINT: might also choose to set up the "dead entity collector" logic here...
 }
 /// Handles requests for descriptions of entities by the player
 pub fn examination_system(mut ereader:  EventReader<GameEvent>,
@@ -151,9 +173,9 @@ pub fn item_collection_system(mut cmd:      Commands,
 				cmd.entity(object.0)
 				.insert(Portable{carrier: subject.0}) // put the container's ID to the target's Portable component
 				.remove::<Position>(); // remove the Position component from the target
-				// note that the above simply does nothing if it doesn't exist,
-				// and inserting a Component that already exists overwrites the previous one,
-				// so it's safe to call even on enty -> enty transfers
+				// Note that the above simply does nothing if it doesn't exist,
+				//   and inserting a Component that already exists overwrites the previous one,
+				//   so it's safe to call even on enty -> enty transfers
 				if is_player_action {
 					message = format!("Obtained a {}.", item_name);
 				} else {
@@ -211,7 +233,6 @@ pub fn lockable_system(mut _commands:    Commands,
 		let mut message: String = "".to_string();
 		match atype {
 			ActionType::LockItem => {
-				// TODO: obtain the new key value and apply it to the lock
 				target.3.is_locked = true;
 				if player_action {
 					message = format!("You tap the LOCK button on the {}.", target.2.name.clone());
@@ -500,59 +521,6 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 		}
 	}
 }
-/// Handles the PLANQ's access jack connection/disconnection events and logic
-pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
-	                        mut preader:      EventWriter<PlanqEvent>,
-	                        mut msglog:       ResMut<MessageLog>,
-	                        mut planq:        ResMut<PlanqData>,
-	                        a_query:          Query<(Entity, &Description), With<AccessPort>>,
-) {
-	for event in ereader.iter() {
-		match event.etype {
-			GameEventType::PlanqConnect(Entity::PLACEHOLDER) => {
-				planq.jack_cnxn = Entity::PLACEHOLDER;
-				let object_name = a_query.get(planq.jack_cnxn).unwrap().1;
-				msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name));
-				preader.send(PlanqEvent::new(PlanqEventType::AccessUnlink))
-			}
-			GameEventType::PlanqConnect(target) => {
-				planq.jack_cnxn = event.context.unwrap().object;
-				msglog.tell_player(format!("The PLANQ's access jack clicks into place on the {:?}.", target));
-				preader.send(PlanqEvent::new(PlanqEventType::AccessLink))
-			}
-			_ => { }
-		}
-	}
-}
-
-/// This is a lil reverse-trait/extension trait that provides some shorthand for the Duration type provided by Bevy
-/// Defining a trait on an external type like this allows the trait methods to be called on instances of the type as self
-/// Note that this does not change any of the scope hierarchy; the only methods callable here are the public methods defined
-/// by the Display type
-/// The concept has two parts:
-/// 1) Define a new trait with the signatures of the desired methods
-/// 2) Implement the new trait T on the external type Y: 'impl T for Y { ... }'
-/// source: http://xion.io/post/code/rust-extension-traits.html
-pub trait DurationFmtExt {
-	fn get_as_string(self) -> String;
-	fn get_as_msecs(self) -> u128;
-}
-impl DurationFmtExt for Duration {
-	/// Provides the time as a preformatted string, suitable for display.
-	fn get_as_string(self) -> String {
-		let mut secs = self.as_secs();
-		let mils = self.subsec_millis();
-		let hours: u64 = secs / 3600;
-		secs -= hours * 3600;
-		let mins: u64 = secs / 60;
-		secs -= mins * 60;
-		format!("{:02}:{:02}:{:02}.{:03}", hours, mins, secs, mils)
-	}
-	/// Provides the current ship time as a raw quantity of milliseconds, suitable for doing maths to.
-	fn get_as_msecs(self) -> u128 {
-		self.as_millis()
-	}
-}
 
 // *** SINGLETON SYSTEMS
 /// Adds a new player entity to a new game world
@@ -644,8 +612,8 @@ pub fn test_npc_spawn(mut commands: Commands,
 pub fn posn_to_point(input: &Position) -> Point { Point { x: input.x, y: input.y } }
 /// If the Entity exists, will return an Iterator that contains info on all the Components that belong to that Entity
 /// rust-clippy insists that the lifetime annotation here is useless, however!
-/// removing the annotation causes errors, because there is a *hidden type* that *does* capture a lifetime parameter
-/// not sure how to get clippy to not report a false-positive, but this code is 100% known to work, i've tested it
+/// Removing the annotation causes errors, because there is a *hidden type* that *does* capture a lifetime parameter
+/// Not sure how to get clippy to not report a false-positive, but this code is 100% known to work, i've tested it
 pub fn get_components_for_entity<'a>(entity: Entity,
 	                                   archetypes: &'a Archetypes
 ) -> Option<impl Iterator<Item=ComponentId> + 'a> {
@@ -655,6 +623,34 @@ pub fn get_components_for_entity<'a>(entity: Entity,
 		}
 	}
 	None
+}
+/// This is a lil reverse-trait/extension trait that provides some shorthand for the Duration type provided by Bevy
+/// Defining a trait on an external type like this allows the trait methods to be called on instances of the type as self
+/// Note that this does not change any of the scope hierarchy; the only methods callable here are the public methods defined
+/// by the Display type
+/// The concept has two parts:
+/// 1) Define a new trait with the signatures of the desired methods
+/// 2) Implement the new trait T on the external type Y: 'impl T for Y { ... }'
+/// source: http://xion.io/post/code/rust-extension-traits.html
+pub trait DurationFmtExt {
+	fn get_as_string(self) -> String;
+	fn get_as_msecs(self) -> u128;
+}
+impl DurationFmtExt for Duration {
+	/// Provides the time as a preformatted string, suitable for display.
+	fn get_as_string(self) -> String {
+		let mut secs = self.as_secs();
+		let mils = self.subsec_millis();
+		let hours: u64 = secs / 3600;
+		secs -= hours * 3600;
+		let mins: u64 = secs / 60;
+		secs -= mins * 60;
+		format!("{:02}:{:02}:{:02}.{:03}", hours, mins, secs, mils)
+	}
+	/// Provides the current ship time as a raw quantity of milliseconds, suitable for doing maths to.
+	fn get_as_msecs(self) -> u128 {
+		self.as_millis()
+	}
 }
 
 // EOF

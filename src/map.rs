@@ -95,7 +95,6 @@ impl Tile {
 			mods: "".to_string(),
 		}
 	}
-	// Produces a default 'doorway' 
 }
 ///Represents a single layer of physical space in the game world
 #[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
@@ -158,6 +157,7 @@ impl Map {
 #[reflect(Resource)]
 pub struct Model {
 	pub levels: Vec<Map>,
+	#[reflect(ignore)]
 	pub portals: HashMap<(i32, i32, i32), (i32, i32, i32)> // Cross-level linkages
 }
 impl Model {

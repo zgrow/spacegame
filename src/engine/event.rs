@@ -36,6 +36,7 @@ impl GameEvent {
 			context: if new_context.is_blank() { None } else { Some(new_context) },
 		}
 	}
+	/// Checks the Event's context to make sure there are non-PLACEHOLDER values in the right places for the Action
 	pub fn is_valid(&self) -> bool {
 		match self.etype {
 			GameEventType::NullEvent => { false }
@@ -153,7 +154,6 @@ impl Display for ActionType {
 			ActionType::CloseItem    => { "Close".to_string() }
 			ActionType::LockItem     => { "Lock".to_string() }
 			ActionType::UnlockItem   => { "Unlock".to_string() }
-			//_ => { "atype::UNKNOWN" }
 		};
 		// Trying to write the output var directly causes major borrow issues
 		// Using the output var as an interstitial allows us to use format! to build the string dynamically
@@ -163,19 +163,6 @@ impl Display for ActionType {
 }
 impl From<ActionType> for Cow<'_, str> {
 	fn from(a_type: ActionType) -> Self {
-		/*
-		let value = match a_type {
-			ActionType::NoAction     => { "_NoAction".to_string() }
-			ActionType::Examine      => { "Examine".to_string() }
-			ActionType::MoveTo(dir)  => { format!("_MoveTo({})", dir) }
-			ActionType::Inventory    => { "Inventory".to_string() }
-			ActionType::MoveItem     => { "Move".to_string() }
-			ActionType::DropItem     => { "Drop".to_string() }
-			ActionType::UseItem      => { "Use".to_string() }
-			ActionType::KillItem     => { "_KillItem".to_string() }
-			ActionType::OpenItem     => { "Open".to_string() }
-			ActionType::CloseItem    => { "Close".to_string() }
-		};*/
 		let pack = Cow::Owned(format!("{}", a_type).clone());
 		pack
 	}

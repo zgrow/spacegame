@@ -56,12 +56,11 @@ pub struct Position {
 	pub z: i32,
 }
 impl Position {
+	/// A handy constant for checking if a map coordinate is invalid
 	pub const INVALID: Position = Position{x: -1, y: -1, z: -1};
+	/// Creates a new Position from the given values
 	pub fn new(new_x: i32, new_y: i32, new_z: i32) -> Position {
 		Position{ x: new_x, y: new_y, z: new_z }
-	}
-	pub fn from(location: Position) -> Position {
-		Position{ x: location.x, y: location.y, z: location.z }
 	}
 	/// This is just a naive calculator for when all the variables can be obtained easily
 	/// Thus it runs very quickly by virtue of not needing to call into the ECS
@@ -86,15 +85,17 @@ impl Position {
 		}
 		false
 	}
-	/// Shorthand for calling `self.in_range_of(target, 1)`
+	/// Checks if two Positions are next to each other; shorthand for calling `self.in_range_of(target, 1)`
 	pub fn is_adjacent_to(&self, target: Position) -> bool {
 		self.in_range_of(target, 1)
 	}
-	/// Converts map coordinates to screen coordinates, returning Position::INVALID if it lands outside the viewport
+	/// Converts map coordinates to screen coordinates
+	/// WARN: this method does NOT guarantee or validate the coordinates it generates; if a given Position
+	/// would fall offscreen, then that is what will be returned!
 	/// The player's position is required as the second parameter in order to provide a reference point between the two maps
 	pub fn to_camera_coords(&self, screen: Rect, p_map: Position) -> Position {
 		// We can discard the z coordinate, since we can only see one level at a time anyway
-		// We can also assume that, centerpoint : screen :: p_map : worldmap
+		// We can also assume the following relation/analogy: centerpoint : screen :: p_map : worldmap
 		let c_x = screen.width / 2;
 		let c_y = screen.height / 2;
 		let d_x = p_map.x - self.x;
@@ -131,13 +132,6 @@ impl fmt::Display for Position {
 		write!(f, "{}, {}, {}", self.x, self.y, self.z)
 	}
 }
-/*
-impl<'a> PartialEq<&(i32, i32, i32)> for &'a Position { /// Allows comparison of Positions and tuples
-	fn eq(&self, other: &&(i32, i32, i32)) -> bool {
-		self.x == other.0 && self.y == other.1 && self.z == other.2
-	}
-}
-*/
 /// Holds the narrative description of an object. If this component is used as an input for text formatting, it will produce
 /// the name of the entity that owns it. See also the name() and desc() methods
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
@@ -154,10 +148,10 @@ impl Description {
 			desc: new_desc,
 		}
 	}
-	pub fn name(&self) -> String {
+	pub fn get_name(&self) -> String {
 		self.name.clone()
 	}
-	pub fn desc(&self) -> String {
+	pub fn get_desc(&self) -> String {
 		self.desc.clone()
 	}
 }
@@ -178,7 +172,7 @@ impl fmt::Display for Description {
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Renderable {
-	// Field types selected for compat with tui::buffer::Cell
+	// Field types selected for compatibility with ratatui::buffer::Cell
 	pub glyph: String,  // stdlib
 	pub fg: u8,         // ratatui as a Color::Indexed
 	pub bg: u8,         // ratatui
@@ -294,7 +288,10 @@ impl Openable {
 }
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
-pub struct Lockable { pub is_locked: bool, pub key: i32 }
+pub struct Lockable {
+	pub is_locked: bool,
+	pub key: i32
+}
 impl Lockable {
 	// Unlocks, given the correct key value as input
 	pub fn unlock(&mut self, test_key: i32) -> bool {

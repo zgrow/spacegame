@@ -38,9 +38,8 @@ impl<'a> Widget for Viewport<'a> {
 		}
 		// We are certain of a valid drawing area, so let's gooooo
 		for map_y in area.top()..area.bottom() {        // Hooray
-			for map_x in area.left()..area.right() {    // for 1:1 mapping!
+			for map_x in area.left()..area.right() {      // for 1:1 mapping!
 				let index = xy_to_index(map_x.into(), map_y.into(), self.source.width as usize);
-				// TODO: this doesn't include the style modifiers
 				let tilestyle = Style::default().fg(Indexed(self.source.map[index].fg)).bg(Indexed(self.source.map[index].bg));
 				buf.set_string(map_x, map_y, &self.source.map[index].glyph, tilestyle);
 			}

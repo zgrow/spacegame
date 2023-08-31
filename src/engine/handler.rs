@@ -37,9 +37,6 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	let mut player_query = eng.bevy.world.query_filtered::<Entity, With<Player>>();
 	let player_ref = player_query.get_single(&eng.bevy.world);
 	let player = player_ref.unwrap_or(Entity::PLACEHOLDER);
-	// DEBUG: crash and stop if we ever fail this condition
-	// HINT: if this assert gets triggered, check the player object to see if you need to add a new Component
-	//assert!(player != Entity::PLACEHOLDER, "* key_parser()'s player_query failed to find the player entity!"); 
 	// *** GAME CONTROL HANDLING
 	if eng.mode == EngineMode::Running {
 		let mut new_game_event = GameEvent::new(GameEventType::NullEvent, Some(player), None);
@@ -54,7 +51,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					new_planq_event.etype = PlanqEventType::CliClose; // Still going to generate the event in case I use it for a hook later
 				}
 				KeyCode::Enter => { // Dispatch the input buffer to the parser
-					/*
+					/* Blocked out pending rewrite
 					planq.show_cli_input = false;
 					eng.planq_stdin.input.move_cursor(tui_textarea::CursorMove::Head);
 					eng.planq_stdin.input.delete_line_by_end();
@@ -99,7 +96,6 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				return Ok(())
 			}
 			KeyCode::Esc | KeyCode::Char('Q') => { // Close any open menus, or if none are open, open the main menu
-				// TODO: Close the PLANQ cli if it's open
 				eng.menu_context.reset();
 				if eng.visible_menu != MenuType::None {
 					eng.visible_menu = MenuType::None;
@@ -110,13 +106,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 			}
 			KeyCode::Enter => {
-				if eng.visible_menu == MenuType::Action {
-					eng.menu_actions.select();
-					eng.visible_menu = MenuType::None;
-				} else if eng.visible_menu == MenuType::Entity {
-					eng.menu_entities.select();
-					eng.visible_menu = MenuType::None;
-				} else if eng.visible_menu == MenuType::Context {
+				if eng.visible_menu == MenuType::Context {
 					eng.menu_context.select();
 					eng.visible_menu = MenuType::None;
 					eng.menu_context.reset();
@@ -124,44 +114,28 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			// The cursor controls will be directed to any open menu before fallthru to player movement
 			KeyCode::Left => {
-				if eng.visible_menu == MenuType::Action {
-					eng.menu_actions.left();
-				} else if eng.visible_menu == MenuType::Entity {
-					eng.menu_entities.left();
-				} else if eng.visible_menu == MenuType::Context {
+				if eng.visible_menu == MenuType::Context {
 					eng.menu_context.left();
 				} else {
 					new_game_event.etype = PlayerAction(MoveTo(Direction::W));
 				}
 			}
 			KeyCode::Down => {
-				if eng.visible_menu == MenuType::Action {
-					eng.menu_actions.down();
-				} else if eng.visible_menu == MenuType::Entity {
-					eng.menu_entities.down();
-				} else if eng.visible_menu == MenuType::Context {
+				if eng.visible_menu == MenuType::Context {
 					eng.menu_context.down();
 				} else {
 					new_game_event.etype = PlayerAction(MoveTo(Direction::S));
 				}
 			}
 			KeyCode::Up => {
-				if eng.visible_menu == MenuType::Action {
-					eng.menu_actions.up();
-				} else if eng.visible_menu == MenuType::Entity {
-					eng.menu_entities.up();
-				} else if eng.visible_menu == MenuType::Context {
+				if eng.visible_menu == MenuType::Context {
 					eng.menu_context.up();
 				} else {
 					new_game_event.etype = PlayerAction(MoveTo(Direction::N));
 				}
 			}
 			KeyCode::Right => {
-				if eng.visible_menu == MenuType::Action {
-					eng.menu_actions.right();
-				} else if eng.visible_menu == MenuType::Entity {
-					eng.menu_entities.right();
-				} else if eng.visible_menu == MenuType::Context {
+				if eng.visible_menu == MenuType::Context {
 					eng.menu_context.right();
 				} else {
 					new_game_event.etype = PlayerAction(MoveTo(Direction::E));
@@ -518,33 +492,33 @@ pub fn make_new_submenu<T: std::fmt::Display>(entries: Vec<T>) -> Vec<MenuItem<T
 /// Converts my Event keycodes into tui_textarea::Input::Keys
 pub fn keycode_to_input_key(key_code: KeyCode) -> Key {
 	match key_code {
-		KeyCode::Char(val) => { Key::Char(val) }
-		KeyCode::F(num) => { Key::F(num) }
-		KeyCode::Modifier(_) => { Key::Null } // TODO: is this the ctrl/alt/whatever detection?
-		KeyCode::Up => { Key::Up }
-		KeyCode::Down => { Key::Down }
-		KeyCode::Left => { Key::Left }
-		KeyCode::Right => { Key::Right }
-		KeyCode::Home => { Key::Home }
-		KeyCode::End => { Key::End }
-		KeyCode::PageUp => { Key::PageUp }
-		KeyCode::PageDown => { Key::PageDown }
-		KeyCode::Delete => { Key::Delete }
-		KeyCode::Backspace => { Key::Backspace }
-		KeyCode::Enter => { Key::Enter }
-		KeyCode::Esc => { Key::Esc }
-		KeyCode::Tab => { Key::Tab }
-		KeyCode::Insert => { Key::Null } // Not supported by textarea
-		KeyCode::BackTab => { Key::Null } // Not supported by textarea
-		KeyCode::CapsLock => { Key::Null } // Not supported by textarea
-		KeyCode::ScrollLock => { Key::Null } // Not supported by textarea
-		KeyCode::NumLock => { Key::Null } // Not supported by textarea
+		KeyCode::Char(val)   => { Key::Char(val) }
+		KeyCode::F(num)      => { Key::F(num) }
+		KeyCode::Modifier(_) => { Key::Null } // NOTE: is this the ctrl/alt/whatever detection?
+		KeyCode::Up          => { Key::Up }
+		KeyCode::Down        => { Key::Down }
+		KeyCode::Left        => { Key::Left }
+		KeyCode::Right       => { Key::Right }
+		KeyCode::Home        => { Key::Home }
+		KeyCode::End         => { Key::End }
+		KeyCode::PageUp      => { Key::PageUp }
+		KeyCode::PageDown    => { Key::PageDown }
+		KeyCode::Delete      => { Key::Delete }
+		KeyCode::Backspace   => { Key::Backspace }
+		KeyCode::Enter       => { Key::Enter }
+		KeyCode::Esc         => { Key::Esc }
+		KeyCode::Tab         => { Key::Tab }
+		KeyCode::Insert      => { Key::Null } // Not supported by textarea
+		KeyCode::BackTab     => { Key::Null } // Not supported by textarea
+		KeyCode::CapsLock    => { Key::Null } // Not supported by textarea
+		KeyCode::ScrollLock  => { Key::Null } // Not supported by textarea
+		KeyCode::NumLock     => { Key::Null } // Not supported by textarea
 		KeyCode::PrintScreen => { Key::Null } // Not supported by textarea
-		KeyCode::Pause => { Key::Null } // Not supported by textarea
-		KeyCode::Menu => { Key::Null } // Not supported by textarea
+		KeyCode::Pause       => { Key::Null } // Not supported by textarea
+		KeyCode::Menu        => { Key::Null } // Not supported by textarea
 		KeyCode::KeypadBegin => { Key::Null } // Not supported by textarea
-		KeyCode::Media(_) => { Key::Null } // Not supported by textarea
-		KeyCode::Null => { Key::Null }
+		KeyCode::Media(_)    => { Key::Null } // Not supported by textarea
+		KeyCode::Null        => { Key::Null }
 	}
 }
 /// Translates an input string from the player into a PLANQ command and context

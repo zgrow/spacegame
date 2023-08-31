@@ -19,7 +19,6 @@ use spacegame::engine::{
 // *** MAIN METHOD
 fn main() -> AppResult<()> {
 	std::env::set_var("RUST_BACKTRACE", "1"); // DEBUG: enables backtrace on program crash
-	// TODO: set up some CLI options to allow turning off debugging, etc
 	// Set up ratatui
 	let backend = CrosstermBackend::new(io::stdout());
 	let terminal = Terminal::new(backend)?;
