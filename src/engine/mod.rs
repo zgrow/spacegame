@@ -47,7 +47,7 @@ use crate::{
 		menu::*,
 		messagelog::*,
 		planq::*,
-		viewport::*
+		viewport::Viewport,
 	},
 	map::*,
 	mason::{
@@ -76,7 +76,7 @@ pub struct GameEngine<'a> {
 	pub default_style:  Style,
 	pub savegame_filename: String,
 	pub term_dims:      Rect,
-	pub planq_stdin: PlanqInput<'a>,
+	pub planq_stdin:    PlanqInput<'a>,
 }
 impl GameEngine<'_> {
 	/// Constructs a new instance of [`GameEngine`].
@@ -101,6 +101,7 @@ impl GameEngine<'_> {
 			term_dims: max_area,
 			planq_stdin: PlanqInput::new(),
 		};
+		new_eng.planq_stdin.input.set_cursor_line_style(Style::default().fg(Color::Yellow).bg(Color::Black));
 		new_eng.bevy.add_plugins(MinimalPlugins).add_plugins(SavePlugins);
 		new_eng
 	}

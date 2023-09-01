@@ -5,7 +5,7 @@ use bevy::ecs::event::Events;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 // crossterm::KeyEvent: https://docs.rs/crossterm/latest/crossterm/event/struct.KeyEvent.html
 // bevy::KeyboardInput: https://docs.rs/bevy/latest/bevy/input/keyboard/struct.KeyboardInput.html
-use tui_textarea::Key;
+use tui_textarea::{Key, Input};
 
 use crate::components::*;
 use crate::components::Direction;
@@ -51,7 +51,6 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					new_planq_event.etype = PlanqEventType::CliClose; // Still going to generate the event in case I use it for a hook later
 				}
 				KeyCode::Enter => { // Dispatch the input buffer to the parser
-					/* Blocked out pending rewrite
 					planq.show_cli_input = false;
 					eng.planq_stdin.input.move_cursor(tui_textarea::CursorMove::Head);
 					eng.planq_stdin.input.delete_line_by_end();
@@ -65,14 +64,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						msglog.tell_planq(input_text.clone());
 					}
 					eng.exec(planq_parser(input_text));
-					*/
 				}
 				// TODO: set up the cursor dirs to allow movement? or reserve for planq menus?
 				the_input => {
 					// pass everything else to the CLI parser
 					//eng.planq_stdin.input.input(key_event.clone().into());
 					eprintln!("* attempting a translation of {:?} (todo)", the_input);
-					/* TODO: textarea
 					let flag = eng.planq_stdin.input.input(
 						Input {
 							key: keycode_to_input_key(the_input),
@@ -82,7 +79,6 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					);
 					eprintln!("{}", eng.planq_stdin.input.lines()[0]);
 					if flag { eprintln!("succeeded"); }
-					*/
 				}
 			}
 			return Ok(()) // WARN: do not disable this, lest key inputs be parsed twice (ie again below) by mistake!
@@ -424,7 +420,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 			}
 			// PLANQ 'sidebar'/ambient controls
-			KeyCode::Char('P') => { new_planq_event.etype = PlanqEventType::CliOpen;}
+			KeyCode::Char('P') | KeyCode::Char(':') => { new_planq_event.etype = PlanqEventType::CliOpen; }
 			// Debug keys and other tools
 			KeyCode::Char('s') => { // DEBUG: Drop a generic snack item for testing
 				eprintln!("* Dropping snack at 5, 5, 0"); // DEBUG: announce arrival of debug snack

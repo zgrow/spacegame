@@ -34,9 +34,7 @@ pub fn planq_update_system(mut commands: Commands,
 	                         mut preader:  EventReader<PlanqEvent>,
 	                         mut msglog:   ResMut<MessageLog>,
 	                         time:         Res<Time>,
-	                         mut rng:      ResMut<GlobalRng>,
 	                         mut planq:    ResMut<PlanqData>, // contains the PLANQ's settings and data storage
-	                         //mut monitor:  ResMut<PlanqMonitor>, // contains the PLANQ's output values and certain diagnostic info
 	                         p_query:      Query<(Entity, &Position), With<Player>>, // provides interface to player data
 	                         mut q_query:  Query<(Entity, &Device, &Portable), With<Planq>>, // contains the PLANQ's component data
 	                         mut t_query:  Query<(Entity, &mut PlanqProcess)>, // contains the set of all PlanqTimers
@@ -254,18 +252,19 @@ pub fn planq_update_system(mut commands: Commands,
 			// Creates the new idle image by prepending with a variable number of spaces, so that the graphic 'moves'
 			let idle_message = format!("{:width$}", "", width=output) + "-=[ ]=-";
 			*/
+			/*
 			// IDLE GRAPHIC: Bizarre Data
 			let sample = vec!['▖', '▗', '▘', '▝', '▀', '▄', '▌', '▐', '▚', '▞', '▙', '▛', '▜', '▟', '█'];
 			// randomly pick chars from sample until we have a line of the correct width
-			// Check for any waiting jobs to be worked
 			let mut idle_message = "".to_string();
 			for _ in 0..30 {
 				let choice = rng.usize(0..sample.len());
 				idle_message.push(sample[choice]);
 			}
+			*/
 			// Update the idle message if there's nothing waiting for processing
 			if planq.proc_table.len() == 1 {
-				msglog.replace(idle_message, "planq".to_string(), 0, 0);
+				//msglog.replace(idle_message, "planq".to_string(), 0, 0); // continue idling
 			} else {
 				planq.cpu_mode = PlanqCPUMode::Working;
 			}
