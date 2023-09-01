@@ -32,6 +32,7 @@ pub struct LMR { }
 pub struct ActionSet {
 	#[reflect(ignore)]
 	pub actions: HashSet<ActionType>,
+	#[reflect(ignore)]
 	pub outdated: bool,
 }
 impl ActionSet {

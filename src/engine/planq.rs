@@ -299,9 +299,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 	                          mut s_query: Query<(Entity, &mut DataSampleTimer)>,
 ) {
 	if p_query.is_empty() { return; }
-	eprintln!("* p_query is good"); // DEBUG:
 	if q_query.is_empty() { return; }
-	eprintln!("* q_query is good"); // DEBUG:
 	let player = p_query.get_single().unwrap();
 	let planq_enty = q_query.get_single_mut().unwrap();
 	// Iterate any active PlanqProcesses

@@ -71,9 +71,8 @@ pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
 pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually if i want to despawn entys
 	                           archetypes:    &Archetypes,
 	                           components:    &Components,
-	                           mut a_query:   Query<(Entity, &mut ActionSet)>,
+	                           mut a_query:   Query<(Entity, &mut ActionSet), Changed<ActionSet>>,
 ) {
-	// QUERY: is there a way to set this such that it only fires on Entities whose Components have changed?
 	for mut actor in a_query.iter_mut() {
 		if actor.1.outdated {
 			//eprintln!("* Running update on an ActionSet..."); // DEBUG: announce ActionSet update
