@@ -762,7 +762,7 @@ impl UIGrid {
 		// Split the entire window between [1/2](0) and [3](1) horizontally
 		let main_horiz_split = Layout::default()
 			.direction(Direction::Horizontal)
-			.constraints([Constraint::Min(30), Constraint::Length(38)].as_ref())
+			.constraints([Constraint::Min(30), Constraint::Length(32)].as_ref())
 			.split(max_area).to_vec();
 		// Split [1](0) and [2](1) vertically
 		let camera_worldmsg_split = Layout::default()

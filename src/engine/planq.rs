@@ -89,7 +89,7 @@ pub fn planq_update_system(mut commands: Commands,
 				PlanqEventType::BootStage(lvl) => { planq.boot_stage = lvl; }
 				PlanqEventType::Shutdown       => { planq.cpu_mode = PlanqCPUMode::Shutdown; }
 				PlanqEventType::Reboot         => { todo!(">>> planq.rs:planq_update_system(), l95 - implement PlanqEventType::Reboot"); /* TODO: do a Shutdown, then a Startup */ }
-				PlanqEventType::GoIdle         => { planq.cpu_mode = PlanqCPUMode::Idle; }
+				PlanqEventType::GoIdle         => { planq.idle_mode(&mut msglog); }
 				PlanqEventType::CliOpen => {
 					planq.show_cli_input = true;
 					planq.action_mode = PlanqActionMode::CliInput;
@@ -159,7 +159,7 @@ pub fn planq_update_system(mut commands: Commands,
 							BootStage(lvl) => {
 								planq.boot_stage = lvl;
 							}
-							PlanqEventType::GoIdle => { planq.cpu_mode = PlanqCPUMode::Idle; }
+							PlanqEventType::GoIdle => { planq.idle_mode(&mut msglog); }
 							_ => { }
 						}
 					}
@@ -229,9 +229,8 @@ pub fn planq_update_system(mut commands: Commands,
 						if proc.1.timer.just_finished() {
 							eprintln!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 							msglog.boot_message(planq.boot_stage);
-							// HINT: p_ruler:  1234567890123456789012345678 -- currently 28 chars
 							proc.1.outcome = PlanqEvent::new(PlanqEventType::NullEvent);
-							planq.cpu_mode = PlanqCPUMode::Idle;
+							planq.idle_mode(&mut msglog);
 						}
 					}
 				}
@@ -274,7 +273,7 @@ pub fn planq_update_system(mut commands: Commands,
 		PlanqCPUMode::Working  => {
 			// Display the outputs from the workloads
 			// If all workloads are done, shift back to Idle mode
-			if planq.proc_table.len() == 1 { planq.cpu_mode = PlanqCPUMode::Idle; }
+			if planq.proc_table.len() == 1 { planq.idle_mode(&mut msglog); }
 		}
 	}
 	// - Iterate any active PlanqProcesses (these are NOT DataSampleTimers!)
@@ -381,7 +380,7 @@ pub struct PlanqData {
 	pub inventory_list: Vec<Entity>,
 	pub player_loc: Position,
 	pub show_cli_input: bool,
-	pub stdout: Vec<Message>, // Contains the PLANQ's message backlog
+	pub stdout: Vec<Message>, // Local copy of the PLANQ's message backlog, as copied from the MessageLog "planq" channel
 	pub proc_table: Vec<Entity>, // The list of PlanqProcesses running in the Planq
 	pub jack_cnxn: Entity, // ID of the object that the PLANQ's access jack is connected to
 }
@@ -445,8 +444,14 @@ impl PlanqData {
 		}
 		output
 	}
+	/// Handler for executing the shift into Idle mode; does a little bit of cleanup as part of the process
+	pub fn idle_mode(&mut self, msglog: &mut MessageLog) {
+		//self.stdout.push(Message::new(0, 0, "planq".to_string(), "".to_string()));
+		//self.stdout.push(Message::new(0, 0, "planq".to_string(), "".to_string()));
+		msglog.tell_planq(" ".to_string());
+		self.cpu_mode = PlanqCPUMode::Idle;
+	}
 }
-
 /// Handles the PLANQ's status bars, their settings, their inputs, &c
 #[derive(Resource, Clone, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Resource)]
