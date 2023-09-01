@@ -113,19 +113,28 @@ impl MessageLog {
 			//                     ▌         \           \   \) ▐
 			//                     ▙▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▟
 			//                     _123456789_12356789_123456789_
-			0 => {self.tell_planq("¶│BIOS:  GRAIN v17.6.8 'Cedar'".to_string());}
-			1 => {self.tell_planq("¶│Hardware Status ....... [OK]".to_string());}
-			2 => {self.tell_planq("¶│Firmware Status ....... [OK]".to_string());}
-			3 => {self.tell_planq("¶│Bootloader Status ..... [OK]".to_string());}
-			4 => {self.tell_planq("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".to_string());
-						self.tell_planq("▌ __         __  __     __   ▐".to_string());
-						self.tell_planq("▌/   _||   |/  \\(_     /_    ▐".to_string());
-						self.tell_planq("▌\\__(-|||_||\\__/__)  \\/__)/) ▐".to_string());
-						self.tell_planq("▌────────<-──────────<-─<{ (<▐".to_string());
-						self.tell_planq("▌         \\           \\   \\) ▐".to_string());
-						self.tell_planq("▙▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▟".to_string());
-						self.tell_planq(" ".to_string());
-						self.tell_planq("¶│Ready for input!".to_string());
+			0 => {
+				self.tell_planq("▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄".to_string());
+				self.tell_planq("▌ __         __  __     __   ▐".to_string());
+				self.tell_planq("▌/   _||   |/  \\(_     /_    ▐".to_string());
+				self.tell_planq("▌\\__(-|||_||\\__/__)  \\/__)/) ▐".to_string());
+				self.tell_planq("▌────────<-──────────<-─<{ (<▐".to_string());
+				self.tell_planq("▌         \\           \\   \\) ▐".to_string());
+				self.tell_planq("▙▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▟".to_string());
+				self.tell_planq(" ".to_string());
+				self.tell_planq("¶│BIOS:  GRAIN v17.6.8 'Cedar'".to_string());
+			}
+			1 => {
+				self.tell_planq("¶│Hardware Status ....... [OK]".to_string());
+			}
+			2 => {
+				self.tell_planq("¶│Firmware Status ....... [OK]".to_string());
+			}
+			3 => {
+				self.tell_planq("¶│Bootloader Status ..... [OK]".to_string());
+			}
+			4 => {
+				self.tell_planq("¶│Ready for input!".to_string());
 			}
 			_ => { }
 		};

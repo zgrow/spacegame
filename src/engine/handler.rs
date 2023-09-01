@@ -420,7 +420,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 			}
 			// PLANQ 'sidebar'/ambient controls
-			KeyCode::Char('P') | KeyCode::Char(':') => { new_planq_event.etype = PlanqEventType::CliOpen; }
+			KeyCode::Char('P') | KeyCode::Char(':') => {
+				if planq.cpu_mode == PlanqCPUMode::Idle || planq.cpu_mode == PlanqCPUMode::Working {
+					new_planq_event.etype = PlanqEventType::CliOpen;
+				}
+			}
 			// Debug keys and other tools
 			KeyCode::Char('s') => { // DEBUG: Drop a generic snack item for testing
 				eprintln!("* Dropping snack at 5, 5, 0"); // DEBUG: announce arrival of debug snack
