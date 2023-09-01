@@ -428,7 +428,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			// Debug keys and other tools
 			KeyCode::Char('s') => { // DEBUG: Drop a generic snack item for testing
 				eprintln!("* Dropping snack at 5, 5, 0"); // DEBUG: announce arrival of debug snack
-				eng.make_item(ItemType::Snack, Position::new(5, 5, 0));
+				eng.make_item(ItemType::Snack, Position::create(5, 5, 0));
 			}
 			KeyCode::Char('S') => { // DEBUG: Give a snack to the player for testing
 				eprintln!("* Giving snack to player"); // DEBUG: announce arrival of debug snack

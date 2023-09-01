@@ -301,7 +301,7 @@ pub fn map_indexing_system(mut model:         ResMut<Model>,
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
 	                     mut p_posn_res:  ResMut<Position>,
-	                     model:           Res<Model>,
+	                     mut model:           ResMut<Model>,
 	                     mut e_query:     Query<(Entity, &Description, &mut Position, Option<&mut Viewshed>)>
 ) {
 	if ereader.is_empty() { return; } // Don't even bother trying if there's no events to worry about
@@ -333,7 +333,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					Direction::UP   =>      { zdiff += 1 }
 					Direction::DOWN =>      { zdiff -= 1 }
 				}
-				let mut new_location = Position::new(actor_posn.x + xdiff, actor_posn.y + ydiff, actor_posn.z + zdiff);
+				let mut new_location = Position::create(actor_posn.x + xdiff, actor_posn.y + ydiff, actor_posn.z + zdiff);
 				if dir == Direction::UP || dir == Direction::DOWN { // Is the actor moving between z-levels?
 					// Prevent movement if an invalid z-level was calculated, or if they are not standing on stairs
 					if new_location.z < 0 || new_location.z as usize >= model.levels.len() {
@@ -345,9 +345,9 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 						msglog.tell_player(format!("You're not standing on anything that allows you to go {}.", dir));
 						continue;
 					}
-					let possible = model.portals.get(&(actor_posn.x, actor_posn.y, actor_posn.z));
+					let possible = model.get_exit(*actor_posn);
 					if let Some(portal) = possible {
-						new_location = Position::new(portal.0, portal.1, portal.2);
+						new_location = portal;
 					}
 				}
 				let locn_index = model.levels[new_location.z as usize].to_index(new_location.x, new_location.y);
@@ -509,7 +509,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 			}
 			if let Some(mut recall) = memory { // If the seer entity has a memory...
 				for v_posn in &viewshed.visible_tiles { // Iterate on all tiles they can see:
-					let new_posn = Position::new(v_posn.x, v_posn.y, s_posn.z);
+					let new_posn = Position::create(v_posn.x, v_posn.y, s_posn.z);
 					for target in observable.iter() {
 						if *target.1 == new_posn {
 							recall.visual.insert(target.0, new_posn);
@@ -570,7 +570,7 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 		LMR         { },
 		ActionSet::new(),
 		Description::new("LMR".to_string(), "The Light Maintenance Robot is awaiting instructions.".to_string()),
-		Position::new(12, 12, 0), // TODO: remove magic numbers
+		Position::create(12, 12, 0), // TODO: remove magic numbers
 		Renderable::new("l".to_string(), 14, 0),
 		Viewshed::new(5),
 		Mobile::default(),
@@ -585,7 +585,7 @@ pub fn test_npc_spawn(mut commands: Commands,
 	                    mut rng:      ResMut<GlobalRng>,
 	                    e_query:      Query<(Entity, &Position)>,
 ) {
-	let spawnpoint = Position::new(rng.i32(1..30), rng.i32(1..30), 0);
+	let spawnpoint = Position::create(rng.i32(1..30), rng.i32(1..30), 0);
 	// Check the spawnpoint for collisions
 	loop {
 		let mut found_open_tile = true;

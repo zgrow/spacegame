@@ -16,6 +16,7 @@ use crate::engine::event::*;
 /// such that it can be read by the Viewport object when it comes time to render the view
 /// Provides an abstraction to the Viewport widget with hooks into Bevy's systems for updates
 #[derive(Component, Resource, Clone, Debug, Default, Reflect)]
+#[reflect(Component, Resource)]
 pub struct CameraView {
 	pub map: Vec<Tile>,
 	pub width: i32,
@@ -79,9 +80,9 @@ pub fn camera_update_system(mut camera:   ResMut<CameraView>,
 	assert!(!camera.map.is_empty(), "camera.map has length 0!");
 	assert!(!world_map.tiles.is_empty(), "world_map.tiles has length 0!");
 	let cam_width = camera.width as usize;
-	let centerpoint = Position::new((cam_width / 2) as i32, camera.height / 2, 0);
-	let minima = Position::new(player.2.x - centerpoint.x, player.2.y - centerpoint.y, 0);
-	let maxima = Position::new(player.2.x + centerpoint.x, player.2.y + centerpoint.y, 0);
+	let centerpoint = Position::create((cam_width / 2) as i32, camera.height / 2, 0);
+	let minima = Position::create(player.2.x - centerpoint.x, player.2.y - centerpoint.y, 0);
+	let maxima = Position::create(player.2.x + centerpoint.x, player.2.y + centerpoint.y, 0);
 	for (screen_y, target_y) in (minima.y..maxima.y).enumerate() {
 		for (screen_x, target_x) in (minima.x..maxima.x).enumerate() {
 			// We are iterating on target_x/y AND screen_x/y
@@ -123,7 +124,7 @@ pub fn camera_update_system(mut camera:   ResMut<CameraView>,
 					new_tile.bg = 0;
 					new_tile.mods = "".to_string();
 					// If we recall an Entity at this location then use that glyph for display
-					if let Some(enty) = player.4.visual.iter().find(|&x| *x.1 == Position::new(target_x, target_y, player.2.z)) {
+					if let Some(enty) = player.4.visual.iter().find(|&x| *x.1 == Position::create(target_x, target_y, player.2.z)) {
 						if let Ok(display) = renderables.get(*enty.0) {
 							new_tile.glyph = display.1.glyph.clone();
 						}

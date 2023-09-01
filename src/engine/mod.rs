@@ -447,12 +447,10 @@ impl GameEngine<'_> {
 			                  "planq".to_string(),
 			                  "debug".to_string()];
 		self.bevy
-		//.add_event::<crossterm::event::KeyEvent>() // Registers the KeyEvent from crossterm in Bevy
 		.add_plugins(RngPlugin::default())
-		//.add_systems(Startup, new_player_spawn)
 		.add_systems(Startup, (new_player_spawn,
 			                     new_lmr_spawn,
-		))
+			                     ))
 		.add_systems(Update, (action_referee_system,
 			                    camera_update_system,
 			                    examination_system,
@@ -465,66 +463,74 @@ impl GameEngine<'_> {
 			                    planq_update_system,
 			                    planq_monitor_system,
 			                    visibility_system,
-		))
-		//.register_saveable::<EngineMode>()
-		//.register_saveable::<CameraView>()
-		.register_saveable::<TileType>()
-		.register_saveable::<Tile>()
-		.register_saveable::<Map>()
-		.register_saveable::<Model>()
+			                    ))
+		.register_type::<(i32, i32, i32)>()
+		.register_type::<DeviceState>()
+		.register_type::<PlanqDataType>()
+		.register_type::<PlanqEvent>()
+		.register_type::<PlanqEventType>()
+		.register_type::<Portal>()
+		.register_type::<Position>()
+		.register_type::<TimerMode>()
+		.register_type::<Vec<bool>>()
+		.register_type::<Vec<Entity>>()
+		.register_type::<Vec<Map>>()
+		.register_type::<Vec<Message>>()
+		.register_type::<Vec<MessageChannel>>()
+		.register_type::<Vec<Portal>>()
+		.register_type::<Vec<String>>()
+		.register_type::<Vec<TileType>>()
+		.register_type::<Vec<Tile>>()
+		.register_type::<HashMap<(i32, i32, i32), (i32, i32, i32)>>()
+		.register_type::<HashMap<Entity, Position>>()
+		.register_type::<HashMap<String, PlanqDataType>>()
+		.register_type::<bevy::utils::HashSet<ActionType>>()
+		.register_saveable::<AccessPort>()
+		.register_saveable::<ActionSet>()
+		.register_saveable::<CameraView>()
+		.register_saveable::<Container>()
+		.register_saveable::<DataSampleTimer>()
+		.register_saveable::<Description>()
+		.register_saveable::<Device>()
+		.register_saveable::<GameEvent>()
 		.register_saveable::<GameEventContext>()
 		.register_saveable::<GameEventType>()
-		.register_saveable::<GameEvent>()
+		.register_saveable::<GlobalRng>()
+		.register_saveable::<Key>()
+		.register_saveable::<LMR>()
+		.register_saveable::<Lockable>()
+		.register_saveable::<Map>()
+		.register_saveable::<Memory>()
 		.register_saveable::<Message>()
 		.register_saveable::<MessageChannel>()
 		.register_saveable::<MessageLog>()
-		//.register_saveable::<ItemBuilder>()
-		.register_type::<Vec<String>>()
-		.register_type::<Vec<Message>>()
-		.register_type::<Vec<MessageChannel>>()
-		.register_type::<Vec<TileType>>()
-		.register_type::<Vec<Tile>>()
-		.register_type::<Vec<Map>>()
-		.register_type::<Vec<bool>>()
-		.register_type::<(i32, i32, i32)>()
-		.register_type::<Position>()
-		.register_type::<HashMap<(i32, i32, i32), (i32, i32, i32)>>()
-		.register_type::<HashMap<Entity, Position>>()
-		.register_type::<bevy::utils::HashSet<ActionType>>()
-		.register_type::<DeviceState>()
-		.register_type::<TimerMode>()
-		.register_type::<PlanqEvent>()
-		.register_type::<PlanqEventType>()
-		.register_type::<PlanqEvent>()
-		// from components.rs:
-		.register_saveable::<Player>()
-		.register_saveable::<LMR>()
-		.register_saveable::<ActionSet>()
-		.register_saveable::<bevy::utils::hashbrown::HashSet<ActionType>>()
-		.register_saveable::<Position>()
-		.register_saveable::<Description>()
-		.register_saveable::<Renderable>()
 		.register_saveable::<Mobile>()
+		.register_saveable::<Model>()
+		.register_saveable::<Networkable>()
 		.register_saveable::<Obstructive>()
-		.register_saveable::<Portable>()
-		.register_saveable::<Container>()
 		.register_saveable::<Opaque>()
 		.register_saveable::<Openable>()
-		.register_saveable::<Lockable>()
-		.register_saveable::<Key>()
-		.register_saveable::<Device>()
-		.register_saveable::<AccessPort>()
-		.register_saveable::<Networkable>()
-		// planq.rs
 		.register_saveable::<Planq>()
+		.register_saveable::<PlanqActionMode>()
+		.register_saveable::<PlanqCPUMode>()
+		.register_saveable::<PlanqData>()
+		.register_saveable::<PlanqMonitor>()
 		.register_saveable::<PlanqProcess>()
-		.register_saveable::<DataSampleTimer>()
+		.register_saveable::<Player>()
+		.register_saveable::<Portable>()
+		.register_saveable::<Position>()
+		.register_saveable::<Renderable>()
+		.register_saveable::<RngComponent>()
+		.register_saveable::<Tile>()
+		.register_saveable::<TileType>()
+		.register_saveable::<bevy::utils::hashbrown::HashMap<Position, Position>>()
+		.register_saveable::<bevy::utils::hashbrown::HashSet<ActionType>>()
 		.insert_resource(Events::<GameEvent>::default())
 		.insert_resource(Events::<PlanqEvent>::default())
 		.insert_resource(MessageLog::new(chanlist))
 		.insert_resource(PlanqData::new())
 		.insert_resource(PlanqMonitor::new())
-		.insert_resource(Position::new(9, 9, 1)) // DEBUG: arbitrary player spawnpoint
+		.insert_resource(Position::create(9, 9, 1)) // DEBUG: arbitrary player spawnpoint
 		.insert_resource(RexAssets::new())
 		;
 		self.mode = EngineMode::Startup;
@@ -549,7 +555,7 @@ impl GameEngine<'_> {
 		self.mason.build_map();
 		worldmap = self.mason.get_map();
 		model.levels.push(worldmap);
-		model.add_portal((3, 20, 0), (5, 5, 1), true);
+		model.add_portal((3, 20, 0).into(), (5, 5, 1).into(), true);
 		// Add the game world to the engine
 		self.bevy.insert_resource(model);
 	}
@@ -566,7 +572,7 @@ impl GameEngine<'_> {
 		//get_item_spawn_list();
 		//artisan.spawn_batch(item_spawn_list);
 		//self.artisan.spawn_at(&mut self.bevy.world, ItemType::Door, (10, 10, 0).into());
-		self.artisan.create(ItemType::Door).at(Position::new(10, 10, 0)).build(&mut self.bevy.world);
+		self.artisan.create(ItemType::Door).at((10, 10, 0).into()).build(&mut self.bevy.world);
 		model.levels.push(worldmap);
 		// Build the DevMapLobby
 		self.mason = get_builder(2);
@@ -575,10 +581,10 @@ impl GameEngine<'_> {
 		//get_item_spawn_list();
 		//artisan.spawn_batch(item_spawn_list);
 		//self.artisan.spawn_at(&mut self.bevy.world, ItemType::Door, (13, 17, 1).into());
-		self.artisan.create(ItemType::Door).at(Position::new(13, 17, 1)).build(&mut self.bevy.world);
+		self.artisan.create(ItemType::Door).at((13, 17, 1).into()).build(&mut self.bevy.world);
 		model.levels.push(worldmap);
 		// Add level transitions and teleporters
-		model.add_portal((5, 5, 0), (7, 7, 1), true);
+		model.add_portal((5, 5, 0).into(), (7, 7, 1).into(), true);
 		// Finally, add the maps to the world model
 		self.bevy.insert_resource(model);
 	}

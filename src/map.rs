@@ -2,7 +2,6 @@
 // Defines the gameworld's terrain and interlocks with some bracket-lib logic
 
 // *** EXTERNAL LIBS
-use bevy::utils::HashMap;
 use std::fmt;
 use std::fmt::Display;
 use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
@@ -157,17 +156,85 @@ impl Map {
 #[reflect(Resource)]
 pub struct Model {
 	pub levels: Vec<Map>,
-	#[reflect(ignore)]
-	pub portals: HashMap<(i32, i32, i32), (i32, i32, i32)> // Cross-level linkages
+	// WARN: DO NOT CONVERT THIS TO A HASHMAP OR BTREEMAP
+	// FUCKING Bevy's implementation of hashing and reflection makes this specific kind of Hashmap usage
+	// *ineligible* for correct save/load via bevy_save; in short, the HashMap *itself* cannot be hashed,
+	// so bevy_save shits itself and reports an "ineligible for hashing" error without any other useful info
+	//pub portals: BTreeMap<Position, Position>,
+	//pub portals: HashMap<Position, Position>,
+	//pub portals: HashMap<(i32, i32, i32), (i32, i32, i32)> // Cross-level linkages
+	//portals: Vec<(Position, Position)>,
+	portals: Vec<Portal>,
 }
 impl Model {
 	/// Sets up a linkage between two x,y,z positions, even on the same level
 	/// If 'bidir' is true, then the portal will be made two-way
-	pub fn add_portal(&mut self, left: (i32, i32, i32), right: (i32, i32, i32), bidir: bool) {
-		self.portals.insert(left, right);
-		if bidir {
-			self.portals.insert(right, left);
+	// NOTE: may need more fxns for remove_portal, &c
+	pub fn add_portal(&mut self, left: Position, right: Position, bidir: bool) {
+		// Check if the portal exists already
+		// If not, add the portal
+		// If bidir, add the reverse portal as well
+		self.portals.push(Portal::new().from(left).to(right).twoway(bidir));
+		self.portals.sort(); // Helps prevent duplication and speeds up retrieval
+	}
+	pub fn get_exit(&mut self, entry: Position) -> Option<Position> {
+		// if the position belongs to a portal in the list, return its destination
+		// otherwise, return a None
+		let portal = self.portals.iter().find(|p| p.has(entry)).map(|portal| portal.exit_from(entry));
+		if let Some(Position::INVALID) = portal {
+			None
+		} else {
+			portal
 		}
+	}
+}
+/// Provides movement between non-contiguous points in the Map, ie for stairs between z-levels, or teleporters, &c
+/// NOTE: If the Portal is NOT bidirectional, then it will only allow transition from self.left to self.right;
+/// ie in the directions established when building the Portal via from() and to()
+#[derive(Resource, Clone, Copy, Debug, Default, Eq, PartialOrd, Ord, Reflect)]
+pub struct Portal {
+	pub left: Position,
+	pub right: Position,
+	pub bidir: bool,
+}
+impl Portal {
+	pub fn new() -> Portal {
+		Portal::default()
+	}
+	pub fn from(mut self, from: Position) -> Portal {
+		self.left = from;
+		self
+	}
+	pub fn to(mut self, to: Position) -> Portal {
+		self.right = to;
+		self
+	}
+	pub fn twoway(mut self, setting: bool) -> Portal {
+		self.bidir = setting;
+		self
+	}
+	pub fn exit_from(self, target: Position) -> Position {
+		if target == self.left {
+			self.right
+		} else if target == self.right && self.bidir {
+			self.left
+		} else {
+			Position::INVALID
+		}
+	}
+	pub fn has(self, target: Position) -> bool {
+		self.left == target || self.right == target
+	}
+}
+/// NOTE: Given two portals A and B, A == B if their sides match; however, the order does not matter, thus:
+/// A == B <-- A.left == B.left AND A.right == B.right, OR, A.left == B.right AND A.right == B.left
+/// Therefore, the setting for bidirectionality does not matter; if that condition is required, then use the strict
+/// equality trait, Eq, to obtain that information. This allows for better duplicate detection: if two Portals have
+/// 'mirrored' equal sides (A.l==B.r, A.r==B.l), then there's no need for both. In the case where a Portal
+/// is not bidirectional, we want to be 100% certain that access is being checked correctly.
+impl PartialEq for Portal {
+	fn eq(&self, other: &Self) -> bool {
+		(self.left == other.left && self.right == other.right) || (self.left == other.right && self.right == other.left)
 	}
 }
 /// Reference method that allows calculation from an arbitrary width

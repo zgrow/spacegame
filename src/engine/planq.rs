@@ -34,16 +34,17 @@ pub fn planq_update_system(mut commands: Commands,
 	                         mut preader:  EventReader<PlanqEvent>,
 	                         mut msglog:   ResMut<MessageLog>,
 	                         time:         Res<Time>,
+	                         mut rng:      ResMut<GlobalRng>,
 	                         mut planq:    ResMut<PlanqData>, // contains the PLANQ's settings and data storage
 	                         //mut monitor:  ResMut<PlanqMonitor>, // contains the PLANQ's output values and certain diagnostic info
 	                         p_query:      Query<(Entity, &Position), With<Player>>, // provides interface to player data
-	                         mut q_query:  Query<(Entity, &Device, &Portable, &mut RngComponent), With<Planq>>, // contains the PLANQ's component data
+	                         mut q_query:  Query<(Entity, &Device, &Portable), With<Planq>>, // contains the PLANQ's component data
 	                         mut t_query:  Query<(Entity, &mut PlanqProcess)>, // contains the set of all PlanqTimers
 ) {
 	if p_query.is_empty() { return; }
 	if q_query.is_empty() { return; }
 	let player = p_query.get_single().unwrap();
-	let mut planq_enty = q_query.get_single_mut().unwrap();
+	let planq_enty = q_query.get_single_mut().unwrap();
 	// Handle any new GameEvents we're interested in
 	if !ereader.is_empty() {
 		for event in ereader.iter() {
@@ -260,7 +261,7 @@ pub fn planq_update_system(mut commands: Commands,
 			// Check for any waiting jobs to be worked
 			let mut idle_message = "".to_string();
 			for _ in 0..30 {
-				let choice = planq_enty.3.usize(0..sample.len());
+				let choice = rng.usize(0..sample.len());
 				idle_message.push(sample[choice]);
 			}
 			// Update the idle message if there's nothing waiting for processing
@@ -288,17 +289,21 @@ pub fn planq_update_system(mut commands: Commands,
 }
 /// Handles the PLANQ's output status bars and other such things
 pub fn planq_monitor_system(time:        Res<Time>,
+	                          mut rng:     ResMut<GlobalRng>,
 	                          msglog:      ResMut<MessageLog>,
 	                          mut planq:   ResMut<PlanqData>,
 	                          mut monitor: ResMut<PlanqMonitor>,
 	                          p_query:     Query<(Entity, &Position), With<Player>>,
-	                          mut q_query: Query<(Entity, &Planq, &Device, &mut RngComponent)>,
+	                          //mut q_query: Query<(Entity, &Device, &mut RngComponent), With<Planq>>,
+	                          mut q_query: Query<(Entity, &Device), With<Planq>>,
 	                          mut s_query: Query<(Entity, &mut DataSampleTimer)>,
 ) {
 	if p_query.is_empty() { return; }
+	eprintln!("* p_query is good"); // DEBUG:
 	if q_query.is_empty() { return; }
+	eprintln!("* q_query is good"); // DEBUG:
 	let player = p_query.get_single().unwrap();
-	let mut planq_enty = q_query.get_single_mut().unwrap();
+	let planq_enty = q_query.get_single_mut().unwrap();
 	// Iterate any active PlanqProcesses
 	// These should be iterated locally here so that they are consistent from frame to frame; this is because
 	//   Bevy's Systems implement a multithreading model that does NOT guarantee anything about consistent concurrency
@@ -324,18 +329,18 @@ pub fn planq_monitor_system(time:        Res<Time>,
 					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(current_time.get_as_string()));
 				}
 				"planq_battery"   => {
-					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Percent(planq_enty.2.batt_voltage as u32));
+					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Percent(planq_enty.1.batt_voltage as u32));
 				}
 				"test_line"       => {
 					monitor.raw_data.entry(source_name)
-						.and_modify(|x| *x = PlanqDataType::Decimal{numer: planq_enty.3.i32(0..100), denom: 100});
+						.and_modify(|x| *x = PlanqDataType::Decimal{numer: rng.i32(0..100), denom: 100});
 				}
 				"test_sparkline"  => {
 					// This update method is 'backwards' to the others: instead of passing a new value to raw_data via entry(),
 					//   we modify the raw_data's values directly using the mutable reference we obtained with get_mut()
 					let entry = monitor.raw_data.get_mut(&source_name).unwrap();
 					if let PlanqDataType::Series(ref mut arr) = entry {
-						arr.push_back(planq_enty.3.u64(0..10));
+						arr.push_back(rng.u64(0..10));
 						loop {
 							if arr.len() >= 31 {
 								arr.pop_front();
@@ -347,7 +352,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 				}
 				"test_gauge"      => {
 					monitor.raw_data.entry(source_name)
-						.and_modify(|x| *x = PlanqDataType::Percent(planq_enty.3.u32(0..=100)));
+						.and_modify(|x| *x = PlanqDataType::Percent(rng.u32(0..=100)));
 				}
 				_ => { eprintln!("* unrecognized data source in planq_monitor_system: {}", source_name); } // DEBUG: announce a missing data source
 			}
@@ -403,21 +408,7 @@ impl Default for PlanqData {
 }
 impl PlanqData {
 	pub fn new() -> PlanqData {
-		PlanqData {
-			power_is_on: false,
-			boot_stage: 0,
-			is_carried: false,
-			cpu_mode: PlanqCPUMode::Offline,
-			action_mode: PlanqActionMode::Default,
-			show_terminal: false,
-			show_inventory: false,
-			inventory_list: Vec::new(),
-			player_loc: Position::default(),
-			show_cli_input: false,
-			stdout: Vec::new(),
-			proc_table: Vec::new(),
-			jack_cnxn: Entity::PLACEHOLDER,
-		}
+		PlanqData::default()
 	}
 	/// Renders the CLI input box
 	pub fn render_cli<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect, stdin: &mut PlanqInput) {
@@ -432,23 +423,6 @@ impl PlanqData {
 	}
 	/// Renders the whole terminal window, including the backlog, leaving room for the CLI
 	pub fn render_terminal<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		/*
-		// Obtain a slice of the message log here and feed to the next widget
-		let msglog_ref = self.app.world.get_resource::<MessageLog>();
-		let msglog = msglog_ref.unwrap_or_default(); // get a handle on the msglog service
-		if msglog_ref.is_some() {
-			let worldmsg = msglog.get_log_as_spans("world".to_string(), 0); // get the full backlog
-			//eprintln!("*** worldmsg.len {}, ui_grid.msg_world.height {}", worldmsg.len() as i32, self.ui_grid.msg_world.height as i32); // DEBUG:
-			/* FIXME: magic number offset for window borders
-			 * NOTE: it would be possible to 'reserve' space here by setting the magic num offset
-			 *       greater than is strictly required to cause scrollback
-			 */
-			// Strict attention to typing required here lest we cause subtraction overflow errs
-			let backlog_start_offset = (worldmsg.len() as i32) - self.ui_grid.msg_world.height as i32 + 2;
-			let mut backlog_start: usize = 0;
-			if backlog_start_offset > 0 { backlog_start = backlog_start_offset as usize; }
-			let backlog = worldmsg[backlog_start..].to_vec(); // get a slice of the latest msgs
-			*/
 		let stdout = self.get_stdout_as_spans();
 		let start_offset = (stdout.len() as i32) - area.height as i32 + 2;
 		let mut start: usize = 0;

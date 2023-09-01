@@ -48,7 +48,7 @@ impl Default for ActionSet {
 	}
 }
 /// Represents a point on a 2D grid as an XY pair, plus a Z-coordinate to indicate what floor the entity is on
-#[derive(Component, Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[derive(Component, Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Reflect)]
 #[reflect(Component, Resource)]
 pub struct Position {
 	pub x: i32,
@@ -59,7 +59,7 @@ impl Position {
 	/// A handy constant for checking if a map coordinate is invalid
 	pub const INVALID: Position = Position{x: -1, y: -1, z: -1};
 	/// Creates a new Position from the given values
-	pub fn new(new_x: i32, new_y: i32, new_z: i32) -> Position {
+	pub fn create(new_x: i32, new_y: i32, new_z: i32) -> Position {
 		Position{ x: new_x, y: new_y, z: new_z }
 	}
 	/// This is just a naive calculator for when all the variables can be obtained easily
@@ -100,7 +100,7 @@ impl Position {
 		let c_y = screen.height / 2;
 		let d_x = p_map.x - self.x;
 		let d_y = p_map.y - self.y;
-		Position::new(c_x as i32 - d_x, c_y as i32 - d_y, 0)
+		Position::create(c_x as i32 - d_x, c_y as i32 - d_y, 0)
 	}
 }
 impl From<(i32, i32, i32)> for Position {
