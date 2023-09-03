@@ -12,6 +12,7 @@ use bevy_save::prelude::*;
 use bevy_turborand::prelude::*;
 use bracket_rex::prelude::*;
 use ratatui::{
+	prelude::*,
 	Frame,
 	backend::Backend,
 	layout::{
@@ -317,7 +318,8 @@ impl GameEngine<'_> {
 			let backlog = worldmsg[backlog_start..].to_vec(); // get a slice of the latest msgs
 			// Draw the message log pane
 			frame.render_widget(
-				Paragraph::new(backlog).block( // requires a Vec<Spans<'a>> for group insert on creation
+				Paragraph::new(Text::from(backlog)) // requires a Vec<Line<'a>> for group insert on creation
+				.block(
 					Block::default()
 					.borders(Borders::ALL)
 					.border_style(Style::default().fg(Color::White))
@@ -615,14 +617,14 @@ impl GameEngine<'_> {
 		let mut msglog = self.bevy.world.get_resource_mut::<MessageLog>().unwrap();
 		match cmd {
 			PlanqCmd::Error(msg) => {
-				msglog.tell_planq("¶│ ERROR:".to_string());
-				msglog.tell_planq(format!("¶│ {}", msg));
+				msglog.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[fg:red]]ERROR:".to_string());
+				msglog.tell_planq(format!("[[fg:yellow]]¶[[fg:gray]]│[[end]]{}", msg));
 				msglog.tell_planq(" ".to_string());
 			}
 			PlanqCmd::Help => {
-				msglog.tell_planq("¶│ Available commands:".to_string());
+				msglog.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Available commands:".to_string());
 				for command in PlanqCmd::iter() {
-					msglog.tell_planq(format!("¶│   {}", command));
+					msglog.tell_planq(format!("[[fg:yellow]]¶[[fg:gray]]│[[end]]  {}", command));
 				}
 				msglog.tell_planq(" ".to_string());
 			}

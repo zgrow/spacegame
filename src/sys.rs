@@ -526,6 +526,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 pub fn new_player_spawn(mut commands: Commands,
 	                      spawnpoint:   Res<Position>,
 	                      mut p_query:  Query<(Entity, &Player)>,
+	                      mut msglog:   ResMut<MessageLog>,
 	                      mut global_rng: ResMut<GlobalRng>,
 ) {
 	if !p_query.is_empty() {
@@ -560,6 +561,7 @@ pub fn new_player_spawn(mut commands: Commands,
 	commands.spawn(DataSampleTimer::new().source("current_time".to_string()));
 	commands.spawn(DataSampleTimer::new().source("planq_battery".to_string()));
 	commands.spawn(DataSampleTimer::new().source("planq_mode".to_string()));
+	msglog.tell_player("[[fg:green]]WELCOME[[end]] TO [[fg:blue,mod:+italic]]SPACEGAME[[end]]".to_string());
 }
 /// Spawns a new LMR at the specified Position, using default values
 pub fn new_lmr_spawn(mut commands:  Commands,

@@ -54,14 +54,19 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					planq.show_cli_input = false;
 					eng.planq_stdin.input.move_cursor(tui_textarea::CursorMove::Head);
 					eng.planq_stdin.input.delete_line_by_end();
-					let input_text = "> ".to_string() + eng.planq_stdin.input.yank_text();
-					// We must finish working with the PLANQ reference before we can get the msglog
+					let input_text = eng.planq_stdin.input.yank_text().to_string();
+					let echo_text = "[[fg:green]]>[[end]] ".to_string() + &*input_text;
+					// WARN: We must finish working with the PLANQ reference before we can get the msglog
+					/*
+					// If there's an idle graphic enabled, we'll want to overwrite it instead of adding another line
 					if planq.cpu_mode == PlanqCPUMode::Idle {
 						let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap(); // Must keep these here to satisfy borrow checker
-						msglog.replace(input_text.clone(), "planq".to_string(), 0, 0);
+						msglog.replace(echo_text.clone(), "planq".to_string(), 0, 0);
 					} else {
+					*/
+					{
 						let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap(); // See above ^^^
-						msglog.tell_planq(input_text.clone());
+						msglog.tell_planq(echo_text.clone());
 					}
 					eng.exec(planq_parser(input_text));
 				}
@@ -69,16 +74,17 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				the_input => {
 					// pass everything else to the CLI parser
 					//eng.planq_stdin.input.input(key_event.clone().into());
-					eprintln!("* attempting a translation of {:?} (todo)", the_input);
-					let flag = eng.planq_stdin.input.input(
+					//eprintln!("* attempting a translation of {:?}", the_input);
+					//let flag = eng.planq_stdin.input.input(
+					eng.planq_stdin.input.input(
 						Input {
 							key: keycode_to_input_key(the_input),
 							ctrl: false, // FIXME: probably want to detect this
 							alt: false, // FIXME: probably want to detect this
 						}
 					);
-					eprintln!("{}", eng.planq_stdin.input.lines()[0]);
-					if flag { eprintln!("succeeded"); }
+					//eprintln!("* lines: {}", eng.planq_stdin.input.lines()[0]);
+					//if flag { eprintln!("* parse succeeded"); }
 				}
 			}
 			return Ok(()) // WARN: do not disable this, lest key inputs be parsed twice (ie again below) by mistake!

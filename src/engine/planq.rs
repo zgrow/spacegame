@@ -419,13 +419,13 @@ impl PlanqData {
 	}
 	/// Renders the whole terminal window, including the backlog, leaving room for the CLI
 	pub fn render_terminal<B: Backend>(&mut self, frame: &mut Frame<'_, B>, area: Rect) {
-		let stdout = self.get_stdout_as_spans();
+		let stdout = self.get_stdout_as_lines();
 		let start_offset = (stdout.len() as i32) - area.height as i32 + 2;
 		let mut start: usize = 0;
 		if start_offset > 0 { start = start_offset as usize; }
 		let backscroll = stdout[start..].to_vec();
 		frame.render_widget(
-			Paragraph::new(backscroll)
+			Paragraph::new(Text::from(backscroll))
 			.block(Block::default()
 			       .borders(Borders::ALL)
 			       .border_type(BorderType::Plain)
@@ -435,11 +435,11 @@ impl PlanqData {
 		);
 	}
 	/// Provides the contents of the PLANQ's stdout as a set of formatted Line for ratatui
-	pub fn get_stdout_as_spans(&self) -> Vec<Line> {
+	pub fn get_stdout_as_lines(&self) -> Vec<Line> {
 		let mut output: Vec<Line> = Vec::new();
 		if self.stdout.is_empty() { return output; }
 		for msg in self.stdout.iter() {
-			output.push(msg.text.clone().into());
+			output.push(msg.clone().into());
 		}
 		output
 	}

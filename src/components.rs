@@ -390,6 +390,29 @@ pub struct AccessPort { }
 pub struct Networkable { }
 
 //  *** PRIMITIVES AND COMPUTED VALUES (ie no save/load)
+/// A small type that lets us specify friendly names for colors instead of using ints everywhere
+/// Because none of these carry any data, they can be cast to numeric types directly
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+pub enum Color {
+	// These are arranged in order of their ANSI index
+	Black,    // 00
+	Red,      // 01
+	Green,    // 02
+	Yellow,   // 03
+	Blue,     // 04
+	Pink,     // 05
+	Cyan,     // 06
+	White,    // 07
+	#[default]
+	LtBlack,  // 08
+	LtRed,    // 09
+	LtGreen,  // 10
+	LtYellow, // 11
+	LtBlue,   // 12
+	LtPink,   // 13
+	LtCyan,   // 14
+	LtWhite   // 15
+}
 /// A convenient type that makes it clear whether we mean the Player entity or some other
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Creature {
