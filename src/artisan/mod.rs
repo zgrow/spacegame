@@ -8,6 +8,9 @@ use bevy::ecs::world::EntityMut;
 // *** INTERNAL LIBRARIES
 use crate::components::*;
 use crate::engine::planq::*;
+use furniture::Facade;
+
+pub mod furniture;
 
 /// Defines the set of item types, which allow requests to be made for specific types of items at runtime
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -17,6 +20,8 @@ pub enum ItemType {
 	Thing,
 	Snack,
 	Fixture,
+	Furniture,
+	Scenery,
 	Door,
 	Planq,
 }
@@ -75,6 +80,7 @@ pub struct ItemBuilder {
 	lock:     Option<Lockable>,
 	key:      Option<Key>,
 	planq:    Option<Planq>,
+	backdrop: Option<Facade>,
 }
 impl<'a, 'b> ItemBuilder where 'a: 'b {
 	/// ItemBuilder constructor
@@ -87,25 +93,38 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		match new_type {
 			ItemType::Simple    => {
 				self.desc = Some(Description::new(format!("_simpleItem_{}", self.spawn_count), "A simple Item.".to_string()));
-				self.render = Some(Renderable::new("i".to_string(), 4, 0));
+				self.render = Some(Renderable::new().glyph("i".to_string()).fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 			}
 			ItemType::Thing     => {
 				self.desc = Some(Description::new(format!("_thing_{}", self.spawn_count), "A new Thing.".to_string()));
-				self.render = Some(Renderable::new("t".to_string(), 4, 0));
+				self.render = Some(Renderable::new().glyph("t".to_string()).fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.portable = Some(Portable::empty());
 			}
 			ItemType::Fixture   => {
 				self.desc = Some(Description::new(format!("_fixture_{}", self.spawn_count), "A plain Fixture.".to_string()));
-				self.render = Some(Renderable::new("#".to_string(), 4, 0));
+				self.render = Some(Renderable::new().glyph("#".to_string()).fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
+				self.obstruct = Some(Obstructive::default());
+				self.opaque = Some(Opaque::new(true));
+			}
+			ItemType::Furniture => {
+				self.desc = Some(Description::new(format!("_furnish_{}", self.spawn_count), "A piece of Furniture.".to_string()));
+				self.render = Some(Renderable::new().glyph("h".to_string()).fg(12).bg(0));
+				self.actions = Some(ActionSet::new());
+				self.obstruct = Some(Obstructive::default());
+				self.opaque = Some(Opaque::new(true));
+			}
+			ItemType::Scenery   => {
+				self.backdrop = Some(Facade::default());
+				self.render = Some(Renderable::new().glyph("S".to_string()).fg(4).bg(0));
 				self.obstruct = Some(Obstructive::default());
 				self.opaque = Some(Opaque::new(true));
 			}
 			ItemType::Door      => {
 				self.desc = Some(Description::new(format!("_door_{}", self.spawn_count), "A regular Door.".to_string()));
-				self.render = Some(Renderable::new("█".to_string(), 4, 0));
+				self.render = Some(Renderable::new().glyph("█".to_string()).fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.obstruct = Some(Obstructive::default());
 				self.opaque = Some(Opaque::new(true));
@@ -113,13 +132,13 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			}
 			ItemType::Snack     => {
 				self.desc = Some(Description::new(format!("_snack_{}", self.spawn_count), "A tasty Snack.".to_string()));
-				self.render = Some(Renderable::new("%".to_string(), 5, 0));
+				self.render = Some(Renderable::new().glyph("%".to_string()).fg(5).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.portable = Some(Portable::empty());
 			}
 			ItemType::Planq     => {
 				self.desc = Some(Description::new("PLANQ".to_string(), "It's your PLANQ.".to_string()));
-				self.render = Some(Renderable::new("¶".to_string(), 3, 0));
+				self.render = Some(Renderable::new().glyph("¶".to_string()).fg(3).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.portable = Some(Portable::empty());
 				self.device = Some(Device::new(-1));
@@ -153,6 +172,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		if let Some(lock)     = self.lock { new_item.insert(lock); self.lock = None; }
 		if let Some(key)      = self.key { new_item.insert(key); self.key = None; }
 		if let Some(planq)    = self.planq { new_item.insert(planq); self.planq = None; }
+		if let Some(backdrop) = self.backdrop { new_item.insert(backdrop); self.backdrop = None; }
 		new_item
 	}
 }

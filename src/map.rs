@@ -44,9 +44,9 @@ impl Display for TileType {
 pub struct Tile {
 	pub ttype: TileType,
 	pub glyph: String,
-	pub fg: u8,
-	pub bg: u8,
-	pub mods: String,
+	pub fg: u8, // Corresponds to indexed colors, ie the ANSI 0-15 basic set
+	pub bg: u8, // Same as fg
+	pub mods: u16, // Corresponds to ratatui's Modifier type; use Modifier::bits()/to_bits() for conversion
 }
 impl Default for Tile {
 	fn default() -> Self {
@@ -61,7 +61,7 @@ impl Tile {
 			glyph: "★".to_string(),
 			fg: 8,
 			bg: 0,
-			mods: "".to_string(),
+			mods: 0,
 		}
 	}
 	/// Produces a default 'floor' tile
@@ -71,7 +71,7 @@ impl Tile {
 			glyph: ".".to_string(),
 			fg: 8,
 			bg: 0,
-			mods: "".to_string(),
+			mods: 0,
 		}
 	}
 	/// Produces a default 'wall' tile
@@ -81,7 +81,7 @@ impl Tile {
 			glyph: "╳".to_string(),
 			fg: 7,
 			bg: 0,
-			mods: "".to_string(),
+			mods: 0,
 		}
 	}
 	/// Produces a default 'stairway' tile
@@ -91,7 +91,7 @@ impl Tile {
 			glyph: "∑".to_string(),
 			fg: 5,
 			bg: 0,
-			mods: "".to_string(),
+			mods: 0,
 		}
 	}
 }

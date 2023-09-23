@@ -177,15 +177,30 @@ pub struct Renderable {
 	pub glyph: String,  // stdlib
 	pub fg: u8,         // ratatui as a Color::Indexed
 	pub bg: u8,         // ratatui
-	//pub mods: Modifier, // ratatui
+	pub mods: u16,      // ratatui
+	pub width: u32,
+	pub height: u32,
 }
 impl Renderable {
-	pub fn new(new_glyph: String, fcolor: u8, bcolor: u8) -> Self {
-		Self {
-			glyph: new_glyph,
-			fg:    fcolor,
-			bg:    bcolor,
-		}
+	pub fn new() -> Renderable {
+		Renderable::default()
+	}
+	pub fn glyph(mut self, new_glyph: String) -> Renderable {
+		self.glyph = new_glyph;
+		self
+	}
+	pub fn dims(mut self, new_width: u32, new_height: u32) -> Renderable {
+		self.width = new_width;
+		self.height = new_height;
+		self
+	}
+	pub fn fg(mut self, fg_value: u8) -> Renderable {
+		self.fg = fg_value;
+		self
+	}
+	pub fn bg(mut self, bg_value: u8) -> Renderable {
+		self.bg = bg_value;
+		self
 	}
 }
 /// Provides an object abstraction for the sensory range of a given entity

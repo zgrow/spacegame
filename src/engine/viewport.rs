@@ -33,15 +33,15 @@ impl<'a> Widget for Viewport<'a> {
 		};
 		// Don't continue if the area inside the border is too small
 		if area.width < 1 || area.height < 1
-		|| self.source.map.is_empty() {
+		|| self.source.output.is_empty() {
 			return;
 		}
 		// We are certain of a valid drawing area, so let's gooooo
 		for map_y in area.top()..area.bottom() {        // Hooray
 			for map_x in area.left()..area.right() {      // for 1:1 mapping!
 				let index = xy_to_index(map_x.into(), map_y.into(), self.source.width as usize);
-				let tilestyle = Style::default().fg(Indexed(self.source.map[index].fg)).bg(Indexed(self.source.map[index].bg));
-				buf.set_string(map_x, map_y, &self.source.map[index].glyph, tilestyle);
+				let tilestyle = Style::default().fg(Indexed(self.source.output[index].fg)).bg(Indexed(self.source.output[index].bg));
+				buf.set_string(map_x, map_y, &self.source.output[index].glyph, tilestyle);
 			}
 		}
 	}

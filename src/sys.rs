@@ -273,8 +273,8 @@ pub fn lockable_system(mut _commands:    Commands,
 }
 /// Handles updates to the 'meta' worldmaps, ie the blocked and opaque tilemaps
 pub fn map_indexing_system(mut model:         ResMut<Model>,
-	                         mut blocker_query: Query<&Position, With<Obstructive>>,
-	                         mut opaque_query:  Query<(&Position, &Opaque)>,
+	                         blocker_query: Query<&Position, With<Obstructive>>,
+	                         opaque_query:  Query<(&Position, &Opaque)>,
 ) {
 	// First, rebuild the blocking map by the map tiles
 	let mut f_index = 0;
@@ -282,13 +282,13 @@ pub fn map_indexing_system(mut model:         ResMut<Model>,
 	for floor in model.levels.iter_mut() {
 		floor.update_tilemaps(); // Update tilemaps based on their tiletypes
 		// Then, step through all blocking entities and flag their locations on the map as well
-		for guy in blocker_query.iter_mut() {
+		for guy in blocker_query.iter() {
 			if guy.z != f_index { continue; }
 			index = floor.to_index(guy.x, guy.y);
 			floor.blocked_tiles[index] = true;
 		}
 		// Do the same for the opaque entities
-		for guy in opaque_query.iter_mut() {
+		for guy in opaque_query.iter() {
 			if guy.0.z != f_index { continue; }
 			index = floor.to_index(guy.0.x, guy.0.y);
 			floor.opaque_tiles[index] = guy.1.opaque;
@@ -497,7 +497,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 			viewshed.visible_tiles.clear();
 			viewshed.visible_tiles = field_of_view(posn_to_point(s_posn), viewshed.range, map);
 			viewshed.visible_tiles.retain(|p| p.x >= 0 && p.x < map.width
-				                           && p.y >= 0 && p.y < map.height
+				                             && p.y >= 0 && p.y < map.height
 			);
 			if let Some(_player) = player { // if this is the player...
 				for s_posn in &viewshed.visible_tiles { // For all the player's visible tiles...
@@ -540,7 +540,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		ActionSet::new(),
 		Description::new("Pleyeur".to_string(), "Still your old self.".to_string()),
 		*spawnpoint,
-		Renderable::new("@".to_string(), 2, 0),
+		Renderable::new().glyph("@".to_string()).fg(2).bg(0),
 		Viewshed::new(8),
 		Mobile::default(),
 		Obstructive::default(),
@@ -552,7 +552,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Planq::new(),
 		ActionSet::new(),
 		Description::new("PLANQ".to_string(), "It's your PLANQ.".to_string()),
-		Renderable::new("¶".to_string(), 3, 0),
+		Renderable::new().glyph("¶".to_string()).fg(3).bg(0),
 		Portable::new(player),
 		Device::new(-1),
 		RngComponent::from(&mut global_rng),
@@ -572,7 +572,7 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 		ActionSet::new(),
 		Description::new("LMR".to_string(), "The Light Maintenance Robot is awaiting instructions.".to_string()),
 		Position::create(12, 12, 0), // TODO: remove magic numbers
-		Renderable::new("l".to_string(), 14, 0),
+		Renderable::new().glyph("l".to_string()).fg(14).bg(0),
 		Viewshed::new(5),
 		Mobile::default(),
 		Obstructive::default(),
@@ -599,7 +599,7 @@ pub fn test_npc_spawn(mut commands: Commands,
 		ActionSet::new(),
 		Description::new("Jenaryk".to_string(), "Behold, a generic virtual cariacature of a man.".to_string()),
 		spawnpoint,
-		Renderable::new("&".to_string(), 1, 0),
+		Renderable::new().glyph("&".to_string()).fg(1).bg(0),
 		Viewshed::new(8),
 		Mobile::default(),
 		Obstructive::default(),

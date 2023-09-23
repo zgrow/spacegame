@@ -226,6 +226,7 @@ impl GameEngine<'_> {
 		} else {
 			frame.render_widget(Block::default().title("[no CameraView initialized]"), self.ui_grid.camera_main);
 		}
+		// If there's a visible menu, render that too
 		if self.visible_menu != MenuType::None {
 			match self.visible_menu {
 				MenuType::Main   => { self.render_main_menu(frame); }
@@ -233,8 +234,10 @@ impl GameEngine<'_> {
 				_ => { }
 			}
 		}
-		self.render_planq(frame); // PLANQ is smart and will change appearance based on its state relative to the player
-		self.render_message_log(frame); // Always render this
+		// PLANQ is smart and will change appearance based on its state relative to the player
+		self.render_planq(frame);
+		// Always render the message log
+		self.render_message_log(frame);
 		// Display the fancy "PAUSED" banner if the game is paused
 		if self.mode == EngineMode::Paused {
 			let xpfile = &XpFile::from_resource("../resources/big_pause.xp").unwrap();
