@@ -110,16 +110,16 @@ impl GameEngine<'_> {
 	pub fn tick(&mut self) {
 		/* HINT: This is a known-good local method for obtaining data from a selected entity
 		_ => {
-			eprintln!("! unhandled option '{}' selected from menu", item); // DEBUG: report an unhandled menu option
+			error!("! unhandled option '{}' selected from menu", item); // DEBUG: report an unhandled menu option
 			let enty_id = item.parse::<u32>().unwrap();
 			let enty_ref = self.bevy.world.entities().resolve_from_id(enty_id);
 			if let Some(enty) = enty_ref {
 				if self.bevy.world.entities().contains(enty) {
-					eprintln!("* produced a valid enty_ref from an entity.index()"); // DEBUG: report entity reference success
+					debug!("* produced a valid enty_ref from an entity.index()"); // DEBUG: report entity reference success
 				if let Some(name) = self.bevy.world.get::<ActorName>(enty) {
-						eprintln!("* Entity {} named {} was selected", enty_id, name.name.clone()); // DEBUG: announce entity selection
+						debug!("* Entity {} named {} was selected", enty_id, name.name.clone()); // DEBUG: announce entity selection
 					} else {
-						eprintln!("* Could not retrieve the name of the selected entity"); // DEBUG: report entity component retrieval failure
+						warn!("* Could not retrieve the name of the selected entity"); // DEBUG: report entity component retrieval failure
 					}
 				}
 			}
@@ -137,16 +137,16 @@ impl GameEngine<'_> {
 					"main.load_game" => { self.load_game(self.savegame_filename.clone()); }
 					"main.save_game" => { self.save_game(self.savegame_filename.clone()); }
 					"main.abandon_game" => {
-						eprintln!("* Deleting savegame at {} and shutting down...", self.savegame_filename.clone()); // DEBUG: announce game abandon
+						info!("* Deleting savegame at {} and shutting down...", self.savegame_filename.clone()); // DEBUG: announce game abandon
 						let _ = self.delete_game(self.savegame_filename.clone()); // WARN: may want to trap this error?
 						self.set_mode(EngineMode::Offline);
 					}
 					"main.quit"      => {
-						eprintln!("* Engine is shutting down..."); // DEBUG: announce engine shutdown
+						info!("* Engine is shutting down..."); // DEBUG: announce engine shutdown
 						self.set_mode(EngineMode::Offline);
 					}
 					_ => {
-						eprintln!("! unhandled option '{}' selected from menu", item); // DEBUG: announce unhandled option
+						error!("! unhandled option '{}' selected from menu", item); // DEBUG: announce unhandled option
 					}
 				}
 			}
@@ -154,9 +154,9 @@ impl GameEngine<'_> {
 		for events in self.menu_context.drain_events() {
 			match events {
 				MenuEvent::Selected(event) => {
-					eprintln!("* {:?}", event); // DEBUG: announce the context event that got matched
+					debug!("* {:?}", event); // DEBUG: announce the context event that got matched
 					if event.is_valid() {
-						eprintln!("* Dispatching event..."); // DEBUG: announce event dispatch
+						debug!("* Dispatching event..."); // DEBUG: announce event dispatch
 						let event_handler = &mut self.bevy.world.get_resource_mut::<Events<GameEvent>>().unwrap();
 						event_handler.send(event);
 					}
@@ -165,7 +165,7 @@ impl GameEngine<'_> {
 						match action {
 							ActionType::NoAction => { }
 							ActionType::Examine => {
-								eprintln!("* tried to Examine"); // DEBUG: report a detected EXAMINE event
+								debug!("* tried to Examine"); // DEBUG: report a detected EXAMINE event
 							}
 							_ => { }
 						}
@@ -176,7 +176,7 @@ impl GameEngine<'_> {
 		// Execute variant behavior based on the engine's current EngineMode
 		match self.mode {
 			EngineMode::Offline => {
-				eprintln!("* ! tick() called while mode == Offline, will now quit()"); // DEBUG: announce engine shutdown
+				warn!("* tick() called while mode == Offline, will now quit()"); // DEBUG: announce engine shutdown
 				self.quit();
 			}
 			EngineMode::Standby => { // Any Engine state where normal operations have been temporarily suspended
@@ -185,7 +185,7 @@ impl GameEngine<'_> {
 			EngineMode::Startup => {
 				// the pre-/post-game context, when the game is not loaded but the main menu shows
 				// Setup is all done, proceed with the game
-				eprintln!("* Startup is complete"); // DEBUG: announce engine startup
+				debug!("* Startup is complete"); // DEBUG: announce engine startup
 				self.set_mode(EngineMode::Running);
 			}
 			EngineMode::Running => {
@@ -247,15 +247,15 @@ impl GameEngine<'_> {
 			frame.render_widget(Clear, banner_area);
 			frame.render_widget(banner_img, banner_area);
 		} else if self.mode == EngineMode::GoodEnd {
-			eprintln!("*************************");
-			eprintln!("*** Victory detected! ***");
-			eprintln!("*************************");
+			info!("*************************");
+			info!("*** Victory detected! ***");
+			info!("*************************");
 			self.quit();
 		}
 	}
 	/// Renders the main menu, using the main menu object
 	pub fn render_main_menu<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
-		//eprintln!("*** rendering main menu"); // DEBUG: announce main menu render event
+		debug!("* rendering main menu"); // DEBUG: announce main menu render event
 		let menu = Menu::new().block(Block::default()
 			                           .borders(Borders::TOP | Borders::RIGHT)
 			                           .border_style(Style::default().fg(Color::White).bg(Color::DarkGray))
@@ -334,7 +334,7 @@ impl GameEngine<'_> {
 	/// Enables and places the given menu type at the specified position; should only need to be called at menu creation
 	/// If the type is Main, then the menu does not need to be pre-populated
 	pub fn set_menu(&mut self, m_type: MenuType, posn: (u16, u16)) {
-		//eprintln!("* Enabling menu {:?} at {}, {}", m_type, posn.0, posn.1); // DEBUG: announce menu display
+		debug!("* Enabling menu {:?} at {}, {}", m_type, posn.0, posn.1); // DEBUG: announce menu display
 		if m_type == MenuType::Main {
 			let mut menu_items: Vec<MenuItem<Cow<'_, str>>> = Vec::new();
 			menu_items.push(MenuItem::item("New Game", "main.new_game".into(), None));
@@ -356,7 +356,7 @@ impl GameEngine<'_> {
 	}
 	/// Helper for changing the current mode of the GameEngine
 	pub fn set_mode(&mut self, new_mode: EngineMode) {
-		eprintln!("* eng.mode set to {new_mode:?}"); // DEBUG: announce engine mode switch
+		debug!("* eng.mode set to {new_mode:?}"); // DEBUG: announce engine mode switch
 		self.mode = new_mode;
 	}
 	/// Causes the GameEngine to halt and quit
@@ -365,10 +365,10 @@ impl GameEngine<'_> {
 	}
 	/// Starts a new game from scratch
 	pub fn new_game(&mut self) {
-		//eprintln!("* new_game() called"); // DEBUG: announce new game
+		debug!("* new_game() called"); // DEBUG: announce new game
 		// If no game is running, then self.standby should be TRUE
 		if !self.standby {
-			eprintln!("* ! game is in progress!"); // DEBUG: warn about running game
+			warn!("* ! game is in progress!"); // DEBUG: warn about running game
 			self.halt_game();
 			self.standby = true;
 			self.running = false;
@@ -391,18 +391,18 @@ impl GameEngine<'_> {
 	//  INFO: By default (not sure how to change this!), on Linux, this savegame will be at
 	//      ~/.local/share/spacegame/saves/FILENAME.sav
 	pub fn save_game(&mut self, filename: String) {
-		eprintln!("* save_game() called on {}", filename); // DEBUG: alert when save_game is called
+		debug!("* save_game() called on {}", filename); // DEBUG: alert when save_game is called
 		if let Err(e) = self.bevy.world.save(&filename) {
-			eprintln!("! ! save_game() failed on '{}', error: {}", filename, e); // DEBUG: warn about save game error
+			error!("! ! save_game() failed on '{}', error: {}", filename, e); // DEBUG: warn about save game error
 			return;
 		}
 		self.quit();
 	}
 	/// Loads a saved game from the given external file
 	pub fn load_game(&mut self, filename: String) {
-		eprintln!("* load_game() called on {} ({})", filename, self.standby); // DEBUG: alert when load_game is called
+		debug!("* load_game() called on {} ({})", filename, self.standby); // DEBUG: alert when load_game is called
 		if !self.standby {
-			eprintln!("* ! game is in progress!"); // DEBUG: warn about running game
+			warn!("* ! game is in progress!"); // DEBUG: warn about running game
 			self.halt_game();
 			self.standby = true;
 			self.running = false;
@@ -411,22 +411,22 @@ impl GameEngine<'_> {
 		match self.bevy.world.load_applier(&filename) {
 			Ok(applier) => {
 				if let Err(f) = applier.despawn(DespawnMode::Unmapped).apply() {
-					eprintln!( "! ERR: load_game() failed to apply the EntityMap, error: {}", f); // DEBUG: warn about loading error
+					error!( "! ERR: load_game() failed to apply the EntityMap, error: {}", f); // DEBUG: warn about loading error
 				}
 			}
 			Err(e) => {
-				eprintln!("! ERR: load_game() failed on '{}', error: {}", filename, e); // DEBUG: warn about loading error
+				error!("! ERR: load_game() failed on '{}', error: {}", filename, e); // DEBUG: warn about loading error
 			}
 		}
 		self.bevy.update();
 		self.standby = false;
 		self.running = true;
 		self.set_mode(EngineMode::Running);
-		eprintln!("* load_game() finished successfully"); // DEBUG: alert when load_game finishes
+		debug!("* load_game() finished successfully"); // DEBUG: alert when load_game finishes
 	}
 	/// Deletes the game save, ie after dying or abandoning the game
 	pub fn delete_game(&mut self, filename: String) -> std::io::Result<()> {
-		eprintln!("* delete_game() called on {}", filename); // DEBUG: alert when delete_game is called
+		debug!("* delete_game() called on {}", filename); // DEBUG: alert when delete_game is called
 		let filepath = bevy_save::get_save_file(&filename);
 		std::fs::remove_file(filepath)
 	}
@@ -448,7 +448,7 @@ impl GameEngine<'_> {
 	}
 	/// Gets Bevy instance set up from nothing, up to just before calling bevy.world.update()
 	pub fn init_bevy(&mut self) {
-		eprintln!("* Initializing Bevy..."); // DEBUG: announce Bevy startup
+		debug!("* Initializing Bevy..."); // DEBUG: announce Bevy startup
 		let chanlist = vec!["world".to_string(),
 			                  "planq".to_string(),
 			                  "debug".to_string()];
@@ -551,7 +551,7 @@ impl GameEngine<'_> {
 		let mut worldmap = self.mason.get_map();
 		// Construct the various furniture/scenery/backdrop items
 		let item_spawns = self.mason.get_item_spawn_list();
-		eprintln!("* item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
+		debug!("* item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
 		for item in item_spawns.iter() {
 			self.artisan.create(item.0).at(item.1).build(&mut self.bevy.world);
 		}

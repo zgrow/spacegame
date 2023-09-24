@@ -64,7 +64,7 @@ impl GameEvent {
 							context.subject != Entity::PLACEHOLDER && context.object != Entity::PLACEHOLDER
 						}
 						_ => {
-							eprintln!("* ActionType::{} had a context when validation was attempted", action); // DEBUG: report an event validation error
+							warn!("* ActionType::{} had a context when validation was attempted", action); // DEBUG: report an event validation error
 							false
 						} // If it had a context but didn't match one of the types above, it's probably malformed
 					}

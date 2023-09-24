@@ -73,9 +73,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				// TODO: set up the cursor dirs to allow movement? or reserve for planq menus?
 				the_input => {
 					// pass everything else to the CLI parser
-					//eng.planq_stdin.input.input(key_event.clone().into());
-					//eprintln!("* attempting a translation of {:?}", the_input);
-					//let flag = eng.planq_stdin.input.input(
+					debug!("* attempting a translation of {:?}", the_input);
 					eng.planq_stdin.input.input(
 						Input {
 							key: keycode_to_input_key(the_input),
@@ -83,8 +81,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 							alt: false, // FIXME: probably want to detect this
 						}
 					);
-					//eprintln!("* lines: {}", eng.planq_stdin.input.lines()[0]);
-					//if flag { eprintln!("* parse succeeded"); }
+					debug!("* lines: {}", eng.planq_stdin.input.lines()[0]);
 				}
 			}
 			return Ok(()) // WARN: do not disable this, lest key inputs be parsed twice (ie again below) by mistake!
@@ -158,27 +155,26 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			// Compound actions, context required: may require secondary inputs from player
 			KeyCode::Char('i') => { // INVENTORY the player's possessions and allow selection
 				let mut item_names = Vec::new();
-				//eprintln!("* item_query: {:?}", item_query); // DEBUG: report size of item_query
 				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &Description, &Portable, &ActionSet), Without<Position>>();
 				for item in backpack_query.iter(&eng.bevy.world) {
-					//eprintln!("* found item {}", item.1.name.clone()); // DEBUG: report the item being worked on
+					debug!("* found item {}", item.1.name.clone()); // DEBUG: report the item being worked on
 					if item.2.carrier == player {
 						let mut menu_entries = Vec::new();
 						for action in item.3.actions.iter() {
 							menu_entries.push(GameEvent::new(PlayerAction(*action), Some(player), Some(item.0)));
 						}
 						let submenu = make_new_submenu(menu_entries);
-						//eprintln!("* Made submenu of size {} from {} actions", submenu.len(), item.3.actions.len()); // DEBUG: report submenu creation
+						debug!("* Made submenu of size {} from {} actions", submenu.len(), item.3.actions.len()); // DEBUG: report submenu creation
 						item_names.push(MenuItem::group(item.1.name.clone(), submenu));
 					}
 				}
 				if item_names.is_empty() {
-					//eprintln!("* Nothing in inventory to display"); // DEBUG: announce feedback
+					debug!("* Nothing in inventory to display"); // DEBUG: announce feedback
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
 					msglog.tell_player("You are not carrying anything.".to_string());
 					return Ok(())
 				} else {
-					//eprintln!("* Attempting to show_chooser()"); // DEBUG: announce attempt to show the context menu
+					debug!("* Attempting to show_chooser()"); // DEBUG: announce attempt to show the context menu
 					eng.menu_context = MenuState::new(item_names);
 					eng.set_menu(MenuType::Context, (15, 5));
 				}
@@ -210,7 +206,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Position, &Portable)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in item_query.iter(&eng.bevy.world) {
-					//eprintln!("* found item {}", target.1.name.clone()); // DEBUG: announce found targets for GET
+					debug!("* found item {}", target.1.name.clone()); // DEBUG: announce found targets for GET
 					if target.2 == p_posn {
 						item_names.push(MenuItem::item(
 							target.1.name.clone(),
@@ -220,12 +216,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					}
 				}
 				if item_names.is_empty() {
-					//eprintln!("* Nothing to pick up at player's position"); // DEBUG: announce feedback
+					debug!("* Nothing to pick up at player's position"); // DEBUG: announce feedback
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
 					msglog.tell_player("There's nothing here to pick up.".to_string());
 					return Ok(())
 				} else {
-					//eprintln!("* Attempting to set the entity menu"); // DEBUG: announce entity menu use
+					debug!("* Attempting to set the entity menu"); // DEBUG: announce entity menu use
 					eng.menu_context = MenuState::new(item_names);
 					eng.set_menu(MenuType::Context, (15, 5));
 				}
@@ -235,7 +231,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Position, &Openable)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in item_query.iter(&eng.bevy.world) {
-					//eprintln!("* found item {}", target.1.name.clone()); // DEBUG: report found OPENABLE items
+					debug!("* found item {}", target.1.name.clone()); // DEBUG: report found OPENABLE items
 					if target.2.is_adjacent_to(*p_posn) && !target.3.is_open {
 						item_names.push(MenuItem::item(
 								target.1.name.clone(),
@@ -246,12 +242,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					}
 				}
 				if item_names.is_empty() {
-					//eprintln!("* Nothing to open nearby"); // DEBUG: announce feedback
+					debug!("* Nothing to open nearby"); // DEBUG: announce feedback
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
 					msglog.tell_player("There's nothing nearby to open.".to_string());
 					return Ok(())
 				} else {
-					//eprintln!("* Attempting to set the entity menu"); // DEBUG: announce entity menu use
+					debug!("* Attempting to set the entity menu"); // DEBUG: announce entity menu use
 					eng.menu_context = MenuState::new(item_names);
 					eng.set_menu(MenuType::Context, (15, 5));
 				}
@@ -261,7 +257,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Position, &Openable)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in item_query.iter(&eng.bevy.world) {
-					//eprintln!("* found item {}", target.1.name.clone()); // DEBUG: report found closed OPENABLE items
+					debug!("* found item {}", target.1.name.clone()); // DEBUG: report found closed OPENABLE items
 					if target.2.is_adjacent_to(*p_posn) && target.3.is_open {
 						item_names.push(MenuItem::item(
 								target.1.name.clone(),
@@ -272,12 +268,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					}
 				}
 				if item_names.is_empty() {
-					//eprintln!("* Nothing to close nearby"); // DEBUG: announce feedback
+					debug!("* Nothing to close nearby"); // DEBUG: announce feedback
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
 					msglog.tell_player("There's nothing nearby to close.".to_string());
 					return Ok(())
 				} else {
-					//eprintln!("* Attempting to set the entity menu"); // DEBUG: announce entity menu use
+					debug!("* Attempting to set the entity menu"); // DEBUG: announce entity menu use
 					eng.menu_context = MenuState::new(item_names);
 					eng.set_menu(MenuType::Context, (15, 5));
 				}
@@ -287,7 +283,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				let mut enty_query = eng.bevy.world.query::<(Entity, &Description, &Position)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in enty_query.iter(&eng.bevy.world) {
-					//eprintln!("* Found target {}", target.1.name.clone()); // DEBUG: announce EXAMINE target
+					debug!("* Found target {}", target.1.name.clone()); // DEBUG: announce EXAMINE target
 					if target.2.in_range_of(*p_posn, 2) {
 						enty_names.push(MenuItem::item(
 							target.1.name.clone(),
@@ -297,12 +293,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					}
 				}
 				if enty_names.is_empty() {
-					//eprintln!("* Nothing close enough to examine"); // DEBUG: report EXAMINE failure
+					debug!("* Nothing close enough to examine"); // DEBUG: report EXAMINE failure
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
 					msglog.tell_player("There's nothing nearby to examine.".to_string());
 					return Ok(());
 				} else {
-					//eprintln!("* Attempting to set the entity menu with targets");// DEBUG: announce examine menu use
+					debug!("* Attempting to set the entity menu with targets");// DEBUG: announce examine menu use
 					eng.menu_context = MenuState::new(enty_names);
 					eng.set_menu(MenuType::Context, (15, 5));
 				}
@@ -433,15 +429,15 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			// Debug keys and other tools
 			KeyCode::Char('s') => { // DEBUG: Drop a generic snack item for testing
-				eprintln!("* Dropping snack at 5, 5, 0"); // DEBUG: announce arrival of debug snack
+				info!("* Dropping snack at 5, 5, 0"); // DEBUG: announce arrival of debug snack
 				eng.make_item(ItemType::Snack, Position::create(5, 5, 0));
 			}
 			KeyCode::Char('S') => { // DEBUG: Give a snack to the player for testing
-				eprintln!("* Giving snack to player"); // DEBUG: announce arrival of debug snack
+				info!("* Giving snack to player"); // DEBUG: announce arrival of debug snack
 				eng.give_item(ItemType::Snack, player);
 			}
 			_ => {
-				eprintln!("* Unhandled key: {:?}", key_event.code); // DEBUG: report an unhandled key from this method
+				error!("* Unhandled key: {:?}", key_event.code); // DEBUG: report an unhandled key from this method
 			}
 		}
 		// If an event was generated, send it off for processing
@@ -530,7 +526,7 @@ pub fn keycode_to_input_key(key_code: KeyCode) -> Key {
 /// Translates an input string from the player into a PLANQ command and context
 pub fn planq_parser(input: String) -> PlanqCmd {
 	let input_vec: Vec<&str> = input.trim_matches(|c| c == '>' || c == '¶').trim_start().split(' ').collect();
-	//eprintln!("> {:?}", input_vec); // DEBUG:
+	debug!("> {:?}", input_vec); // DEBUG:
 	match input_vec[0] {
 		"help" => { PlanqCmd::Help }
 		"shutdown" => { PlanqCmd::Shutdown }

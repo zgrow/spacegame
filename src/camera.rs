@@ -195,7 +195,7 @@ pub fn camera_update_system(mut camera:   ResMut<CameraView>,
 	for (scr_y, map_y) in (map_frame_ul.y..map_frame_dr.y).enumerate() {
 		// For every x-position in the map frame ...
 		for (scr_x, map_x) in (map_frame_ul.x..map_frame_dr.x).enumerate() {
-			//eprintln!("* scr: {}, {}; map: {}, {}", scr_x, scr_y, map_x, map_y); // DEBUG: print the loop iteration values
+			debug!("* scr: {}, {}; map: {}, {}", scr_x, scr_y, map_x, map_y); // DEBUG: print the loop iteration values
 			let scr_index = xy_to_index(scr_x, scr_y, camera_width); // Indexes into the camera's map of the screen
 			let map_posn = Position::create(map_x, map_y, player.1.z); // handy container
 			let map_index = world_map.to_index(map_x, map_y); // Indexes into the worldmap's tilemap

@@ -25,6 +25,7 @@ use bevy::ecs::system::{
 use bevy::utils::{Duration, HashSet};
 use bevy_turborand::*;
 use bracket_pathfinding::prelude::*;
+use simplelog::*;
 
 // *** INTERNAL LIBS
 use crate::components::*;
@@ -75,7 +76,7 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 ) {
 	for mut actor in a_query.iter_mut() {
 		if actor.1.outdated {
-			//eprintln!("* Running update on an ActionSet..."); // DEBUG: announce ActionSet update
+			info!("* Running update on an ActionSet..."); // DEBUG: announce ActionSet update
 			let mut new_set = HashSet::new();
 			for comp_id in get_components_for_entity(actor.0, archetypes).unwrap() {
 				if let Some(comp_info) = components.get_info(comp_id) {
@@ -106,7 +107,7 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 					}
 				}
 			}
-			//eprintln!("* {:?}", new_set); // DEBUG: display the newly made action set
+			debug!("* {:?}", new_set); // DEBUG: display the newly made action set
 			actor.1.actions = new_set;
 			actor.1.outdated = false;
 		}
@@ -122,7 +123,7 @@ pub fn examination_system(mut ereader:  EventReader<GameEvent>,
 		if event.etype != PlayerAction(ActionType::Examine) { continue; }
 		let econtext = event.context.as_ref().unwrap();
 		if econtext.object == Entity::PLACEHOLDER {
-			eprintln!("* Attempted to Examine the Entity::PLACEHOLDER"); // DEBUG: warn if this case occurs
+			warn!("* Attempted to Examine the Entity::PLACEHOLDER"); // DEBUG: warn if this case occurs
 			continue;
 		}
 		let output_ref = e_query.get(econtext.object).unwrap();
@@ -168,7 +169,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 		let mut message: String = "".to_string();
 		match atype {
 			ActionType::MoveItem => { // Move an Item into an Entity's possession
-				//eprintln!("* Moving item..."); // DEBUG: announce item movement
+				debug!("* Moving item..."); // DEBUG: announce item movement
 				cmd.entity(object.0)
 				.insert(Portable{carrier: subject.0}) // put the container's ID to the target's Portable component
 				.remove::<Position>(); // remove the Position component from the target
@@ -182,7 +183,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 				}
 			}
 			ActionType::DropItem => { // Remove an Item and place it into the World
-				//eprintln!("* Dropping item..."); // DEBUG: announce item drop
+				debug!("* Dropping item..."); // DEBUG: announce item drop
 				let location = subject.2;
 				cmd.entity(object.0)
 				.insert(Portable{carrier: Entity::PLACEHOLDER}) // still portable but not carried
@@ -194,11 +195,11 @@ pub fn item_collection_system(mut cmd:      Commands,
 				}
 			}
 			ActionType::KillItem => { // DESTROY an Item entirely, ie remove it from the game
-				//eprintln!("* KILLing item..."); // DEBUG: announce item destruction
+				debug!("* KILLing item..."); // DEBUG: announce item destruction
 				cmd.entity(econtext.object).despawn();
 			}
 			action => {
-				eprintln!("* item_collection_system unhandled action: {}", action); // DEBUG: announce unhandled action for this item
+				error!("* item_collection_system unhandled action: {}", action); // DEBUG: announce unhandled action for this item
 			}
 		}
 		if !message.is_empty() {
@@ -310,7 +311,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 			if let MoveTo(dir) = atype {
 				let is_player_action = same_enum_variant(&event.etype, &PlayerAction(NoAction));
 				if event.context.is_none() {
-					eprintln!("* ! no context for actor movement"); // DEBUG: warn if the actor's movement is broken
+					error!("* ! no context for actor movement"); // DEBUG: warn if the actor's movement is broken
 					continue;
 				}
 				let econtext = event.context.unwrap();
@@ -416,13 +417,13 @@ pub fn openable_system(mut commands:    Commands,
 		}
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
-		//eprintln!("actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
+		debug!("actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
 		let actor = e_query.get_mut(econtext.subject).unwrap();
 		let player_action = actor.3.is_some();
 		let mut message: String = "".to_string();
 		match atype {
 			ActionType::OpenItem => {
-				//eprintln!("Trying to open a door"); // DEBUG: announce opening a door
+				debug!("Trying to open a door"); // DEBUG: announce opening a door
 				for mut door in door_query.iter_mut() {
 					if door.0 == econtext.object {
 						door.2.is_open = true;
@@ -439,7 +440,7 @@ pub fn openable_system(mut commands:    Commands,
 				if actor.4.is_some() { actor.4.unwrap().dirty = true; }
 			}
 			ActionType::CloseItem => {
-				//eprintln!("Trying to close a door"); // DEBUG: announce closing door
+				debug!("Trying to close a door"); // DEBUG: announce closing door
 				for mut door in door_query.iter_mut() {
 					if door.0 == econtext.object {
 						door.2.is_open = false;
@@ -490,7 +491,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 	                       observable: Query<(Entity, &Position, &Renderable)>,
 ) {
 	for (mut viewshed, s_posn, player, memory) in &mut seers {
-		//eprintln!("* [vis_sys] s_posn: {posn:?}"); // DEBUG: print the position of the entity being examined
+		debug!("* [vis_sys] s_posn: {s_posn:?}"); // DEBUG: print the position of the entity being examined
 		if viewshed.dirty {
 			assert!(s_posn.z != -1);
 			let map = &mut model.levels[s_posn.z as usize];
@@ -530,7 +531,7 @@ pub fn new_player_spawn(mut commands: Commands,
 	                      mut global_rng: ResMut<GlobalRng>,
 ) {
 	if !p_query.is_empty() {
-		eprintln!("* Existing player found, treating as a loaded game"); // DEBUG: announce possible game load
+		info!("* Existing player found, treating as a loaded game"); // DEBUG: announce possible game load
 		let player = p_query.get_single_mut().unwrap();
 		commands.entity(player.0).insert(Viewshed::new(8));
 		return;
@@ -547,7 +548,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Container::default(),
 		Memory::new(),
 	)).id();
-	eprintln!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
+	debug!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
 	commands.spawn((
 		Planq::new(),
 		ActionSet::new(),
@@ -557,7 +558,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Device::new(-1),
 		RngComponent::from(&mut global_rng),
 	));
-	eprintln!("* new planq spawned into player inventory"); // DEBUG: announce creation of player's planq
+	debug!("* new planq spawned into player inventory"); // DEBUG: announce creation of player's planq
 	commands.spawn(DataSampleTimer::new().source("current_time".to_string()));
 	commands.spawn(DataSampleTimer::new().source("planq_battery".to_string()));
 	commands.spawn(DataSampleTimer::new().source("planq_mode".to_string()));
@@ -605,7 +606,7 @@ pub fn test_npc_spawn(mut commands: Commands,
 		Obstructive::default(),
 		Container::default(),
 	));
-	eprintln!("* Spawned new npc at {}", spawnpoint); // DEBUG: announce npc creation
+	debug!("* Spawned new npc at {}", spawnpoint); // DEBUG: announce npc creation
 }
 
 // *** UTILITIES

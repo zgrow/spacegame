@@ -144,7 +144,7 @@ impl From<Message> for Line<'_> {
 							} else if polarity == '-' {
 								neg_mods |= bit_mod;
 							} else {
-								eprintln!("* ERR: color parse failure, unsupported mod: {}{}", polarity, element);
+								error!("* ERR: color parse failure, unsupported mod: {}{}", polarity, element);
 							}
 							// Apply the bitfield modifiers, if any
 						}

@@ -5,6 +5,9 @@
 use std::io;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+extern crate simplelog;
+
+use simplelog::*;
 
 // *** INTERNAL LIBS
 use spacegame::engine::{
@@ -18,11 +21,18 @@ use spacegame::engine::{
 
 // *** MAIN METHOD
 fn main() -> AppResult<()> {
+	// NOTE: Don't enable the Trace level filter for the logger unless you want thread-level feedback
+	let _ = TermLogger::init(LevelFilter::Info, Config::default(), TerminalMode::Stderr, ColorChoice::Auto);
+	//error!("This is a test error message"); // Level::Error
+	//warn!("This is a test warn message"); // Level::Warn
+	//info!("This is a test info message"); // Level:: Info
+	//debug!("This is a test debug message"); // Level::Debug, will include some debug context info prepended to the message
+	//trace!("This is a test trace message"); // Level::Trace, will include any trace debug info from other modules that support it!
 	std::env::set_var("RUST_BACKTRACE", "1"); // DEBUG: enables backtrace on program crash
 	// Set up ratatui
 	let backend = CrosstermBackend::new(io::stdout());
 	let terminal = Terminal::new(backend)?;
-	// Now that we have a terminal, check the size to make sure we can continue
+		// Now that we have a terminal, check the size to make sure we can continue
 	let tsize = terminal.size().unwrap();
 	if tsize.width < 80 || tsize.height < 40 {
 		// throw a bigtime error and bailout if the terminal is too small

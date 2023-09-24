@@ -67,7 +67,7 @@ impl Position {
 	/// Thus it runs very quickly by virtue of not needing to call into the ECS
 	/// Returns true if distance == range (ie is inclusive)
 	pub fn in_range_of(&self, target: Position, range: i32) -> bool {
-		//eprintln!("* Testing range {} between positions {} to {}", range, self, target); // DEBUG: announce range check
+		debug!("* Testing range {} between positions {} to {}", range, self, target); // DEBUG: announce range check
 		if self.z != target.z { return false; } // z-levels must match (ie on same floor)
 		if range == 0 {
 			// This case is provided against errors; it's often faster/easier to just compare
@@ -76,12 +76,12 @@ impl Position {
 		} else {
 			let mut d_x = f32::powi((target.y - self.y) as f32, 2);
 			let mut d_y = f32::powi((target.x - self.x) as f32, 2);
-			//eprintln!("dx: {}, dy: {}", d_x, d_y); // DEBUG: print the raw values for dx, dy
+			debug!("dx: {}, dy: {}", d_x, d_y); // DEBUG: print the raw values for dx, dy
 			if d_x.signum() != 1.0 { d_x *= -1.0; }
 			if d_y.signum() != 1.0 { d_y *= -1.0; }
-			//eprintln!("dx: {}, dy: {}", d_x, d_y); // DEBUG: print the normalized values for dx, dy
+			debug!("dx: {}, dy: {}", d_x, d_y); // DEBUG: print the normalized values for dx, dy
 			let distance = f32::sqrt(d_x + d_y).round();
-			eprintln!("* in_range_of(): calc dist = {self:?} to {target:?}: {} in range {} -> {}", distance, range, (distance as i32 <= range)); // DEBUG: print the result of the calculation
+			debug!("* in_range_of(): calc dist = {self:?} to {target:?}: {} in range {} -> {}", distance, range, (distance as i32 <= range)); // DEBUG: print the result of the calculation
 			if distance as i32 <= range { return true; }
 		}
 		false

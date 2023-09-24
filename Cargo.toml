@@ -21,4 +21,7 @@ bracket-rex = { version = "0.8.7", default-features = false } # REXPaint tools
 codepage-437 = "0.1.0"
 strum = "0.25.0"
 strum_macros = "0.25.1"
+log = "0.4"
+simplelog = { version = "0.12.1", features = ["paris"] }
 
+# EOF

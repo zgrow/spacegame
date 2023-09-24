@@ -6,6 +6,7 @@ use ratatui::text::{Span, Text};
 use codepage_437::CP437_WINGDINGS;
 use crate::components::Position;
 use crate::artisan::ItemType;
+use simplelog::*;
 
 pub struct XpFileParser {
 	pub dict_rexval_to_string: HashMap<u32, String>,
@@ -87,7 +88,7 @@ pub fn load_rex_map(xp_file: &XpFile) -> (Map, Vec<(ItemType, Position)>) {
 	let mut map: Map = Map::new(new_width, new_height);
 	let mut enty_list = Vec::new();
 	for layer in &xp_file.layers {
-		//eprintln!("- Loading map from rexfile"); //:DEBUG:
+		debug!("- Loading map from rexfile"); //:DEBUG:
 		assert!(map.width == layer.width as i32 && map.height == layer.height as i32, "REXfile dims mismatch");
 		assert!(map.to_index(map.width, map.height) == map.to_index(layer.width as i32, layer.height as i32));
 		for y in 0..layer.height {
@@ -104,13 +105,13 @@ pub fn load_rex_map(xp_file: &XpFile) -> (Map, Vec<(ItemType, Position)>) {
 						46 => map.tiles[index] = Tile::new_floor(),     // .    Floor
 						60 => map.tiles[index] = Tile::new_stairway(),  // <    (Upward)
 						61 => {                                         // =    Door
-							//eprintln!("* found a DOOR: {}, {}", x, y); // DEBUG:
+							debug!("* found a DOOR: {}, {}", x, y); // DEBUG:
 							enty_list.push((ItemType::Door, Position::create(x as i32, y as i32, 0)));
 							map.tiles[index] = Tile::new_floor()
 						},
 						62 => map.tiles[index] = Tile::new_stairway(),  // >    (Downward)
 						_ => {
-							eprintln!("Unrecognized REXtile encountered: {} @{},{}", cell.ch, x, y); // DEBUG:
+							warn!("Unrecognized REXtile encountered: {} @{},{}", cell.ch, x, y); // DEBUG:
 						}
 					}
 				}
