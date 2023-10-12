@@ -76,7 +76,6 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 ) {
 	for mut actor in a_query.iter_mut() {
 		if actor.1.outdated {
-			info!("* Running update on an ActionSet..."); // DEBUG: announce ActionSet update
 			let mut new_set = HashSet::new();
 			for comp_id in get_components_for_entity(actor.0, archetypes).unwrap() {
 				if let Some(comp_info) = components.get_info(comp_id) {
@@ -497,8 +496,8 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 			let map = &mut model.levels[s_posn.z as usize];
 			viewshed.visible_tiles.clear();
 			viewshed.visible_tiles = field_of_view(posn_to_point(s_posn), viewshed.range, map);
-			viewshed.visible_tiles.retain(|p| p.x >= 0 && p.x < map.width
-				                             && p.y >= 0 && p.y < map.height
+			viewshed.visible_tiles.retain(|p| p.x >= 0 && p.x < map.width as i32
+				                             && p.y >= 0 && p.y < map.height as i32
 			);
 			if let Some(_player) = player { // if this is the player...
 				for s_posn in &viewshed.visible_tiles { // For all the player's visible tiles...

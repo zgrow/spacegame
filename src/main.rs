@@ -21,8 +21,9 @@ use spacegame::engine::{
 
 // *** MAIN METHOD
 fn main() -> AppResult<()> {
-	// NOTE: Don't enable the Trace level filter for the logger unless you want thread-level feedback
-	let _ = TermLogger::init(LevelFilter::Info, Config::default(), TerminalMode::Stderr, ColorChoice::Auto);
+	// HINT: Set the LevelFilter below to change how much logging you wish to see
+	// NOTE: Don't enable the Trace level filter for the logger unless you want a LOT of thread-level feedback
+	let _ = TermLogger::init(LevelFilter::Debug, Config::default(), TerminalMode::Stderr, ColorChoice::Auto);
 	//error!("This is a test error message"); // Level::Error
 	//warn!("This is a test warn message"); // Level::Warn
 	//info!("This is a test info message"); // Level:: Info

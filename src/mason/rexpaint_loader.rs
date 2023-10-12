@@ -1,4 +1,4 @@
-// image_loader.rs - converts REXPaint files into game resources
+// rexpaint_loader.rs - converts REXPaint files into game resources
 use std::collections::HashMap;
 use bracket_rex::prelude::*;
 use crate::map::*;
@@ -64,7 +64,6 @@ impl XpFileParser {
 			(72, "X".to_string()),
 			(73, "Y".to_string()),
 			(74, "Z".to_string()),
-			
 		])
 	}
 }
@@ -75,13 +74,13 @@ impl Default for XpFileParser {
 }
 /// Produces a Map object, complete with tilemap, from the specified REXPaint resource
 pub fn load_rex_map(xp_file: &XpFile) -> (Map, Vec<(ItemType, Position)>) {
-	let mut new_width: i32 = 1;
-	let mut new_height: i32 = 1;
+	let mut new_width: usize = 1;
+	let mut new_height: usize = 1;
 	let mut layer_count = 0;
 	for layer in &xp_file.layers {
 		layer_count += 1;
-		new_width = layer.width as i32;
-		new_height = layer.height as i32;
+		new_width = layer.width;
+		new_height = layer.height;
 	}
 	// WARN: We assume only ONE layer exists in the file!
 	assert!(layer_count == 1, "More than one layer detected in REXfile");
@@ -89,12 +88,12 @@ pub fn load_rex_map(xp_file: &XpFile) -> (Map, Vec<(ItemType, Position)>) {
 	let mut enty_list = Vec::new();
 	for layer in &xp_file.layers {
 		debug!("- Loading map from rexfile"); //:DEBUG:
-		assert!(map.width == layer.width as i32 && map.height == layer.height as i32, "REXfile dims mismatch");
-		assert!(map.to_index(map.width, map.height) == map.to_index(layer.width as i32, layer.height as i32));
+		assert!(map.width == layer.width && map.height == layer.height, "REXfile dims mismatch");
+		assert!(map.to_index(map.width as i32, map.height as i32) == map.to_index(layer.width as i32, layer.height as i32));
 		for y in 0..layer.height {
 			for x in 0..layer.width {
 				let cell = layer.get(x, y).unwrap();
-				if x < map.width as usize && y < map.height as usize {
+				if x < map.width && y < map.height {
 					let index = map.to_index(x as i32, y as i32);
 					match cell.ch {
 						// As per the REXPaint .xp file standard, these are ASCII decimals

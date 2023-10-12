@@ -100,8 +100,8 @@ impl Tile {
 #[reflect(Resource)]
 pub struct Map {
 	pub tiles: Vec<Tile>,
-	pub width: i32,
-	pub height: i32,
+	pub width: usize,
+	pub height: usize,
 	pub revealed_tiles: Vec<bool>,
 	pub visible_tiles: Vec<bool>,
 	pub blocked_tiles: Vec<bool>,
@@ -109,8 +109,8 @@ pub struct Map {
 }
 impl Map {
 	/// Generates a map from the default settings
-	pub fn new(new_width: i32, new_height: i32) -> Map {
-		let map_size: usize = (new_width * new_height) as usize;
+	pub fn new(new_width: usize, new_height: usize) -> Map {
+		let map_size = new_width * new_height;
 		Map {
 			tiles: vec![Tile::default(); map_size],
 			width: new_width,
@@ -124,7 +124,9 @@ impl Map {
 	/// Converts an x, y pair into a tilemap index using the given map's width
 	pub fn to_index(&self, x: i32, y: i32) -> usize {
 		// fun fact: Rust will barf and crash on an overflow error if usizes are used here
-		((y * self.width) + x) as usize
+		// okay but will it tho???
+		// ... yes, it DEFINITELY will ( TT n TT)
+		((y * self.width as i32) + x) as usize
 	}
 	/// Returns true if the tiletype is Wall
 	pub fn is_occupied(&self, target: Position) -> bool {
@@ -157,7 +159,7 @@ impl Map {
 pub struct Model {
 	pub levels: Vec<Map>,
 	// WARN: DO NOT CONVERT THIS TO A HASHMAP OR BTREEMAP
-	// FUCKING Bevy's implementation of hashing and reflection makes this specific kind of Hashmap usage
+	// Bevy's implementation of hashing and reflection makes this specific kind of Hashmap usage
 	// *ineligible* for correct save/load via bevy_save; in short, the HashMap *itself* cannot be hashed,
 	// so bevy_save shits itself and reports an "ineligible for hashing" error without any other useful info
 	//pub portals: BTreeMap<Position, Position>,

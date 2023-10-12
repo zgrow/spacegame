@@ -4,7 +4,7 @@
 use simplelog::*;
 use bracket_rex::prelude::*;
 use crate::mason::*;
-use crate::engine::image_loader::load_rex_map;
+use crate::mason::rexpaint_loader::load_rex_map;
 use crate::components::Position;
 use crate::artisan::ItemType;
 

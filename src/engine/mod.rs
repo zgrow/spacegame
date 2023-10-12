@@ -32,7 +32,6 @@ use strum::IntoEnumIterator;
 // *** INTERNAL LIBS
 pub mod event;
 pub mod handler;
-pub mod image_loader;
 pub mod menu;
 pub mod messagelog;
 pub mod planq;
@@ -44,7 +43,6 @@ use crate::{
 	components::*,
 	engine::{
 		event::*,
-		image_loader::load_rex_pgraph,
 		menu::*,
 		messagelog::*,
 		planq::*,
@@ -52,8 +50,11 @@ use crate::{
 	},
 	map::*,
 	mason::{
-		get_builder,
-		MapBuilder,
+		//get_map_builder,
+		get_world_builder,
+		rexpaint_loader::load_rex_pgraph,
+		//MapBuilder,
+		WorldBuilder,
 	},
 	rex_assets::*,
 	sys::*
@@ -65,7 +66,8 @@ pub struct GameEngine<'a> {
 	pub standby:        bool, // If true, the game loop is on standby (ie paused)
 	pub mode:           EngineMode,
 	pub bevy:           App, // bevy::app::App, contains all of the ECS and related things
-	pub mason:          Box<dyn MapBuilder>,
+	//pub mason:          Box<dyn MapBuilder>,
+	pub mason:          Box<dyn WorldBuilder>,
 	pub artisan:        ItemBuilder,
 	pub visible_menu:   MenuType,
 	pub menu_main:      MenuState<Cow<'static, str>>,
@@ -87,7 +89,8 @@ impl GameEngine<'_> {
 			standby: true,
 			mode: EngineMode::Standby,
 			bevy: App::new(),
-			mason: get_builder(1), // WARN: only pulls in the DevMapBuilder right now
+			//mason: get_map_builder(2), // only pulls in the DevMapBuilder right now
+			mason: get_world_builder(),
 			artisan: ItemBuilder::new(),
 			// HINT: These menu items are handled via a match case in GameEngine::tick()
 			visible_menu: MenuType::None,
@@ -536,7 +539,7 @@ impl GameEngine<'_> {
 		.insert_resource(MessageLog::new(chanlist))
 		.insert_resource(PlanqData::new())
 		.insert_resource(PlanqMonitor::new())
-		.insert_resource(Position::create(9, 9, 1)) // DEBUG: arbitrary player spawnpoint
+		.insert_resource(Position::create(6, 6, 1)) // DEBUG: arbitrary player spawnpoint
 		.insert_resource(RexAssets::new())
 		;
 		self.mode = EngineMode::Startup;
@@ -545,25 +548,15 @@ impl GameEngine<'_> {
 	}
 	/// Creates the initial worldmap from scratch
 	pub fn build_new_worldmap(&mut self) {
-		let mut model = Model::default();
-		self.mason = get_builder(1);
-		self.mason.build_map();
-		let mut worldmap = self.mason.get_map();
+		self.mason.build_world();
+		let model = self.mason.get_model();
+		self.bevy.insert_resource(model);
 		// Construct the various furniture/scenery/backdrop items
 		let item_spawns = self.mason.get_item_spawn_list();
 		debug!("* item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
 		for item in item_spawns.iter() {
 			self.artisan.create(item.0).at(item.1).build(&mut self.bevy.world);
 		}
-		model.levels.push(worldmap);
-		// Create a dev map and drop a portal to it
-		self.mason = get_builder(68);
-		self.mason.build_map();
-		worldmap = self.mason.get_map();
-		model.levels.push(worldmap);
-		model.add_portal((3, 20, 0).into(), (5, 5, 1).into(), true);
-		// Add the game world to the engine
-		self.bevy.insert_resource(model);
 	}
 	/// Handles the initial spawns for a new game, esp those items that are not included with the worldmap layout
 	pub fn populate_new_worldmap(&mut self) {
@@ -571,6 +564,7 @@ impl GameEngine<'_> {
 	}
 	/// Creates a fallback dev map for testing purposes
 	pub fn build_dev_worldmap(&mut self) {
+		/* disabled because i don't feel like updating it right now since the json loader works
 		let mut model = Model::default();
 		// Build the DevMapBasement
 		self.mason.build_map();
@@ -581,7 +575,7 @@ impl GameEngine<'_> {
 		self.artisan.create(ItemType::Door).at((10, 10, 0).into()).build(&mut self.bevy.world);
 		model.levels.push(worldmap);
 		// Build the DevMapLobby
-		self.mason = get_builder(2);
+		self.mason = get_map_builder(2);
 		self.mason.build_map();
 		worldmap = self.mason.get_map();
 		//get_item_spawn_list();
@@ -593,6 +587,7 @@ impl GameEngine<'_> {
 		model.add_portal((5, 5, 0).into(), (7, 7, 1).into(), true);
 		// Finally, add the maps to the world model
 		self.bevy.insert_resource(model);
+		*/
 	}
 	/// Creates a new CameraView object with visibility onto the world map
 	pub fn build_camera(&mut self) {

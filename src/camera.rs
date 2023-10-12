@@ -206,8 +206,8 @@ pub fn camera_update_system(mut camera:   ResMut<CameraView>,
 				false
 			};
 			// Update the terrain map
-			if map_x >= 0 && map_x < world_map.width
-			&& map_y >= 0 && map_y < world_map.height
+			if map_x >= 0 && map_x < world_map.width as i32
+			&& map_y >= 0 && map_y < world_map.height as i32
 			&& (is_visible || has_seen)
 			{
 				camera.terrain[scr_index] = world_map.tiles[map_index].clone().into();
