@@ -10,6 +10,7 @@ use bevy::prelude::*;
 
 // *** INTERNAL LIBS
 use crate::components::*;
+use crate::mason::json_map::*;
 
 // *** CONSTANTS
 pub const MAPWIDTH: i32 = 80;
@@ -17,6 +18,13 @@ pub const MAPHEIGHT: i32 = 60;
 pub const MAPSIZE: i32 = MAPWIDTH * MAPHEIGHT;
 
 // *** METHODS
+/// Reference method that allows calculation from an arbitrary width
+pub fn xy_to_index(x: usize, y: usize, w: usize) -> usize {
+	(y * w) + x
+}
+
+// *** STRUCTS
+//   - PHYSICAL GAMEWORLD TYPES
 ///Decides whether the Tile is open terrain, a wall, et cetera
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
@@ -38,6 +46,7 @@ impl Display for TileType {
 		write!(f, "{}", output)
 	}
 }
+
 ///Represents a single position within the game world
 #[derive(Resource, Clone, Debug, PartialEq, Reflect)]
 #[reflect(Resource)]
@@ -95,6 +104,7 @@ impl Tile {
 		}
 	}
 }
+
 ///Represents a single layer of physical space in the game world
 #[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
@@ -153,43 +163,30 @@ impl Map {
 	}
 	*/
 }
-/// Represents the entire stack of Maps that comprise a 3D space
-#[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
-#[reflect(Resource)]
-pub struct Model {
-	pub levels: Vec<Map>,
-	// WARN: DO NOT CONVERT THIS TO A HASHMAP OR BTREEMAP
-	// Bevy's implementation of hashing and reflection makes this specific kind of Hashmap usage
-	// *ineligible* for correct save/load via bevy_save; in short, the HashMap *itself* cannot be hashed,
-	// so bevy_save shits itself and reports an "ineligible for hashing" error without any other useful info
-	//pub portals: BTreeMap<Position, Position>,
-	//pub portals: HashMap<Position, Position>,
-	//pub portals: HashMap<(i32, i32, i32), (i32, i32, i32)> // Cross-level linkages
-	//portals: Vec<(Position, Position)>,
-	portals: Vec<Portal>,
-}
-impl Model {
-	/// Sets up a linkage between two x,y,z positions, even on the same level
-	/// If 'bidir' is true, then the portal will be made two-way
-	// NOTE: may need more fxns for remove_portal, &c
-	pub fn add_portal(&mut self, left: Position, right: Position, bidir: bool) {
-		// Check if the portal exists already
-		// If not, add the portal
-		// If bidir, add the reverse portal as well
-		self.portals.push(Portal::new().from(left).to(right).twoway(bidir));
-		self.portals.sort(); // Helps prevent duplication and speeds up retrieval
+// bracket-lib uses the Algorithm2D and BaseMap traits for FOV and pathfinding
+impl Algorithm2D for Map {
+	fn dimensions(&self) -> Point {
+		Point::new(self.width, self.height)
 	}
-	pub fn get_exit(&mut self, entry: Position) -> Option<Position> {
-		// if the position belongs to a portal in the list, return its destination
-		// otherwise, return a None
-		let portal = self.portals.iter().find(|p| p.has(entry)).map(|portal| portal.exit_from(entry));
-		if let Some(Position::INVALID) = portal {
-			None
-		} else {
-			portal
-		}
+	/*
+	fn index_to_point2d(&self, idx: usize) -> Point {
+		Point::new(idx % self.width as usize, idx / self.width as usize)
 	}
+	*/
 }
+impl BaseMap for Map {
+	fn is_opaque(&self, index: usize) -> bool {
+		self.opaque_tiles[index]
+	}
+	//fn get_available_exits(&self, index: usize) -> SmallVec<[(usize, f32); 10]> {
+		// "Returns a vector of tile indices to which one can path from the index"
+		// "Does not need to be contiguous (teleports OK); do NOT return current tile as an exit"
+	//}
+	//fn get_pathing_distance(&self, indexStart: usize, indexFinish: usize) _> f32 {
+		// "Return the distance you would like to use for path-finding"
+	//}
+}
+
 /// Provides movement between non-contiguous points in the Map, ie for stairs between z-levels, or teleporters, &c
 /// NOTE: If the Portal is NOT bidirectional, then it will only allow transition from self.left to self.right;
 /// ie in the directions established when building the Portal via from() and to()
@@ -228,44 +225,191 @@ impl Portal {
 		self.left == target || self.right == target
 	}
 }
-/// NOTE: Given two portals A and B, A == B if their sides match; however, the order does not matter, thus:
-/// A == B <-- A.left == B.left AND A.right == B.right, OR, A.left == B.right AND A.right == B.left
-/// Therefore, the setting for bidirectionality does not matter; if that condition is required, then use the strict
-/// equality trait, Eq, to obtain that information. This allows for better duplicate detection: if two Portals have
-/// 'mirrored' equal sides (A.l==B.r, A.r==B.l), then there's no need for both. In the case where a Portal
-/// is not bidirectional, we want to be 100% certain that access is being checked correctly.
 impl PartialEq for Portal {
+	/// NOTE: Given two portals A and B, A == B if their sides match; however, the order does not matter, thus:
+	/// A == B <-- A.left == B.left AND A.right == B.right, OR, A.left == B.right AND A.right == B.left
+	/// Therefore, the setting for bidirectionality does not matter; if that condition is required, then use the strict
+	/// equality trait, Eq, to obtain that information. This allows for better duplicate detection: if two Portals have
+	/// 'mirrored' equal sides (A.l==B.r, A.r==B.l), then there's no need for both. In the case where a Portal
+	/// is not bidirectional, we want to be 100% certain that access is being checked correctly.
 	fn eq(&self, other: &Self) -> bool {
 		(self.left == other.left && self.right == other.right) || (self.left == other.right && self.right == other.left)
 	}
 }
-/// Reference method that allows calculation from an arbitrary width
-pub fn xy_to_index(x: usize, y: usize, w: usize) -> usize {
-	(y * w) + x
+
+//   - LOGICAL SHIP TOPOLOGY
+// These linked-list directed graph routines were transcribed from:
+// https://smallcultfollowing.com/babysteps/blog/2015/04/06/modeling-graphs-in-rust-using-vector-indices/
+// on October 12, 2023
+// Each Room (aka node) carries an index to its first _outgoing_ Door (aka edge), if present
+// This first Door can optionally contain the indices of all the other Doors available to this Room
+// Each Door contains an index to its destination Room, and the list of its companion Doors
+// This way, a 1:1 relation is enforced between Rooms (nodes) and Doors (edges), modelling a linked list
+// But actual rooms and doors in-game can have an x:y relation, or even an implicit, which models the game world
+/// Describes a node in the topology graph, a single Room which is composed of a set of Positions
+pub type RoomIndex = usize;
+#[derive(Resource, Clone, Debug, Reflect)]
+#[reflect(Resource)]
+pub struct GraphRoom {
+	pub name: String,
+	interior: Vec<Position>,
+	first_outgoing_door: Option<RoomIndex>,
 }
-// bracket-lib uses the Algorithm2D, BaseMap, and Point objects
-impl Algorithm2D for Map {
-	fn dimensions(&self) -> Point {
-		Point::new(self.width, self.height)
+impl Default for GraphRoom {
+	fn default() -> GraphRoom {
+		GraphRoom {
+			name: "blank_room".to_string(),
+			interior: Vec::new(),
+			first_outgoing_door: None,
+		}
 	}
-	/*
-	fn index_to_point2d(&self, idx: usize) -> Point {
-		Point::new(idx % self.width as usize, idx / self.width as usize)
-	}
-	*/
 }
-// bracket-lib uses the BaseMap trait to do FOV calculation and pathfinding
-impl BaseMap for Map {
-	fn is_opaque(&self, index: usize) -> bool {
-		self.opaque_tiles[index]
+impl From<JsonRoom> for GraphRoom {
+	fn from(new_room: JsonRoom) -> Self {
+		let mut point_list: Vec<Position> = Vec::new();
+		for whye in new_room.corner[1]..new_room.corner[1] + new_room.height {
+			for echs in new_room.corner[0]..new_room.corner[0] + new_room.width {
+				point_list.push(Position::new(echs as i32, whye as i32, new_room.corner[2] as i32));
+			}
+		}
+		GraphRoom {
+			name: new_room.name.clone(),
+			interior: point_list,
+			first_outgoing_door: None
+		}
 	}
-	//fn get_available_exits(&self, index: usize) -> SmallVec<[(usize, f32); 10]> {
-		// "Returns a vector of tile indices to which one can path from the index"
-		// "Does not need to be contiguous (teleports OK); do NOT return current tile as an exit"
-	//}
-	//fn get_pathing_distance(&self, indexStart: usize, indexFinish: usize) _> f32 {
-		// "Return the distance you would like to use for path-finding"
-	//}
 }
+impl GraphRoom {
+	pub fn contains(&self, target: Position) -> bool {
+		self.interior.contains(&target)
+	}
+}
+/// Describes an edge in the topology graph, a connection between two GraphRooms
+pub type DoorIndex = usize;
+#[derive(Resource, Clone, Debug, Reflect)]
+#[reflect(Resource)]
+pub struct GraphDoor {
+	pub name: String,
+	pub from: Position,
+	pub to: Position,
+	target: RoomIndex,
+	next_outgoing_door: Option<DoorIndex>,
+}
+impl Default for GraphDoor {
+	fn default() -> GraphDoor {
+		GraphDoor {
+			name: "blank_door".to_string(),
+			from: Position::default(),
+			to: Position::default(),
+			target: 0,
+			next_outgoing_door: None,
+		}
+	}
+}
+#[derive(Resource, Clone, Debug, Reflect)]
+pub struct Successors<'a> {
+	graph: &'a ShipGraph,
+	current_door_index: Option<DoorIndex>,
+}
+impl<'a> Iterator for Successors<'a> {
+	type Item = RoomIndex;
+	fn next(&mut self) -> Option<RoomIndex> {
+		match self.current_door_index {
+			None => None,
+			Some(door_num) => {
+				let door = &self.graph.doors[door_num];
+				self.current_door_index = door.next_outgoing_door;
+				Some(door.target)
+			}
+		}
+	}
+}
+#[derive(Resource, Clone, Debug, Default, Reflect)]
+#[reflect(Resource)]
+pub struct ShipGraph {
+	pub rooms: Vec<GraphRoom>,
+	pub doors: Vec<GraphDoor>,
+}
+impl ShipGraph {
+	pub fn connect(&mut self, go_from: RoomIndex, go_to: RoomIndex) {
+		let door_index = self.doors.len();
+		let room_data = &mut self.rooms[go_from];
+		self.doors.push(GraphDoor {
+			target: go_to,
+			next_outgoing_door: room_data.first_outgoing_door,
+			..GraphDoor::default()
+		}); // the other values not defined above will be defaults
+		room_data.first_outgoing_door = Some(door_index);
+	}
+	pub fn add_room(&mut self, new_room: GraphRoom) -> RoomIndex {
+		let index = self.rooms.len();
+		self.rooms.push(new_room);
+		index
+	}
+	/// Provides a recursive iterator that traverses the ShipGraph by links
+	pub fn successors(&self, source: RoomIndex) -> Successors {
+		let first_outgoing_door = self.rooms[source].first_outgoing_door;
+		Successors { graph: self, current_door_index: first_outgoing_door }
+	}
+	/// Tests whether the specified Room is listed in the layout
+	pub fn contains(&self, target: String) -> Option<usize> {
+		for (index, room) in self.rooms.iter().enumerate() {
+			if room.name == target {
+				return Some(index);
+			}
+		}
+		None
+	}
+	pub fn get_room_name(&self, target: Position) -> Option<String> {
+		for room in &self.rooms {
+			if room.contains(target) {
+				return Some(room.name.clone());
+			}
+		}
+		None
+	}
+}
+
+//   - THE WORLD MODEL
+/// Represents the entire stack of Maps that comprise a 3D space
+//#[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)] // not sure why PartialEq was on here, disabled it because ShipGraph doesn't have it yet
+#[derive(Resource, Clone, Debug, Default, Reflect)]
+#[reflect(Resource)]
+pub struct Model {
+	pub levels: Vec<Map>,
+	pub layout: ShipGraph,
+	// WARN: DO NOT CONVERT THIS TO A HASHMAP OR BTREEMAP
+	// Bevy's implementation of hashing and reflection makes this specific kind of Hashmap usage
+	// *ineligible* for correct save/load via bevy_save; in short, the HashMap *itself* cannot be hashed,
+	// so bevy_save shits itself and reports an "ineligible for hashing" error without any other useful info
+	//pub portals: BTreeMap<Position, Position>,
+	//pub portals: HashMap<Position, Position>,
+	//pub portals: HashMap<(i32, i32, i32), (i32, i32, i32)> // Cross-level linkages
+	//portals: Vec<(Position, Position)>,
+	portals: Vec<Portal>,
+}
+impl Model {
+	/// Sets up a linkage between two x,y,z positions, even on the same level
+	/// If 'bidir' is true, then the portal will be made two-way
+	// NOTE: may need more fxns for remove_portal, &c
+	pub fn add_portal(&mut self, left: Position, right: Position, bidir: bool) {
+		// Check if the portal exists already
+		// If not, add the portal
+		// If bidir, add the reverse portal as well
+		self.portals.push(Portal::new().from(left).to(right).twoway(bidir));
+		self.portals.sort(); // Helps prevent duplication and speeds up retrieval
+	}
+	pub fn get_exit(&mut self, entry: Position) -> Option<Position> {
+		// if the position belongs to a portal in the list, return its destination
+		// otherwise, return a None
+		let portal = self.portals.iter().find(|p| p.has(entry)).map(|portal| portal.exit_from(entry));
+		if let Some(Position::INVALID) = portal {
+			None
+		} else {
+			portal
+		}
+	}
+}
+
 
 // EOF

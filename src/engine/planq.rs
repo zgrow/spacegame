@@ -291,7 +291,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 	                          msglog:      ResMut<MessageLog>,
 	                          mut planq:   ResMut<PlanqData>,
 	                          mut monitor: ResMut<PlanqMonitor>,
-	                          p_query:     Query<(Entity, &Position), With<Player>>,
+	                          p_query:     Query<(Entity, &Position, &Description), With<Player>>,
 	                          //mut q_query: Query<(Entity, &Device, &mut RngComponent), With<Planq>>,
 	                          mut q_query: Query<(Entity, &Device), With<Planq>>,
 	                          mut s_query: Query<(Entity, &mut DataSampleTimer)>,
@@ -317,7 +317,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(planq.cpu_mode.to_string()));
 				}
 				"player_location" => {
-					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(planq.player_loc.to_string()));
+					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(player.2.locn.clone()));
 				}
 				"current_time"    => { // FIXME: this shows as a stopwatch instead of an actual clock
 					let start_time_offset = Duration::new(2096, 789); // 12:34:56.789
@@ -563,10 +563,11 @@ impl PlanqMonitor {
 impl Default for PlanqMonitor {
 	fn default() -> PlanqMonitor {
 		PlanqMonitor {
-			status_bars: vec!["planq_battery".to_string(), "planq_mode".to_string(), "current_time".to_string(), ],
+			status_bars: vec!["planq_battery".to_string(), "planq_mode".to_string(), "current_time".to_string(), "player_location".to_string()],
 			raw_data: HashMap::from([("current_time".to_string(), PlanqDataType::Text("Initializing...".to_string())),
 				                       ("planq_battery".to_string(), PlanqDataType::Percent(0)),
-				                       ("planq_mode".to_string(), PlanqDataType::Text("Initializing...".to_string()))
+				                       ("planq_mode".to_string(), PlanqDataType::Text("Initializing...".to_string())),
+				                       ("player_location".to_string(), PlanqDataType::Text("Initializing...".to_string())),
 			]),
 		}
 	}

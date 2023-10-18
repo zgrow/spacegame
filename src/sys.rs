@@ -106,7 +106,6 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 					}
 				}
 			}
-			debug!("* {:?}", new_set); // DEBUG: display the newly made action set
 			actor.1.actions = new_set;
 			actor.1.outdated = false;
 		}
@@ -300,8 +299,8 @@ pub fn map_indexing_system(mut model:         ResMut<Model>,
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
 	                     mut p_posn_res:  ResMut<Position>,
-	                     mut model:           ResMut<Model>,
-	                     mut e_query:     Query<(Entity, &Description, &mut Position, Option<&mut Viewshed>)>
+	                     mut model:       ResMut<Model>,
+	                     mut e_query:     Query<(Entity, &mut Description, &mut Position, Option<&mut Viewshed>)>
 ) {
 	if ereader.is_empty() { return; } // Don't even bother trying if there's no events to worry about
 	for event in ereader.iter() {
@@ -315,7 +314,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				}
 				let econtext = event.context.unwrap();
 				let origin = e_query.get_mut(econtext.subject);
-				let (_, _, mut actor_posn, view_ref) = origin.unwrap();
+				let (_, mut actor_room, mut actor_posn, view_ref) = origin.unwrap();
 				let mut xdiff = 0;
 				let mut ydiff = 0;
 				let mut zdiff = 0; // NOTE: not a typical component: z-level indexes to map stack, not Euclidean space
@@ -332,7 +331,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					Direction::UP   =>      { zdiff += 1 }
 					Direction::DOWN =>      { zdiff -= 1 }
 				}
-				let mut new_location = Position::create(actor_posn.x + xdiff, actor_posn.y + ydiff, actor_posn.z + zdiff);
+				let mut new_location = Position::new(actor_posn.x + xdiff, actor_posn.y + ydiff, actor_posn.z + zdiff);
 				if dir == Direction::UP || dir == Direction::DOWN { // Is the actor moving between z-levels?
 					// Prevent movement if an invalid z-level was calculated, or if they are not standing on stairs
 					if new_location.z < 0 || new_location.z as usize >= model.levels.len() {
@@ -367,6 +366,10 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					viewshed.dirty = true;
 				}
 				*actor_posn = new_location; // Nothing's in the way, so go ahead and update the actor's position
+				// If the entity changed rooms, update their description to reflect that
+				if let Some(new_name) = model.layout.get_room_name(new_location) {
+					actor_room.locn = new_name;
+				}
 				if is_player_action { // Was it the player that's moving around?
 					// Is there anything on the ground at the new location?
 					*p_posn_res = new_location; // Update the system-wide resource containing the player's location
@@ -508,7 +511,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 			}
 			if let Some(mut recall) = memory { // If the seer entity has a memory...
 				for v_posn in &viewshed.visible_tiles { // Iterate on all tiles they can see:
-					let new_posn = Position::create(v_posn.x, v_posn.y, s_posn.z);
+					let new_posn = Position::new(v_posn.x, v_posn.y, s_posn.z);
 					for target in observable.iter() {
 						if *target.1 == new_posn {
 							recall.visual.insert(target.0, new_posn);
@@ -538,7 +541,7 @@ pub fn new_player_spawn(mut commands: Commands,
 	let player = commands.spawn((
 		Player { },
 		ActionSet::new(),
-		Description::new("Pleyeur".to_string(), "Still your old self.".to_string()),
+		Description::new().name("Pleyeur".to_string()).desc("Still your old self.".to_string()),
 		*spawnpoint,
 		Renderable::new().glyph("@".to_string()).fg(2).bg(0),
 		Viewshed::new(8),
@@ -551,13 +554,14 @@ pub fn new_player_spawn(mut commands: Commands,
 	commands.spawn((
 		Planq::new(),
 		ActionSet::new(),
-		Description::new("PLANQ".to_string(), "It's your PLANQ.".to_string()),
+		Description::new().name("PLANQ".to_string()).desc("It's your PLANQ.".to_string()),
 		Renderable::new().glyph("¶".to_string()).fg(3).bg(0),
 		Portable::new(player),
 		Device::new(-1),
 		RngComponent::from(&mut global_rng),
 	));
 	debug!("* new planq spawned into player inventory"); // DEBUG: announce creation of player's planq
+	commands.spawn(DataSampleTimer::new().source("player_location".to_string()));
 	commands.spawn(DataSampleTimer::new().source("current_time".to_string()));
 	commands.spawn(DataSampleTimer::new().source("planq_battery".to_string()));
 	commands.spawn(DataSampleTimer::new().source("planq_mode".to_string()));
@@ -570,8 +574,8 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 	commands.spawn((
 		LMR         { },
 		ActionSet::new(),
-		Description::new("LMR".to_string(), "The Light Maintenance Robot is awaiting instructions.".to_string()),
-		Position::create(12, 12, 0), // TODO: remove magic numbers
+		Description::new().name("LMR".to_string()).desc("The Light Maintenance Robot is awaiting instructions.".to_string()),
+		Position::new(12, 12, 0), // TODO: remove magic numbers
 		Renderable::new().glyph("l".to_string()).fg(14).bg(0),
 		Viewshed::new(5),
 		Mobile::default(),
@@ -586,7 +590,7 @@ pub fn test_npc_spawn(mut commands: Commands,
 	                    mut rng:      ResMut<GlobalRng>,
 	                    e_query:      Query<(Entity, &Position)>,
 ) {
-	let spawnpoint = Position::create(rng.i32(1..30), rng.i32(1..30), 0);
+	let spawnpoint = Position::new(rng.i32(1..30), rng.i32(1..30), 0);
 	// Check the spawnpoint for collisions
 	loop {
 		let mut found_open_tile = true;
@@ -597,7 +601,7 @@ pub fn test_npc_spawn(mut commands: Commands,
 	}
 	commands.spawn((
 		ActionSet::new(),
-		Description::new("Jenaryk".to_string(), "Behold, a generic virtual cariacature of a man.".to_string()),
+		Description::new().name("Jenaryk".to_string()).desc("Behold, a generic virtual cariacature of a man.".to_string()),
 		spawnpoint,
 		Renderable::new().glyph("&".to_string()).fg(1).bg(0),
 		Viewshed::new(8),

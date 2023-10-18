@@ -180,10 +180,10 @@ pub fn camera_update_system(mut camera:   ResMut<CameraView>,
 	assert!(!world_map.tiles.is_empty(), "world_map.tiles has length 0!");
 	// Everything checks out OK, so get started on the update
 	let camera_width = camera.width as usize;
-	let screen_center = Position::create((camera_width / 2) as i32, camera.height / 2, 0);
+	let screen_center = Position::new((camera_width / 2) as i32, camera.height / 2, 0);
 	// These map_frame values together define the area of the map that we'll be polling
-	let map_frame_ul = Position::create(player.1.x - screen_center.x, player.1.y - screen_center.y, 0);
-	let map_frame_dr = Position::create(player.1.x + screen_center.x, player.1.y + screen_center.y, 0);
+	let map_frame_ul = Position::new(player.1.x - screen_center.x, player.1.y - screen_center.y, 0);
+	let map_frame_dr = Position::new(player.1.x + screen_center.x, player.1.y + screen_center.y, 0);
 	// STAGE 1: update each map layer in the camera
 	// Reset the map layers so we don't get overprinting
 	// We don't have to worry about resetting the terrain map because all of it will be overwritten
@@ -197,7 +197,7 @@ pub fn camera_update_system(mut camera:   ResMut<CameraView>,
 		for (scr_x, map_x) in (map_frame_ul.x..map_frame_dr.x).enumerate() {
 			debug!("* scr: {}, {}; map: {}, {}", scr_x, scr_y, map_x, map_y); // DEBUG: print the loop iteration values
 			let scr_index = xy_to_index(scr_x, scr_y, camera_width); // Indexes into the camera's map of the screen
-			let map_posn = Position::create(map_x, map_y, player.1.z); // handy container
+			let map_posn = Position::new(map_x, map_y, player.1.z); // handy container
 			let map_index = world_map.to_index(map_x, map_y); // Indexes into the worldmap's tilemap
 			let is_visible = player.3.visible_tiles.contains(&Point::new(map_x, map_y));
 			let has_seen = if map_index < world_map.revealed_tiles.len() {

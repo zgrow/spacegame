@@ -45,18 +45,63 @@ use simplelog::*;
  *      Rooms
  */
 
-#[derive(Serialize, Deserialize, Debug)]
+/// A JSON-formatted representation of a door or other room-connecting passageway
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct JsonPortal {
 	pub name: String,
 	pub points: Vec<Vec<usize>>,
-	pub twoway: bool
+	//pub twoway: bool
 }
-#[derive(Serialize, Deserialize, Debug)]
+impl Default for JsonPortal {
+	fn default() -> JsonPortal {
+		JsonPortal {
+			name: "".to_string(),
+			points: Vec::new(),
+		}
+	}
+}
+
+/// A JSON-formatted representation of a room
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct JsonRoom {
 	pub name: String,
+	pub exits: Vec<String>,
 	pub corner: Vec<usize>,
 	pub width: usize,
-	pub height: usize
+	pub height: usize,
+}
+impl Default for JsonRoom {
+	fn default() -> JsonRoom {
+		JsonRoom {
+			name: "".to_string(),
+			exits: Vec::new(),
+			corner: Vec::new(),
+			width: 0,
+			height: 0,
+		}
+	}
+}
+impl JsonRoom {
+	pub fn new() -> JsonRoom {
+		JsonRoom::default()
+	}
+	pub fn name(mut self, new_name: String) -> JsonRoom {
+		self.name = new_name;
+		self
+	}
+	pub fn exits(mut self, exit_list: Vec<String>) -> JsonRoom {
+		self.exits = exit_list;
+		self
+	}
+	pub fn corner(mut self, posn: Vec<usize>) -> JsonRoom {
+		self.corner = posn;
+		self
+	}
+	pub fn dims(mut self, new_width: usize, new_height: usize) -> JsonRoom {
+		self.width = new_width;
+		self.height = new_height;
+		self
+	}
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonMap {
@@ -67,7 +112,7 @@ pub struct JsonMap {
 impl From<JsonMap> for Map {
 	fn from(input: JsonMap) -> Self {
 		for jmap in input.tilemap {
-			debug!("{:?}", jmap);
+			debug!("ooo {:?}", jmap);
 		}
 		Map::default()
 	}
@@ -79,11 +124,12 @@ pub struct JsonBucket {
 	pub room_list: Vec<JsonRoom>,
 	pub ladder_list: Vec<JsonPortal>,
 }
+/// The Builder object that produces maps from JSON
+#[derive(Default, Debug)]
 pub struct JsonMapBuilder {
 	map: Map,
 	new_entys: Vec<(ItemType, Position)>,
 }
-
 impl MapBuilder for JsonMapBuilder {
 	/// Processes the loaded JSON file into the internal Map representation
 	fn build_map(&mut self) {
@@ -122,7 +168,7 @@ pub fn load_json_map(filename: &str) -> (Map, Vec<(ItemType, Position)>) {
 	let reader = BufReader::new(file);
 	let value: JsonBucket = match serde_json::from_reader(reader) {
 			Ok(output) => output,
-			Err(e) => {debug!("{}", e); JsonBucket::default()},
+			Err(e) => {debug!("OOO {}", e); JsonBucket::default()},
 	};
 	let map = value.map_list;
 	(map[0].clone().into(), Vec::new()) // DEBUG: how come this works? doesn't it overwrite the list of doors?

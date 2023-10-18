@@ -60,7 +60,7 @@ impl Position {
 	/// A handy constant for checking if a map coordinate is invalid
 	pub const INVALID: Position = Position{x: -1, y: -1, z: -1};
 	/// Creates a new Position from the given values
-	pub fn create(new_x: i32, new_y: i32, new_z: i32) -> Position {
+	pub fn new(new_x: i32, new_y: i32, new_z: i32) -> Position {
 		Position{ x: new_x, y: new_y, z: new_z }
 	}
 	/// This is just a naive calculator for when all the variables can be obtained easily
@@ -101,7 +101,7 @@ impl Position {
 		let c_y = screen.height / 2;
 		let d_x = p_map.x - self.x;
 		let d_y = p_map.y - self.y;
-		Position::create(c_x as i32 - d_x, c_y as i32 - d_y, 0)
+		Position::new(c_x as i32 - d_x, c_y as i32 - d_y, 0)
 	}
 }
 impl From<(i32, i32, i32)> for Position {
@@ -140,14 +140,24 @@ impl fmt::Display for Position {
 pub struct Description {
 	pub name: String,
 	pub desc: String,
+	pub locn: String,
 }
 impl Description {
 	/// Creates a new Description with the given name and description
-	pub fn new(new_name: String, new_desc: String) -> Description {
-		Description {
-			name: new_name,
-			desc: new_desc,
-		}
+	pub fn new() -> Description {
+		Description::default()
+	}
+	pub fn name(mut self, new_name: String) -> Self {
+		self.name = new_name;
+		self
+	}
+	pub fn desc(mut self, new_desc: String) -> Self {
+		self.desc = new_desc;
+		self
+	}
+	pub fn locn(mut self, new_locn: String) -> Self {
+		self.locn = new_locn;
+		self
 	}
 	pub fn get_name(&self) -> String {
 		self.name.clone()
@@ -155,12 +165,16 @@ impl Description {
 	pub fn get_desc(&self) -> String {
 		self.desc.clone()
 	}
+	pub fn get_locn(&self) -> String {
+		self.locn.clone()
+	}
 }
 impl Default for Description {
 	fn default() -> Description {
 		Description {
 			name: "default_name".to_string(),
 			desc: "default_desc".to_string(),
+			locn: "default_locn".to_string(),
 		}
 	}
 }

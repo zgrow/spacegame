@@ -105,7 +105,7 @@ pub fn load_rex_map(xp_file: &XpFile) -> (Map, Vec<(ItemType, Position)>) {
 						60 => map.tiles[index] = Tile::new_stairway(),  // <    (Upward)
 						61 => {                                         // =    Door
 							debug!("* found a DOOR: {}, {}", x, y); // DEBUG:
-							enty_list.push((ItemType::Door, Position::create(x as i32, y as i32, 0)));
+							enty_list.push((ItemType::Door, Position::new(x as i32, y as i32, 0)));
 							map.tiles[index] = Tile::new_floor()
 						},
 						62 => map.tiles[index] = Tile::new_stairway(),  // >    (Downward)

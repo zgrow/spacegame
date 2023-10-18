@@ -9,7 +9,7 @@ use crate::map::*;
 pub mod rexpaint_loader;
 mod rexpaint_map;
 use rexpaint_map::RexMapBuilder;
-mod json_map;
+pub mod json_map;
 use json_map::*;
 use simplelog::*;
 
@@ -22,6 +22,8 @@ pub trait WorldBuilder {
 pub fn get_world_builder() -> Box<dyn WorldBuilder> {
 	Box::<JsonWorldBuilder>::default()
 }
+
+// *** JSONBUILDER
 #[derive(Default)]
 pub struct JsonWorldBuilder {
 	model: Model,
@@ -33,14 +35,12 @@ impl JsonWorldBuilder {
 		let reader = BufReader::new(file);
 		let input_data: JsonBucket = match serde_json::from_reader(reader) {
 			Ok(output) => output,
-			Err(e) => {debug!("{}", e); JsonBucket::default()},
+			Err(_) => JsonBucket::default(),
 		};
 		// Use the map lists to create the map stack and put it into the model
 		for (z_posn, input_map) in input_data.map_list.iter().enumerate() {
-			debug!("{:?}", input_map);
 			let mut new_map = Map::new(input_map.width, input_map.height);
 			for (y_posn, line) in input_map.tilemap.iter().enumerate() {
-				debug!("{:?}", line);
 				for (x_posn, tile) in line.chars().enumerate() {
 					let index = new_map.to_index(x_posn as i32, y_posn as i32);
 					let new_tile = match tile {
@@ -48,8 +48,7 @@ impl JsonWorldBuilder {
 						'#' => { Tile::new_wall() }
 						'.' => { Tile::new_floor() }
 						'=' => {
-							debug!("* adding a DOOR to new_entys at {}, {}, {}", x_posn, y_posn, z_posn); // DEBUG: announce door creation
-							self.new_entys.push((ItemType::Door, Position::create(x_posn as i32, y_posn as i32, z_posn as i32)));
+							self.new_entys.push((ItemType::Door, Position::new(x_posn as i32, y_posn as i32, z_posn as i32)));
 							Tile::new_floor()
 						}
 						 _  => { Tile::new_vacuum() }
@@ -60,18 +59,46 @@ impl JsonWorldBuilder {
 			self.model.levels.push(new_map);
 		}
 		// 2: use the room list to create the topo graph of the layout
-		// todo
+		// Iterate on all the rooms in the input list
+		for room in input_data.room_list.iter() {
+			let room_index: usize;
+			// If the room already exists, use its room index; else make a new room
+			if let Some(new_index) = self.model.layout.contains(room.name.clone()) {
+				room_index = new_index;
+			} else {
+				room_index = self.model.layout.add_room((*room).clone().into());
+			}
+			debug!("* new room: {}: {:?}", room_index, room.exits);
+			// Iterate on all the exits attached to this room
+			for destination in &room.exits {
+				//debug!("* dest: {:?}", destination);
+				let dest_index: usize;
+				if let Some(new_index) = self.model.layout.contains(destination.clone()) {
+					// If the destination room already exists, get its room_index
+					dest_index = new_index;
+				} else if destination.contains("hallway") {
+					// If it doesn't exist AND it's a hallway ( FIXME: irregular shape!) then make the hallway now
+					let mut new_room = GraphRoom::default();
+					new_room.name = destination.clone();
+					dest_index = self.model.layout.add_room(new_room);
+				} else {
+					// If it doesn't exist, just make it now and get its index
+					let new_room = input_data.room_list.iter().find(|x| x.name == *destination).unwrap();
+					dest_index = self.model.layout.add_room(new_room.clone().into());
+				}
+				self.model.layout.connect(room_index, dest_index);
+			}
+		}
 		// 3: use the portal list to create the list of ladders that need to be spawned
 		for portal in input_data.ladder_list.iter() {
-			debug!("{:?}", portal);
-			// The tiles at the target positions need to be to TileType::Stairway
-			let left_side = Position::create(portal.points[0][0] as i32, portal.points[0][1] as i32, portal.points[0][2] as i32);
+			// The tiles at the target positions need to be set to TileType::Stairway
+			let left_side = Position::new(portal.points[0][0] as i32, portal.points[0][1] as i32, portal.points[0][2] as i32);
 			let l_index = self.model.levels[left_side.z as usize].to_index(left_side.x, left_side.y);
 			self.model.levels[left_side.z as usize].tiles[l_index] = Tile::new_stairway();
-			let right_side = Position::create(portal.points[1][0] as i32, portal.points[1][1] as i32, portal.points[1][2] as i32);
+			let right_side = Position::new(portal.points[1][0] as i32, portal.points[1][1] as i32, portal.points[1][2] as i32);
 			let r_index = self.model.levels[right_side.z as usize].to_index(right_side.x, right_side.y);
 			self.model.levels[right_side.z as usize].tiles[r_index] = Tile::new_stairway();
-			self.model.add_portal(left_side, right_side, portal.twoway);
+			self.model.add_portal(left_side, right_side, true);
 		}
 	}
 }

@@ -92,25 +92,25 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 	pub fn create(&mut self, new_type: ItemType) -> &mut ItemBuilder {
 		match new_type {
 			ItemType::Simple    => {
-				self.desc = Some(Description::new(format!("_simpleItem_{}", self.spawn_count), "A simple Item.".to_string()));
+				self.desc = Some(Description::new().name(format!("_simpleItem_{}", self.spawn_count)).desc("A simple Item.".to_string()));
 				self.render = Some(Renderable::new().glyph("i".to_string()).fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 			}
 			ItemType::Thing     => {
-				self.desc = Some(Description::new(format!("_thing_{}", self.spawn_count), "A new Thing.".to_string()));
+				self.desc = Some(Description::new().name(format!("_thing_{}", self.spawn_count)).desc("A new Thing.".to_string()));
 				self.render = Some(Renderable::new().glyph("t".to_string()).fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.portable = Some(Portable::empty());
 			}
 			ItemType::Fixture   => {
-				self.desc = Some(Description::new(format!("_fixture_{}", self.spawn_count), "A plain Fixture.".to_string()));
+				self.desc = Some(Description::new().name(format!("_fixture_{}", self.spawn_count)).desc("A plain Fixture.".to_string()));
 				self.render = Some(Renderable::new().glyph("#".to_string()).fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.obstruct = Some(Obstructive::default());
 				self.opaque = Some(Opaque::new(true));
 			}
 			ItemType::Furniture => {
-				self.desc = Some(Description::new(format!("_furnish_{}", self.spawn_count), "A piece of Furniture.".to_string()));
+				self.desc = Some(Description::new().name(format!("_furnish_{}", self.spawn_count)).desc("A piece of Furniture.".to_string()));
 				self.render = Some(Renderable::new().glyph("h".to_string()).fg(12).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.obstruct = Some(Obstructive::default());
@@ -123,7 +123,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 				self.opaque = Some(Opaque::new(true));
 			}
 			ItemType::Door      => {
-				self.desc = Some(Description::new(format!("_door_{}", self.spawn_count), "A regular Door.".to_string()));
+				self.desc = Some(Description::new().name(format!("_door_{}", self.spawn_count)).desc("A regular Door.".to_string()));
 				self.render = Some(Renderable::new().glyph("█".to_string()).fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.obstruct = Some(Obstructive::default());
@@ -131,13 +131,13 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 				self.open = Some(Openable::new(false, "▔".to_string(), "█".to_string(),));
 			}
 			ItemType::Snack     => {
-				self.desc = Some(Description::new(format!("_snack_{}", self.spawn_count), "A tasty Snack.".to_string()));
+				self.desc = Some(Description::new().name(format!("_snack_{}", self.spawn_count)).desc("A tasty Snack.".to_string()));
 				self.render = Some(Renderable::new().glyph("%".to_string()).fg(5).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.portable = Some(Portable::empty());
 			}
 			ItemType::Planq     => {
-				self.desc = Some(Description::new("PLANQ".to_string(), "It's your PLANQ.".to_string()));
+				self.desc = Some(Description::new().name("PLANQ".to_string()).desc("It's your PLANQ.".to_string()));
 				self.render = Some(Renderable::new().glyph("¶".to_string()).fg(3).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.portable = Some(Portable::empty());

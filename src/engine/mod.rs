@@ -539,7 +539,7 @@ impl GameEngine<'_> {
 		.insert_resource(MessageLog::new(chanlist))
 		.insert_resource(PlanqData::new())
 		.insert_resource(PlanqMonitor::new())
-		.insert_resource(Position::create(6, 6, 1)) // DEBUG: arbitrary player spawnpoint
+		.insert_resource(Position::new(4, 14, 1)) // DEBUG: arbitrary player spawnpoint
 		.insert_resource(RexAssets::new())
 		;
 		self.mode = EngineMode::Startup;
