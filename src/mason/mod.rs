@@ -38,8 +38,10 @@ impl JsonWorldBuilder {
 			Err(_) => JsonBucket::default(),
 		};
 		// Use the map lists to create the map stack and put it into the model
+		let mut hallway_tiles: Vec<Vec<Position>> = Vec::new();
 		for (z_posn, input_map) in input_data.map_list.iter().enumerate() {
 			let mut new_map = Map::new(input_map.width, input_map.height);
+			let mut current_hallway = Vec::new();
 			for (y_posn, line) in input_map.tilemap.iter().enumerate() {
 				for (x_posn, tile) in line.chars().enumerate() {
 					let index = new_map.to_index(x_posn as i32, y_posn as i32);
@@ -47,6 +49,10 @@ impl JsonWorldBuilder {
 						' ' => { Tile::new_vacuum() }
 						'#' => { Tile::new_wall() }
 						'.' => { Tile::new_floor() }
+						',' => {
+							current_hallway.push(Position::new(x_posn as i32, y_posn as i32, z_posn as i32));
+							Tile::new_floor().glyph("x")
+						}
 						'=' => {
 							self.new_entys.push((ItemType::Door, Position::new(x_posn as i32, y_posn as i32, z_posn as i32)));
 							Tile::new_floor()
@@ -57,29 +63,31 @@ impl JsonWorldBuilder {
 				}
 			}
 			self.model.levels.push(new_map);
+			hallway_tiles.push(current_hallway);
 		}
 		// 2: use the room list to create the topo graph of the layout
 		// Iterate on all the rooms in the input list
-		for room in input_data.room_list.iter() {
+		for cur_room in input_data.room_list.iter() {
 			let room_index: usize;
-			// If the room already exists, use its room index; else make a new room
-			if let Some(new_index) = self.model.layout.contains(room.name.clone()) {
+			// If the cur_room already exists, use its cur_room index; else make a new room
+			if let Some(new_index) = self.model.layout.contains(cur_room.name.clone()) {
 				room_index = new_index;
 			} else {
-				room_index = self.model.layout.add_room((*room).clone().into());
+				room_index = self.model.layout.add_room((*cur_room).clone().into());
 			}
-			debug!("* new room: {}: {:?}", room_index, room.exits);
+			debug!("* new cur_room: {}: {:?}", room_index, cur_room.exits);
 			// Iterate on all the exits attached to this room
-			for destination in &room.exits {
+			for destination in &cur_room.exits {
 				//debug!("* dest: {:?}", destination);
 				let dest_index: usize;
 				if let Some(new_index) = self.model.layout.contains(destination.clone()) {
-					// If the destination room already exists, get its room_index
+					// If the destination cur_room already exists, get its room_index
 					dest_index = new_index;
 				} else if destination.contains("hallway") {
 					// If it doesn't exist AND it's a hallway ( FIXME: irregular shape!) then make the hallway now
 					let mut new_room = GraphRoom::default();
 					new_room.name = destination.clone();
+					new_room.set_interior_to(hallway_tiles[cur_room.z_level()].clone());
 					dest_index = self.model.layout.add_room(new_room);
 				} else {
 					// If it doesn't exist, just make it now and get its index

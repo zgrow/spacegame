@@ -63,6 +63,23 @@ impl Default for Tile {
 	}
 }
 impl Tile {
+	pub fn tiletype(mut self, new_type: TileType) -> Self {
+		self.ttype = new_type;
+		self
+	}
+	pub fn glyph(mut self, new_glyph: &str) -> Self {
+		self.glyph = new_glyph.to_string();
+		self
+	}
+	pub fn colors(mut self, new_fg: u8, new_bg: u8) -> Self {
+		self.fg = new_fg;
+		self.bg = new_bg;
+		self
+	}
+	pub fn mods(mut self, new_mods: u16) -> Self {
+		self.mods = new_mods;
+		self
+	}
 	/// Produces an 'empty space' tile
 	pub fn new_vacuum() -> Tile {
 		Tile {
@@ -280,8 +297,12 @@ impl From<JsonRoom> for GraphRoom {
 	}
 }
 impl GraphRoom {
+	/// Returns True if the specified Position is within the walls of the called Room
 	pub fn contains(&self, target: Position) -> bool {
 		self.interior.contains(&target)
+	}
+	pub fn set_interior_to(&mut self, new_interior: Vec<Position>) {
+		self.interior = new_interior;
 	}
 }
 /// Describes an edge in the topology graph, a connection between two GraphRooms

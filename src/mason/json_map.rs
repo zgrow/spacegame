@@ -102,6 +102,9 @@ impl JsonRoom {
 		self.height = new_height;
 		self
 	}
+	pub fn z_level(&self) -> usize {
+		self.corner[2]
+	}
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonMap {
