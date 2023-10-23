@@ -300,7 +300,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
 	                     mut p_posn_res:  ResMut<Position>,
 	                     mut model:       ResMut<Model>,
-	                     mut e_query:     Query<(Entity, &mut Description, &mut Position, Option<&mut Viewshed>)>
+	                     mut e_query:     Query<(Entity, &mut Description, &mut Position, Option<&mut Viewshed>, Option<&Player>)>
 ) {
 	if ereader.is_empty() { return; } // Don't even bother trying if there's no events to worry about
 	for event in ereader.iter() {
@@ -314,7 +314,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				}
 				let econtext = event.context.unwrap();
 				let origin = e_query.get_mut(econtext.subject);
-				let (_, mut actor_room, mut actor_posn, view_ref) = origin.unwrap();
+				let (_, mut actor_room, mut actor_posn, view_ref, _) = origin.unwrap();
 				let mut xdiff = 0;
 				let mut ydiff = 0;
 				let mut zdiff = 0; // NOTE: not a typical component: z-level indexes to map stack, not Euclidean space
@@ -334,18 +334,36 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				let mut new_location = Position::new(actor_posn.x + xdiff, actor_posn.y + ydiff, actor_posn.z + zdiff);
 				if dir == Direction::UP || dir == Direction::DOWN { // Is the actor moving between z-levels?
 					// Prevent movement if an invalid z-level was calculated, or if they are not standing on stairs
-					if new_location.z < 0 || new_location.z as usize >= model.levels.len() {
-						msglog.tell_player(format!("There's no way to go {} from here.", dir));
+					debug!("* Attempting ladder traverse to target posn {}", new_location);
+					// CASE 1: The target location is beyond the Model's height
+					if new_location.z < 0 || new_location.z as usize >= model.levels.len()
+					{
+						msglog.tell_player(format!("You're already on the {}-most deck.", dir));
 						continue;
 					}
+					// CASE 2: The actor is not standing on a ladder Tile
 					let actor_index = model.levels[actor_posn.z as usize].to_index(actor_posn.x, actor_posn.y);
 					if model.levels[actor_posn.z as usize].tiles[actor_index].ttype != TileType::Stairway {
-						msglog.tell_player(format!("You're not standing on anything that allows you to go {}.", dir));
+						msglog.tell_player(format!("You can't go {} without a ladder.", dir));
 						continue;
 					}
+					// CASE 3: Attempt to retrieve a Portal (aka ladder) from the list for this Position
 					let possible = model.get_exit(*actor_posn);
 					if let Some(portal) = possible {
 						new_location = portal;
+					} else {
+						msglog.tell_player("Couldn't find a ladder to traverse (possible bug?)".to_string());
+						continue;
+					}
+					// CASE 4: The actor is trying to climb higher than the ladder allows
+					if dir == Direction::UP && (actor_posn.z > new_location.z) {
+						msglog.tell_player("You're already at the top of the ladder.".to_string());
+						continue;
+					}
+					// CASE 5: The actor is trying to climb lower than the ladder allows
+					if dir == Direction::DOWN && (actor_posn.z < new_location.z) {
+						msglog.tell_player("You're already at the bottom of the ladder.".to_string());
+						continue;
 					}
 				}
 				let locn_index = model.levels[new_location.z as usize].to_index(new_location.x, new_location.y);
@@ -368,14 +386,14 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				*actor_posn = new_location; // Nothing's in the way, so go ahead and update the actor's position
 				// If the entity changed rooms, update their description to reflect that
 				if let Some(new_name) = model.layout.get_room_name(new_location) {
-					actor_room.locn = new_name;
+					actor_room.locn = format!("{}: {}", new_name, *actor_posn);
 				}
 				if is_player_action { // Was it the player that's moving around?
 					// Is there anything on the ground at the new location?
 					*p_posn_res = new_location; // Update the system-wide resource containing the player's location
 					let mut contents = Vec::new();
 					for enty in e_query.iter() {
-						if *enty.2 == new_location {
+						if *enty.2 == new_location && enty.4.is_none() {
 							contents.push(&enty.1.name);
 						}
 					}
@@ -493,7 +511,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 	                       observable: Query<(Entity, &Position, &Renderable)>,
 ) {
 	for (mut viewshed, s_posn, player, memory) in &mut seers {
-		debug!("* [vis_sys] s_posn: {s_posn:?}"); // DEBUG: print the position of the entity being examined
+		//debug!("* [vis_sys] s_posn: {s_posn:?}"); // DEBUG: print the position of the entity being examined
 		if viewshed.dirty {
 			assert!(s_posn.z != -1);
 			let map = &mut model.levels[s_posn.z as usize];
@@ -550,7 +568,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Container::default(),
 		Memory::new(),
 	)).id();
-	debug!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
+	//debug!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
 	commands.spawn((
 		Planq::new(),
 		ActionSet::new(),
@@ -560,7 +578,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Device::new(-1),
 		RngComponent::from(&mut global_rng),
 	));
-	debug!("* new planq spawned into player inventory"); // DEBUG: announce creation of player's planq
+	//debug!("* new planq spawned into player inventory"); // DEBUG: announce creation of player's planq
 	commands.spawn(DataSampleTimer::new().source("player_location".to_string()));
 	commands.spawn(DataSampleTimer::new().source("current_time".to_string()));
 	commands.spawn(DataSampleTimer::new().source("planq_battery".to_string()));

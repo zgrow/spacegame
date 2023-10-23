@@ -75,7 +75,7 @@ impl JsonWorldBuilder {
 			} else {
 				room_index = self.model.layout.add_room((*cur_room).clone().into());
 			}
-			debug!("* new cur_room: {}: {:?}", room_index, cur_room.exits);
+			//debug!("* new cur_room: {}: {:?}", room_index, cur_room.exits);
 			// Iterate on all the exits attached to this room
 			for destination in &cur_room.exits {
 				//debug!("* dest: {:?}", destination);

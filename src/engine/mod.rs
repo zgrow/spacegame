@@ -368,6 +368,7 @@ impl GameEngine<'_> {
 	}
 	/// Starts a new game from scratch
 	pub fn new_game(&mut self) {
+		eprintln!("* new_game() called");
 		debug!("* new_game() called"); // DEBUG: announce new game
 		// If no game is running, then self.standby should be TRUE
 		if !self.standby {
@@ -553,6 +554,7 @@ impl GameEngine<'_> {
 		self.bevy.insert_resource(model);
 		// Construct the various furniture/scenery/backdrop items
 		let item_spawns = self.mason.get_item_spawn_list();
+		eprintln!("spawning items");
 		debug!("* item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
 		for item in item_spawns.iter() {
 			self.artisan.create(item.0).at(item.1).build(&mut self.bevy.world);
