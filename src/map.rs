@@ -6,7 +6,13 @@ use std::fmt;
 use std::fmt::Display;
 use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
 use bracket_geometry::prelude::*;
-use bevy::prelude::*;
+use bevy::prelude::{
+	Entity,
+	Reflect,
+	ReflectResource,
+	Resource,
+};
+use simplelog::*;
 
 // *** INTERNAL LIBS
 use crate::components::*;
@@ -52,6 +58,7 @@ impl Display for TileType {
 #[reflect(Resource)]
 pub struct Tile {
 	pub ttype: TileType,
+	contents: Vec<(i32, Entity)>, // Implemented as a stack with sorting on the first value of the tuple
 	pub glyph: String,
 	pub fg: u8, // Corresponds to indexed colors, ie the ANSI 0-15 basic set
 	pub bg: u8, // Same as fg
@@ -80,10 +87,55 @@ impl Tile {
 		self.mods = new_mods;
 		self
 	}
+	/// Adds an entity to this Tile's list of contents
+	pub fn add_to_contents(&mut self, new_item: (i32, Entity)) {
+		// Always make sure there's at least a dummy Entity in the list, this could probably be more clever
+		//if self.contents.is_empty() {
+		//	self.contents.push((0, Entity::PLACEHOLDER));
+		//}
+		// Find the point in the stack where we'd like to insert the new Entity:
+		// at the top of the list of Entities with the same priority, *not* the top of the entire stack
+		// In general, if all the visible entities at a given point have the same priority,
+		// then the entity that will be shown will be the one that most-recently entered that tile
+		// If any entities have a higher priority, then those should be shown instead
+		let mut insertion_index = 0;
+		for enty in self.contents.iter() {
+			if new_item.0 < enty.0 {
+				insertion_index += 1;
+			}
+		}
+		// Insert the new entity at the top of the items of the same priority, not the entire stack
+		self.contents.insert(insertion_index, new_item);
+	}
+	/// Retrieves the Entity ID of the most-visible Entity at this Tile
+	pub fn get_visible_entity(&self) -> Option<Entity> {
+		if self.contents.is_empty() {
+			return None;
+		}
+		Some(self.contents[0].1)
+	}
+	/// Retrieves the entire list of contents of this Tile
+	pub fn get_all_contents(&self) -> Vec<Entity> {
+		self.contents.iter().map(|x| x.1).collect()
+	}
+	/// Removes an Entity from this list of contents
+	pub fn remove_from_contents(&mut self, target: Entity) {
+		let mut index = 0;
+		loop {
+			if index >= self.contents.len() {
+				break;
+			}
+			if self.contents[index].1 == target {
+				self.contents.remove(index);
+			}
+			index += 1;
+		}
+	}
 	/// Produces an 'empty space' tile
 	pub fn new_vacuum() -> Tile {
 		Tile {
 			ttype: TileType::Vacuum,
+			contents: Vec::new(),
 			glyph: "★".to_string(),
 			fg: 8,
 			bg: 0,
@@ -94,6 +146,7 @@ impl Tile {
 	pub fn new_floor() -> Tile {
 		Tile {
 			ttype: TileType::Floor,
+			contents: Vec::new(),
 			glyph: ".".to_string(),
 			fg: 8,
 			bg: 0,
@@ -104,6 +157,7 @@ impl Tile {
 	pub fn new_wall() -> Tile {
 		Tile {
 			ttype: TileType::Wall,
+			contents: Vec::new(),
 			glyph: "╳".to_string(),
 			fg: 7,
 			bg: 0,
@@ -114,6 +168,7 @@ impl Tile {
 	pub fn new_stairway() -> Tile {
 		Tile {
 			ttype: TileType::Stairway,
+			contents: Vec::new(),
 			glyph: "∑".to_string(),
 			fg: 5,
 			bg: 0,
@@ -168,17 +223,31 @@ impl Map {
 			self.opaque_tiles[index] = tile.ttype == TileType::Wall;
 		}
 	}
-	//  PRIVATE METHODS
-	/* Returns true if the specified location is not blocked
-	fn is_exit_valid(&self, x: i32, y: i32) -> bool {
-		if x < 1 || x > self.width - 1
-		|| y < 1 || y > self.height - 1 {
-			return false;
-		}
-		let index = self.to_index(x, y);
-		!self.blocked_tiles[index]
+	/// Obtains the Tile data from the given position and creates a ScreenCell to display it
+	pub fn get_display_tile(&self, target: Position) -> Tile {
+		self.tiles[self.to_index(target.x, target.y)].clone()
 	}
-	*/
+	/// Obtains whatever Entity is visible at the given Position, if any
+	pub fn get_visible_entity_at(&self, target: Position) -> Option<Entity> {
+		self.tiles[self.to_index(target.x, target.y)].get_visible_entity()
+	}
+	/// Retrieves the entire list of contents at the specified Position
+	pub fn get_contents_at(&self, target: Position) -> Vec<Entity> {
+		let index = self.to_index(target.x, target.y);
+		self.tiles[index].get_all_contents()
+	}
+	/// Adds an Entity to the list of occupants at the specified Position
+	pub fn add_occupant(&mut self, priority: i32, new_enty: Entity, posn: Position) {
+		let index = self.to_index(posn.x, posn.y);
+		self.tiles[index].add_to_contents((priority, new_enty));
+		//debug!("added occupant {:?} to position {}", new_enty, posn);
+	}
+	/// Removes an Entity from the contents list at the given Position
+	pub fn remove_occupant(&mut self, target: Entity, posn: Position) {
+		let index = self.to_index(posn.x, posn.y);
+		self.tiles[index].remove_from_contents(target);
+		//debug!("removed occupant {:?} from position {}", target, posn);
+	}
 }
 // bracket-lib uses the Algorithm2D and BaseMap traits for FOV and pathfinding
 impl Algorithm2D for Map {
@@ -393,7 +462,6 @@ impl ShipGraph {
 
 //   - THE WORLD MODEL
 /// Represents the entire stack of Maps that comprise a 3D space
-//#[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)] // not sure why PartialEq was on here, disabled it because ShipGraph doesn't have it yet
 #[derive(Resource, Clone, Debug, Default, Reflect)]
 #[reflect(Resource)]
 pub struct Model {
@@ -429,6 +497,21 @@ impl Model {
 		} else {
 			portal
 		}
+	}
+	pub fn add_contents(&mut self, posns: Vec<Position>, priority: i32, enty: Entity) {
+		debug!("add_contents: {:?} for enty {:?} at priority {}", posns, enty, priority);
+		for posn in posns {
+			self.levels[posn.z as usize].add_occupant(priority, enty, posn);
+		}
+	}
+	pub fn remove_contents(&mut self, posns: Vec<Position>, enty: Entity) {
+		debug!("remove_contents: {:?} for enty {:?}", posns, enty);
+		for posn in posns {
+			self.levels[posn.z as usize].remove_occupant(enty, posn);
+		}
+	}
+	pub fn get_contents_at(&self, target: Position) -> Vec<Entity> {
+		self.levels[target.z as usize].get_contents_at(target)
 	}
 }
 

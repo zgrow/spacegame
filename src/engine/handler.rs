@@ -155,7 +155,8 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			// Compound actions, context required: may require secondary inputs from player
 			KeyCode::Char('i') => { // INVENTORY the player's possessions and allow selection
 				let mut item_names = Vec::new();
-				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &Description, &Portable, &ActionSet), Without<Position>>();
+				// Get every Entity that has a Description, is Portable, and is currently being carried by someone
+				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &Description, &Portable, &ActionSet), With<IsCarried>>();
 				for item in backpack_query.iter(&eng.bevy.world) {
 					debug!("* found item {}", item.1.name.clone()); // DEBUG: report the item being worked on
 					if item.2.carrier == player {
@@ -181,7 +182,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('d') => { // DROP an item from player's inventory
 				let mut item_names = Vec::new();
-				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &Description, &Portable), Without<Position>>();
+				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &Description, &Portable), With<IsCarried>>();
 				for item in backpack_query.iter(&eng.bevy.world) {
 					if item.2.carrier == player {
 						item_names.push(MenuItem::item(
@@ -203,11 +204,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('g') => { // GET an item from the ground
 				let mut item_names = Vec::new();
-				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Position, &Portable)>();
+				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Body, &Portable)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in item_query.iter(&eng.bevy.world) {
 					debug!("* found item {}", target.1.name.clone()); // DEBUG: announce found targets for GET
-					if target.2 == p_posn {
+					if target.2.contains(p_posn) {
 						item_names.push(MenuItem::item(
 							target.1.name.clone(),
 							GameEvent::new(PlayerAction(MoveItem), Some(player), Some(target.0)),
@@ -228,15 +229,15 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('o') => { // OPEN an Openable item
 				let mut item_names = Vec::new();
-				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Position, &Openable)>();
+				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Body, &Openable)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in item_query.iter(&eng.bevy.world) {
 					debug!("* found item {}", target.1.name.clone()); // DEBUG: report found OPENABLE items
-					if target.2.is_adjacent_to(*p_posn) && !target.3.is_open {
+					if target.2.is_adjacent_to(p_posn) && !target.3.is_open {
 						item_names.push(MenuItem::item(
 								target.1.name.clone(),
 								GameEvent::new(PlayerAction(OpenItem), Some(player), Some(target.0)),
-								Some(*target.2)
+								Some(target.2.ref_posn)
 							)
 						);
 					}
@@ -254,15 +255,15 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('c') => { // CLOSE an Openable nearby
 				let mut item_names = Vec::new();
-				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Position, &Openable)>();
+				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Body, &Openable)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in item_query.iter(&eng.bevy.world) {
 					debug!("* found item {}", target.1.name.clone()); // DEBUG: report found closed OPENABLE items
-					if target.2.is_adjacent_to(*p_posn) && target.3.is_open {
+					if target.2.is_adjacent_to(p_posn) && target.3.is_open {
 						item_names.push(MenuItem::item(
 								target.1.name.clone(),
 								GameEvent::new(PlayerAction(CloseItem), Some(player), Some(target.0)),
-								Some(*target.2)
+								Some(target.2.ref_posn)
 							)
 						);
 					}
@@ -280,15 +281,15 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('x') => { // EXAMINE a nearby Entity
 				let mut enty_names = Vec::new();
-				let mut enty_query = eng.bevy.world.query::<(Entity, &Description, &Position)>();
+				let mut enty_query = eng.bevy.world.query::<(Entity, &Description, &Body)>();
 				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
 				for target in enty_query.iter(&eng.bevy.world) {
 					debug!("* Found target {}", target.1.name.clone()); // DEBUG: announce EXAMINE target
-					if target.2.in_range_of(*p_posn, 2) {
+					if target.2.in_range_of(p_posn, 2) {
 						enty_names.push(MenuItem::item(
 							target.1.name.clone(),
 							GameEvent::new(PlayerAction(Examine), Some(player), Some(target.0)),
-							Some(*target.2),
+							Some(target.2.ref_posn),
 						));
 					}
 				}
@@ -306,7 +307,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('a') => { // APPLY (use) an Operable item
 				// Get a list of all Operable items in the player's vicinity
 				let mut device_names = Vec::new();
-				let mut device_query = eng.bevy.world.query::<(Entity, Option<&Position>, &Description, Option<&Portable>, &Device)>();
+				let mut device_query = eng.bevy.world.query::<(Entity, Option<&Body>, &Description, Option<&Portable>, &Device)>();
 				let p_posn = *eng.bevy.world.get_resource::<Position>().unwrap();
 				//eng.item_chooser.list.clear();
 				// Drop them into one of the choosers
@@ -320,7 +321,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 							));
 						}
 					} else if device.1.is_some() { // Is the player near it?
-						if p_posn.in_range_of(*device.1.unwrap(), 1) {
+						if p_posn.in_range_of(&device.1.unwrap().ref_posn, 1) {
 							device_names.push(MenuItem::item(
 								device.2.name.clone(),
 								GameEvent::new(PlayerAction(UseItem), Some(player), Some(device.0)),
@@ -340,11 +341,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('L') => { // LOCK a Lockable item
 				let mut lock_names = Vec::new();
-				let mut lock_query = eng.bevy.world.query::<(Entity, Option<&Position>, &Description, &Lockable)>();
+				let mut lock_query = eng.bevy.world.query::<(Entity, Option<&Body>, &Description, &Lockable)>();
 				let p_posn = *eng.bevy.world.get_resource::<Position>().unwrap();
 				for lock in lock_query.iter(&eng.bevy.world) {
 					if let Some(l_posn) = lock.1 {
-						if l_posn.in_range_of(p_posn, 1)
+						if l_posn.in_range_of(&p_posn, 1)
 						&& lock.3.is_locked {
 							lock_names.push(MenuItem::item(
 								lock.2.name.clone(),
@@ -365,12 +366,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('U') => { // UNLOCK a Lockable item
 				let mut lock_names = Vec::new();
-				let mut lock_query = eng.bevy.world.query::<(Entity, Option<&Position>, &Description, &Lockable)>();
+				let mut lock_query = eng.bevy.world.query::<(Entity, Option<&Body>, &Description, &Lockable)>();
 				let p_posn = *eng.bevy.world.get_resource::<Position>().unwrap();
 				for lock in lock_query.iter(&eng.bevy.world) {
 					if let Some(l_posn) = lock.1 {
 						if !lock.3.is_locked
-						&& l_posn.in_range_of(p_posn, 1) {
+						&& l_posn.in_range_of(&p_posn, 1) {
 							lock_names.push(MenuItem::item(
 								lock.2.name.clone(),
 								GameEvent::new(PlayerAction(UnlockItem), Some(player), Some(lock.0)),
@@ -390,10 +391,10 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			KeyCode::Char('C') => { // CONNECT the PLANQ to a nearby AccessPort
 				let mut access_ports = Vec::new();
-				let mut port_query = eng.bevy.world.query_filtered::<(Entity, &Position, &Description), With<AccessPort>>();
+				let mut port_query = eng.bevy.world.query_filtered::<(Entity, &Body, &Description), With<AccessPort>>();
 				let p_posn = *eng.bevy.world.get_resource::<Position>().unwrap();
 				for port in port_query.iter(&eng.bevy.world) {
-					if *port.1 == p_posn {
+					if port.1.is_adjacent_to(&p_posn) {
 						access_ports.push(MenuItem::item(
 							port.2.name.clone(),
 							GameEvent::new(PlanqConnect(port.0), Some(player), Some(port.0)), // NOTE: might want to swap player for planq here?

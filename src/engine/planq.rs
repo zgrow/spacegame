@@ -35,7 +35,7 @@ pub fn planq_update_system(mut commands: Commands,
 	                         mut msglog:   ResMut<MessageLog>,
 	                         time:         Res<Time>,
 	                         mut planq:    ResMut<PlanqData>, // contains the PLANQ's settings and data storage
-	                         p_query:      Query<(Entity, &Position), With<Player>>, // provides interface to player data
+	                         p_query:      Query<(Entity, &Body), With<Player>>, // provides interface to player data
 	                         mut q_query:  Query<(Entity, &Device, &Portable), With<Planq>>, // contains the PLANQ's component data
 	                         mut t_query:  Query<(Entity, &mut PlanqProcess)>, // contains the set of all PlanqTimers
 ) {
@@ -291,7 +291,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 	                          msglog:      ResMut<MessageLog>,
 	                          mut planq:   ResMut<PlanqData>,
 	                          mut monitor: ResMut<PlanqMonitor>,
-	                          p_query:     Query<(Entity, &Position, &Description), With<Player>>,
+	                          p_query:     Query<(Entity, &Body, &Description), With<Player>>,
 	                          //mut q_query: Query<(Entity, &Device, &mut RngComponent), With<Planq>>,
 	                          mut q_query: Query<(Entity, &Device), With<Planq>>,
 	                          mut s_query: Query<(Entity, &mut DataSampleTimer)>,
@@ -361,7 +361,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 	// TODO: optimize this to avoid doing a full copy of the log every single time
 	planq.stdout = msglog.get_log_as_messages("planq".to_string(), 0);
 	// Get the player's location
-	planq.player_loc = *player.1;
+	planq.player_loc = player.1.ref_posn;
 }
 
 //  *** STRUCTURES

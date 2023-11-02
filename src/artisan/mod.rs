@@ -68,7 +68,7 @@ pub struct ItemBuilder {
 	pub spawn_count: i32,
 	desc:     Option<Description>,
 	render:   Option<Renderable>,
-	posn:     Option<Position>,
+	body:     Option<Body>,
 	actions:  Option<ActionSet>,
 	obstruct: Option<Obstructive>,
 	opaque:   Option<Opaque>,
@@ -148,7 +148,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		self
 	}
 	pub fn at(&mut self, posn: Position) -> &mut ItemBuilder {
-		self.posn = Some(posn);
+		self.body = Some(Body::new(posn));
 		self
 	}
 	pub fn within(&mut self, target: Entity) -> &mut ItemBuilder {
@@ -158,9 +158,10 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 	pub fn build(&'b mut self, world: &'a mut World) -> EntityMut<'b> {
 		self.spawn_count += 1;
 		let mut new_item = world.spawn_empty();
+		// Add all of the populated components to the new entity
 		if let Some(desc)     = &self.desc { new_item.insert(desc.clone()); self.desc = None; }
 		if let Some(render)   = &self.render { new_item.insert(render.clone()); self.render = None; }
-		if let Some(posn)     = self.posn { new_item.insert(posn); self.posn = None; }
+		if let Some(body)     = &self.body { new_item.insert(body.clone()); self.body = None; }
 		if let Some(actions)  = &self.actions { new_item.insert(actions.clone()); self.actions = None; }
 		if let Some(obstruct) = self.obstruct { new_item.insert(obstruct); self.obstruct = None; }
 		if let Some(opaque)   = self.opaque { new_item.insert(opaque); self.opaque = None; }
@@ -168,7 +169,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		if let Some(portable) = self.portable { new_item.insert(portable); self.portable = None; }
 		if let Some(device)   = self.device { new_item.insert(device); self.device = None; }
 		if let Some(mobile)   = self.mobile { new_item.insert(mobile); self.mobile = None; }
-		if let Some(contain)  = &self.contain { new_item.insert(contain.clone()); self.contain = None; }
+		if let Some(contain)  = &self.contain { new_item.insert(*contain); self.contain = None; }
 		if let Some(lock)     = self.lock { new_item.insert(lock); self.lock = None; }
 		if let Some(key)      = self.key { new_item.insert(key); self.key = None; }
 		if let Some(planq)    = self.planq { new_item.insert(planq); self.planq = None; }

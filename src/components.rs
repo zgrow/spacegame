@@ -5,11 +5,21 @@ use std::fmt;
 use std::hash::Hash;
 use bevy::ecs::entity::*;
 use bevy::utils::hashbrown::{HashMap, HashSet};
-use bevy::prelude::*;
+use bevy::prelude::{
+	Component,
+	FromWorld,
+	Reflect,
+	ReflectComponent,
+	ReflectResource,
+	Resource,
+	World,
+};
 use bracket_pathfinding::prelude::*;
 use ratatui::layout::Rect;
 use strum_macros::AsRefStr;
 use crate::engine::event::ActionType;
+use crate::camera::ScreenCell;
+use simplelog::*;
 
 // Full-length derive macros
 //#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -66,13 +76,13 @@ impl Position {
 	/// This is just a naive calculator for when all the variables can be obtained easily
 	/// Thus it runs very quickly by virtue of not needing to call into the ECS
 	/// Returns true if distance == range (ie is inclusive)
-	pub fn in_range_of(&self, target: Position, range: i32) -> bool {
+	pub fn in_range_of(&self, target: &Position, range: i32) -> bool {
 		debug!("* Testing range {} between positions {} to {}", range, self, target); // DEBUG: announce range check
 		if self.z != target.z { return false; } // z-levels must match (ie on same floor)
 		if range == 0 {
 			// This case is provided against errors; it's often faster/easier to just compare
 			// positions directly in the situation where this method would be called
-			if *self == target { return true; }
+			if self == target { return true; }
 		} else {
 			let mut d_x = f32::powi((target.y - self.y) as f32, 2);
 			let mut d_y = f32::powi((target.x - self.x) as f32, 2);
@@ -87,7 +97,7 @@ impl Position {
 		false
 	}
 	/// Checks if two Positions are next to each other; shorthand for calling `self.in_range_of(target, 1)`
-	pub fn is_adjacent_to(&self, target: Position) -> bool {
+	pub fn is_adjacent_to(&self, target: &Position) -> bool {
 		self.in_range_of(target, 1)
 	}
 	/// Converts map coordinates to screen coordinates
@@ -133,6 +143,122 @@ impl fmt::Display for Position {
 		write!(f, "{}, {}, {}", self.x, self.y, self.z)
 	}
 }
+// ***
+/// Provides some ergonomics around Rust's type handling so that there's less "x as usize" casting everywhere;
+/// used for small adjustments on a grid map in the SAME z-level; if a z-level transition is required look elsewhere
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct PosnOffset {
+	pub x_diff: i32,
+	pub y_diff: i32,
+	pub z_diff: i32,
+}
+impl PosnOffset {
+	pub fn new(echs: i32, whye: i32, zhee: i32) -> PosnOffset {
+		PosnOffset {
+			x_diff: echs,
+			y_diff: whye,
+			z_diff: zhee,
+		}
+	}
+}
+impl std::ops::Add<PosnOffset> for Position {
+	type Output = Position;
+	fn add(self, rhs: PosnOffset) -> Position {
+		Position {
+			x: self.x + rhs.x_diff,
+			y: self.y + rhs.y_diff,
+			z: self.z + rhs.z_diff,
+		}
+	}
+}
+impl std::ops::AddAssign<PosnOffset> for Position {
+	fn add_assign(&mut self, rhs: PosnOffset) {
+		*self = *self + rhs;
+	}
+}
+/* NOTE: Defn for "Position - PosnOffset = Position" is disabled due to uncertainty; subtraction on a PosnOffset
+ *       that contains negative values will almost definitely produce unexpected behavior...
+ *	impl std::ops::Sub<PosnOffset> for Position {
+ *	type Output = Position;
+ *	fn sub(self, rhs: PosnOffset) -> Position {
+ *		Position {
+ *			x: self.x - rhs.x_diff,
+ *			y: self.y - rhs.y_diff,
+ *			z: self.z - rhs.z_diff,
+ *		}
+ *	}
+ *}
+ *impl std::ops::SubAssign<PosnOffset> for Position {
+ *	fn sub_assign(&mut self, rhs: PosnOffset) {
+ *		*self = *self - rhs;
+ *	}
+ *}
+*/
+/* NOTE: Defn for "Position + Position = Position" is disabled due to uncertainty:
+ * vector sums are useful when trying to calculate the amount of force applied to a body,
+ * but that isn't useful right now since I have no physics to worry about
+*/
+impl std::ops::Sub<Position> for Position {
+	type Output = PosnOffset;
+	fn sub(self, rhs: Position) -> PosnOffset {
+		PosnOffset {
+			x_diff: self.x - rhs.x,
+			y_diff: self.y - rhs.y,
+			z_diff: self.z - rhs.z,
+		}
+	}
+}
+/// Defines the shape/form of an Entity's physical body within the gameworld, defined on absolute game Positions
+/// Allows Entities to track all of their physical shape, not just their canonical Position
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct Body { // aka Exterior, Veneer, Mass, Body, Visage, Shape, Bulk, Whole
+	pub ref_posn: Position,
+	pub extent: Vec<Position>
+}
+impl Body {
+	pub fn new(posn: Position) -> Body {
+		Body {
+			ref_posn: posn,
+			extent: vec![posn],
+		}
+	}
+	/// WARN: this does not check for duplicates!
+	pub fn extend(mut self, mut new_posns: Vec<Position>) -> Self {
+		self.extent.append(&mut new_posns);
+		self
+	}
+	pub fn contains(&self, target: &Position) -> bool {
+		self.extent.contains(target)
+	}
+	pub fn is_adjacent_to(&self, target: &Position) -> bool {
+		for point in self.extent.iter() {
+			if point.in_range_of(target, 1) {
+				return true;
+			}
+		}
+		false
+	}
+	pub fn in_range_of(&self, target: &Position, range: i32) -> bool {
+		for point in self.extent.iter() {
+			if point.in_range_of(target, range) {
+				return true;
+			}
+		}
+		false
+	}
+	pub fn move_to(&mut self, target: Position) {
+		//let posn_diff = self.ref_posn - target;
+		let posn_diff = target - self.ref_posn;
+		for posn in self.extent.iter_mut() {
+			*posn += posn_diff;
+		}
+		//debug!("move_to: {}({:?}) to {} => {:?}", self.ref_posn, self.extent, target, posn_diff);
+		self.ref_posn = target;
+	}
+}
+
+// ***
 /// Holds the narrative description of an object. If this component is used as an input for text formatting, it will produce
 /// the name of the entity that owns it. See also the name() and desc() methods
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
@@ -194,6 +320,8 @@ pub struct Renderable {
 	pub mods: u16,      // ratatui
 	pub width: u32,
 	pub height: u32,
+	// The above fields will be superceded by the ScreenCell object list
+	pub glyphs: HashMap<Position, ScreenCell>,
 }
 impl Renderable {
 	pub fn new() -> Renderable {
@@ -217,6 +345,7 @@ impl Renderable {
 		self
 	}
 }
+
 /// Provides an object abstraction for the sensory range of a given entity
 //  INFO: This Viewshed type is NOT eligible for bevy_save because bracket_lib::Point doesn't impl Reflect/FromReflect
 #[derive(Component, Clone, Debug)]
@@ -240,11 +369,39 @@ impl Viewshed {
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct Memory {
-	pub visual: HashMap<Entity, Position>,
+	//pub visual: HashMap<Entity, Position>,
+	pub visual: HashMap<Position, Vec<Entity>>,
 }
 impl Memory {
 	pub fn new() -> Self {
 		Memory::default()
+	}
+	fn remove_from_memory(&mut self, target: Entity) {
+		// This line will find the first key-value pair where the value is 'target' and return the key
+		//self.visual.iter().find_map(|(key, &val)| if val.contains(&target) { Some(key) } else { None });
+		// Find all Positions in the actor's memory that contain this Entity
+		let all_points: Vec<Position> = self.visual.iter()
+			.filter_map(|(key, val)| if val.contains(&target) { Some(*key) } else { None }).collect();
+		debug!("remove_from_memory: {:?}", all_points);
+		// Remove the Entity from those Positions in the actor's memory
+		for posn in all_points.iter() {
+			if let Some(enty_list) = self.visual.get_mut(posn) {
+				enty_list.remove(enty_list.iter().position(|x| *x == target).unwrap());
+			}
+		}
+	}
+	/// Updates the memorized positions for the specified entity; adds to memory if not already present
+	pub fn update(&mut self, target: Entity, posn: Position) {
+		// Find any previous references to this entity in the visual memory and remove them
+		self.remove_from_memory(target); // DEBUG: this method seems to work fine without this call...?
+		// Update the memory with the new position
+		if let Some(enty_list) = self.visual.get_mut(&posn) {
+			enty_list.push(target);
+			debug!("Memory::update: {:?}", enty_list);
+		} else {
+			self.visual.insert(posn, vec![target]);
+			debug!("Memory::insert: {:?} @{:?}", target, posn);
+		}
 	}
 }
 /// Defines a set of mechanisms that allow an entity to maintain some internal state and memory of game context
@@ -280,8 +437,12 @@ impl FromWorld for Portable {
 		}
 	}
 }
+/// Describes an Entity that is currently located within a Container
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct IsCarried { }
 /// Describes an entity which may contain entities tagged with the Portable Component
-#[derive(Component, Clone, Debug, Default, Reflect)]
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Container { }
 /// Describes an entity that blocks line of sight; comes with an internal state for temp use

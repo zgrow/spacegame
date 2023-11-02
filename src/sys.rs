@@ -134,9 +134,9 @@ pub fn item_collection_system(mut cmd:      Commands,
 	                            mut ereader:  EventReader<GameEvent>,
 	                            mut msglog:   ResMut<MessageLog>,
 	                            // The list of Entities that also have Containers
-	                            e_query:      Query<(Entity, &Description, &Position, &Container, Option<&Player>)>,
+	                            e_query:      Query<(Entity, &Description, &Body, &Container, Option<&Player>)>,
 	                            // The list of every Item that may or may not be in a container
-	                            i_query:      Query<(Entity, &Description, &Portable, Option<&Position>)>,
+	                            mut i_query:      Query<(Entity, &Description, &mut Body, &Portable), Without<Container>>,
 ) {
 	// Don't even bother trying if there's no events to worry about
 	if ereader.is_empty() { return; }
@@ -161,19 +161,17 @@ pub fn item_collection_system(mut cmd:      Commands,
 		let subject = e_query.get(econtext.subject).unwrap();
 		let subject_name = subject.1.name.clone();
 		let is_player_action = subject.4.is_some();
-		let object = i_query.get(econtext.object).unwrap();
-		let item_name = object.1.name.clone();
+		let (o_enty, o_desc, mut o_body, _) = i_query.get_mut(econtext.object).unwrap();
+		let item_name = o_desc.name.clone();
 		// We have all of our context values now, so proceed to actually doing the requested action
 		let mut message: String = "".to_string();
 		match atype {
 			ActionType::MoveItem => { // Move an Item into an Entity's possession
 				debug!("* Moving item..."); // DEBUG: announce item movement
-				cmd.entity(object.0)
+				// NOTE: the insert(Portable) call below will overwrite any previous instance of that component
+				cmd.entity(o_enty)
 				.insert(Portable{carrier: subject.0}) // put the container's ID to the target's Portable component
-				.remove::<Position>(); // remove the Position component from the target
-				// Note that the above simply does nothing if it doesn't exist,
-				//   and inserting a Component that already exists overwrites the previous one,
-				//   so it's safe to call even on enty -> enty transfers
+				.insert(IsCarried::default()); // add the IsCarried tag to the component
 				if is_player_action {
 					message = format!("Obtained a {}.", item_name);
 				} else {
@@ -182,10 +180,10 @@ pub fn item_collection_system(mut cmd:      Commands,
 			}
 			ActionType::DropItem => { // Remove an Item and place it into the World
 				debug!("* Dropping item..."); // DEBUG: announce item drop
-				let location = subject.2;
-				cmd.entity(object.0)
+				cmd.entity(o_enty)
 				.insert(Portable{carrier: Entity::PLACEHOLDER}) // still portable but not carried
-				.insert(Position{x: location.x, y: location.y, z: location.z});
+				.remove::<IsCarried>(); // remove the tag from the component
+				o_body.move_to(subject.2.ref_posn);
 				if is_player_action {
 					message = format!("Dropped a {}.", item_name);
 				} else {
@@ -194,7 +192,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 			}
 			ActionType::KillItem => { // DESTROY an Item entirely, ie remove it from the game
 				debug!("* KILLing item..."); // DEBUG: announce item destruction
-				cmd.entity(econtext.object).despawn();
+				cmd.entity(o_enty).despawn();
 			}
 			action => {
 				error!("* item_collection_system unhandled action: {}", action); // DEBUG: announce unhandled action for this item
@@ -209,9 +207,9 @@ pub fn item_collection_system(mut cmd:      Commands,
 pub fn lockable_system(mut _commands:    Commands,
 	                     mut ereader:      EventReader<GameEvent>,
 	                     mut msglog:       ResMut<MessageLog>,
-	                     mut lock_query:   Query<(Entity, &Position, &Description, &mut Lockable)>,
-	                     mut e_query:      Query<(Entity, &Position, &Description, Option<&Player>)>,
-	                     key_query:        Query<(Entity, &Portable, &Description, &Key), Without<Position>>,
+	                     mut lock_query:   Query<(Entity, &Body, &Description, &mut Lockable)>,
+	                     mut e_query:      Query<(Entity, &Body, &Description, Option<&Player>)>,
+	                     key_query:        Query<(Entity, &Portable, &Description, &Key), With<IsCarried>>,
 ) {
 	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
@@ -272,8 +270,8 @@ pub fn lockable_system(mut _commands:    Commands,
 }
 /// Handles updates to the 'meta' worldmaps, ie the blocked and opaque tilemaps
 pub fn map_indexing_system(mut model:         ResMut<Model>,
-	                         blocker_query: Query<&Position, With<Obstructive>>,
-	                         opaque_query:  Query<(&Position, &Opaque)>,
+	                         blocker_query: Query<&Body, With<Obstructive>>,
+	                         opaque_query:  Query<(&Body, &Opaque)>,
 ) {
 	// First, rebuild the blocking map by the map tiles
 	let mut f_index = 0;
@@ -282,14 +280,14 @@ pub fn map_indexing_system(mut model:         ResMut<Model>,
 		floor.update_tilemaps(); // Update tilemaps based on their tiletypes
 		// Then, step through all blocking entities and flag their locations on the map as well
 		for guy in blocker_query.iter() {
-			if guy.z != f_index { continue; }
-			index = floor.to_index(guy.x, guy.y);
+			if guy.ref_posn.z != f_index { continue; }
+			index = floor.to_index(guy.ref_posn.x, guy.ref_posn.y);
 			floor.blocked_tiles[index] = true;
 		}
 		// Do the same for the opaque entities
 		for guy in opaque_query.iter() {
-			if guy.0.z != f_index { continue; }
-			index = floor.to_index(guy.0.x, guy.0.y);
+			if guy.0.ref_posn.z != f_index { continue; }
+			index = floor.to_index(guy.0.ref_posn.x, guy.0.ref_posn.y);
 			floor.opaque_tiles[index] = guy.1.opaque;
 		}
 		f_index += 1;
@@ -300,7 +298,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
 	                     mut p_posn_res:  ResMut<Position>,
 	                     mut model:       ResMut<Model>,
-	                     mut e_query:     Query<(Entity, &mut Description, &mut Position, Option<&mut Viewshed>, Option<&Player>)>
+	                     mut e_query:     Query<(Entity, &mut Description, &mut Body, Option<&mut Viewshed>, Option<&Player>)>
 ) {
 	if ereader.is_empty() { return; } // Don't even bother trying if there's no events to worry about
 	for event in ereader.iter() {
@@ -314,7 +312,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				}
 				let econtext = event.context.unwrap();
 				let origin = e_query.get_mut(econtext.subject);
-				let (_, mut actor_room, mut actor_posn, view_ref, _) = origin.unwrap();
+				let (actor_enty, mut actor_room, mut actor_posn, view_ref, _) = origin.unwrap();
 				let mut xdiff = 0;
 				let mut ydiff = 0;
 				let mut zdiff = 0; // NOTE: not a typical component: z-level indexes to map stack, not Euclidean space
@@ -331,7 +329,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					Direction::UP   =>      { zdiff += 1 }
 					Direction::DOWN =>      { zdiff -= 1 }
 				}
-				let mut new_location = Position::new(actor_posn.x + xdiff, actor_posn.y + ydiff, actor_posn.z + zdiff);
+				let mut new_location = Position::new(actor_posn.ref_posn.x + xdiff, actor_posn.ref_posn.y + ydiff, actor_posn.ref_posn.z + zdiff);
 				if dir == Direction::UP || dir == Direction::DOWN { // Is the actor moving between z-levels?
 					// Prevent movement if an invalid z-level was calculated, or if they are not standing on stairs
 					debug!("* Attempting ladder traverse to target posn {}", new_location);
@@ -342,13 +340,13 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 						continue;
 					}
 					// CASE 2: The actor is not standing on a ladder Tile
-					let actor_index = model.levels[actor_posn.z as usize].to_index(actor_posn.x, actor_posn.y);
-					if model.levels[actor_posn.z as usize].tiles[actor_index].ttype != TileType::Stairway {
+					let actor_index = model.levels[actor_posn.ref_posn.z as usize].to_index(actor_posn.ref_posn.x, actor_posn.ref_posn.y);
+					if model.levels[actor_posn.ref_posn.z as usize].tiles[actor_index].ttype != TileType::Stairway {
 						msglog.tell_player(format!("You can't go {} without a ladder.", dir));
 						continue;
 					}
 					// CASE 3: Attempt to retrieve a Portal (aka ladder) from the list for this Position
-					let possible = model.get_exit(*actor_posn);
+					let possible = model.get_exit(actor_posn.ref_posn);
 					if let Some(portal) = possible {
 						new_location = portal;
 					} else {
@@ -356,12 +354,12 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 						continue;
 					}
 					// CASE 4: The actor is trying to climb higher than the ladder allows
-					if dir == Direction::UP && (actor_posn.z > new_location.z) {
+					if dir == Direction::UP && (actor_posn.ref_posn.z > new_location.z) {
 						msglog.tell_player("You're already at the top of the ladder.".to_string());
 						continue;
 					}
 					// CASE 5: The actor is trying to climb lower than the ladder allows
-					if dir == Direction::DOWN && (actor_posn.z < new_location.z) {
+					if dir == Direction::DOWN && (actor_posn.ref_posn.z < new_location.z) {
 						msglog.tell_player("You're already at the bottom of the ladder.".to_string());
 						continue;
 					}
@@ -370,7 +368,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				if model.levels[new_location.z as usize].blocked_tiles[locn_index] { // Is there anything blocking movement?
 					// CASE 1: Another Actor is blocking the way
 					for guy in e_query.iter() {
-						if guy.2 == &new_location {
+						if guy.2.ref_posn == new_location {
 							msglog.tell_player(format!("The way {} is blocked by the {}.", dir, guy.1));
 							return;
 						}
@@ -380,21 +378,72 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 						                 dir, &model.levels[new_location.z as usize].tiles[locn_index].ttype.to_string()));
 					return;
 				}
-				if let Some(mut viewshed) = view_ref { // If the actor has a Viewshed, flag it as dirty to be updated
+				// Get a copy of the actor's current Body positions so we can update the Tiles that change
+				let old_posns = actor_posn.extent.clone();
+				// -> POINT OF NO RETURN
+				// Nothing's in the way, so go ahead and update the actor's position
+				actor_posn.move_to(new_location);
+				// Update the Tile contents now that the actor's updated its Body positions
+				let new_posns = actor_posn.extent.clone();
+				debug!("old_posns: {:?}", old_posns);
+				debug!("new_posns: {:?}", new_posns);
+				//let remove_posns = old_posns.clone().into_iter().filter(|x| !new_posns.contains(x)).collect();
+				//let update_posns = new_posns.into_iter().filter(|x| !old_posns.contains(x)).collect();
+				//model.remove_contents(remove_posns, actor_enty);
+				//model.add_contents(update_posns, 0, actor_enty); // FIXME: this needs to use the actor's *actual* rendering priority
+				// If the actor has a Viewshed, flag it as dirty to be updated
+				if let Some(mut viewshed) = view_ref {
 					viewshed.dirty = true;
 				}
-				*actor_posn = new_location; // Nothing's in the way, so go ahead and update the actor's position
 				// If the entity changed rooms, update their description to reflect that
 				if let Some(new_name) = model.layout.get_room_name(new_location) {
-					actor_room.locn = format!("{}: {}", new_name, *actor_posn);
+					if new_name != actor_room.locn {
+						actor_room.locn = format!("{}: {}", new_name, actor_posn.ref_posn);
+					}
 				}
-				if is_player_action { // Was it the player that's moving around?
-					// Is there anything on the ground at the new location?
+				// If it was the player specifically moving around, we need to do a few more things
+				if is_player_action {
 					*p_posn_res = new_location; // Update the system-wide resource containing the player's location
+					// Is there anything on the ground at the new location?
+					// If so, tell the player about it, but don't mention the player entity itself
+					let mut contents_list = model.get_contents_at(new_location);
+					// "What the heck even is that crazy if-let-Some unwrap statement?"
+					// It does the following:
+					// 1. creates an iterator from contents_list
+					// 2. looks for the position of a specified element to return as a usize
+					// 3. the closure obtains the entity using the given entityId,
+					// 4. > unwraps it to obtain the entity's components,
+					// 5. > and checks to see if it successfully unwrapped a Player component
+					// 6. > and if so, return the index of that element from the position() function to the index variable
+					// 7. which then uses the known-good index variable as an argument to remove the player from the list
+					if let Some(index) = contents_list.iter().position(|x| e_query.get(*x).unwrap().4.is_some()) {
+						contents_list.remove(index);
+					}
+					if !contents_list.is_empty() {
+						let message = if contents_list.len() <= 3 {
+							let mut message_text = "There's a ".to_string();
+							loop {
+								if let Ok(enty) = e_query.get(contents_list.pop().unwrap()) {
+									if enty.4.is_none() {
+										message_text.push_str(&enty.1.name);
+									}
+								}
+								if contents_list.is_empty() { break; }
+								else { message_text.push_str(", and a "); }
+							}
+							message_text.push_str(" here.");
+							message_text
+						} else {
+							"There's some stuff here on the ground.".to_string()
+						};
+						msglog.tell_player(message);
+					}
+					/* OLD METHOD
 					let mut contents = Vec::new();
-					for enty in e_query.iter() {
-						if *enty.2 == new_location && enty.4.is_none() {
-							contents.push(&enty.1.name);
+					//for enty in e_query.iter() {
+					for (_, desc, body, _, player) in e_query.iter() {
+						if body.ref_posn == new_location && player.is_none() {
+							contents.push(&desc.name);
 						}
 					}
 					// If so, tell the player about it
@@ -413,6 +462,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 						};
 						msglog.tell_player(message);
 					}
+					*/
 				}
 			}
 		}
@@ -422,8 +472,8 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 pub fn openable_system(mut commands:    Commands,
 	                     mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
-	                     mut door_query:  Query<(Entity, &Position, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
-	                     mut e_query:     Query<(Entity, &Position, &Description, Option<&Player>, Option<&mut Viewshed>)>,
+	                     mut door_query:  Query<(Entity, &Body, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
+	                     mut e_query:     Query<(Entity, &Body, &Description, Option<&Player>, Option<&mut Viewshed>)>,
 ) {
 	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
@@ -507,16 +557,16 @@ pub fn operable_system(mut ereader: EventReader<GameEvent>,
 }
 /// Handles entities that can see physical light
 pub fn visibility_system(mut model:  ResMut<Model>,
-	                       mut seers:  Query<(&mut Viewshed, &Position, Option<&Player>, Option<&mut Memory>), Changed<Viewshed>>,
-	                       observable: Query<(Entity, &Position, &Renderable)>,
+	                       mut seers:  Query<(&mut Viewshed, &Body, Option<&Player>, Option<&mut Memory>), Changed<Viewshed>>,
+	                       observable: Query<(Entity, &Body, &Renderable)>,
 ) {
 	for (mut viewshed, s_posn, player, memory) in &mut seers {
-		//debug!("* [vis_sys] s_posn: {s_posn:?}"); // DEBUG: print the position of the entity being examined
+		debug!("* [vis_sys] s_posn: {s_posn:?}"); // DEBUG: print the position of the entity being examined
 		if viewshed.dirty {
-			assert!(s_posn.z != -1);
-			let map = &mut model.levels[s_posn.z as usize];
+			assert!(s_posn.ref_posn.z != -1);
+			let map = &mut model.levels[s_posn.ref_posn.z as usize];
 			viewshed.visible_tiles.clear();
-			viewshed.visible_tiles = field_of_view(posn_to_point(s_posn), viewshed.range, map);
+			viewshed.visible_tiles = field_of_view(posn_to_point(&s_posn.ref_posn), viewshed.range, map);
 			viewshed.visible_tiles.retain(|p| p.x >= 0 && p.x < map.width as i32
 				                             && p.y >= 0 && p.y < map.height as i32
 			);
@@ -529,10 +579,10 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 			}
 			if let Some(mut recall) = memory { // If the seer entity has a memory...
 				for v_posn in &viewshed.visible_tiles { // Iterate on all tiles they can see:
-					let new_posn = Position::new(v_posn.x, v_posn.y, s_posn.z);
+					let new_posn = Position::new(v_posn.x, v_posn.y, s_posn.ref_posn.z);
 					for target in observable.iter() {
-						if *target.1 == new_posn {
-							recall.visual.insert(target.0, new_posn);
+						if target.1.ref_posn == new_posn {
+							recall.update(target.0, new_posn);
 						}
 					}
 				}
@@ -561,6 +611,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		ActionSet::new(),
 		Description::new().name("Pleyeur".to_string()).desc("Still your old self.".to_string()),
 		*spawnpoint,
+		Body::new(*spawnpoint),
 		Renderable::new().glyph("@".to_string()).fg(2).bg(0),
 		Viewshed::new(8),
 		Mobile::default(),

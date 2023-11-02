@@ -11,7 +11,7 @@ mod rexpaint_map;
 use rexpaint_map::RexMapBuilder;
 pub mod json_map;
 use json_map::*;
-use simplelog::*;
+//use simplelog::*;
 
 pub trait WorldBuilder {
 	fn build_world(&mut self);

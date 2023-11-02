@@ -492,8 +492,10 @@ impl GameEngine<'_> {
 		.register_type::<Vec<TileType>>()
 		.register_type::<Vec<Tile>>()
 		.register_type::<HashMap<(i32, i32, i32), (i32, i32, i32)>>()
-		.register_type::<HashMap<Entity, Position>>()
+		.register_type::<HashMap<Entity, Position>>() // planned to be superceded by the below type
+		.register_type::<HashMap<Position, Vec<Entity>>>()
 		.register_type::<HashMap<String, PlanqDataType>>()
+		.register_type::<HashMap<Position, ScreenCell>>()
 		.register_type::<bevy::utils::HashSet<ActionType>>()
 		.register_saveable::<AccessPort>()
 		.register_saveable::<ActionSet>()
@@ -550,15 +552,17 @@ impl GameEngine<'_> {
 	/// Creates the initial worldmap from scratch
 	pub fn build_new_worldmap(&mut self) {
 		self.mason.build_world();
-		let model = self.mason.get_model();
-		self.bevy.insert_resource(model);
+		let mut model = self.mason.get_model();
 		// Construct the various furniture/scenery/backdrop items
-		let item_spawns = self.mason.get_item_spawn_list();
+		let item_spawns = self.mason.get_item_spawn_list(); // a list of ItemTypes and Positions
 		eprintln!("spawning items");
 		debug!("* item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
 		for item in item_spawns.iter() {
-			self.artisan.create(item.0).at(item.1).build(&mut self.bevy.world);
+			let new_enty = self.artisan.create(item.0).at(item.1).build(&mut self.bevy.world);
+			//model.levels[item.1.z as usize].add_occupant(0, new_enty.id(), item.1);
+			model.add_contents(vec![item.1], 0, new_enty.id());
 		}
+		self.bevy.insert_resource(model);
 	}
 	/// Handles the initial spawns for a new game, esp those items that are not included with the worldmap layout
 	pub fn populate_new_worldmap(&mut self) {
