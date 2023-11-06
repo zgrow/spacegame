@@ -7,7 +7,7 @@ use ratatui::{
 	layout::{Alignment, Rect},
 	style::{Color::Indexed, Style},
 };
-use crate::map::xy_to_index;
+use crate::worldmap::xy_to_index;
 use crate::camera::CameraView;
 
 pub struct Viewport<'a> {

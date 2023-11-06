@@ -48,7 +48,7 @@ use crate::{
 		planq::*,
 		viewport::Viewport,
 	},
-	map::*,
+	worldmap::*,
 	mason::{
 		//get_map_builder,
 		get_world_builder,
@@ -560,7 +560,7 @@ impl GameEngine<'_> {
 		for item in item_spawns.iter() {
 			let new_enty = self.artisan.create(item.0).at(item.1).build(&mut self.bevy.world);
 			//model.levels[item.1.z as usize].add_occupant(0, new_enty.id(), item.1);
-			model.add_contents(vec![item.1], 0, new_enty.id());
+			model.add_contents(&vec![item.1], 0, new_enty.id());
 		}
 		self.bevy.insert_resource(model);
 	}

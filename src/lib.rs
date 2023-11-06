@@ -10,7 +10,7 @@ pub mod components;
 // Provides the GameEngine with an internal Bevy instance and related methods
 pub mod engine;
 // Provides the prototypes and logic for the GameWorld world model object
-pub mod map;
+pub mod worldmap;
 // Provides the map builder
 pub mod mason;
 // Provides the REXpaint assets and handlers

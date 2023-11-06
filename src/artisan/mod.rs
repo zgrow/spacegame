@@ -92,53 +92,53 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 	pub fn create(&mut self, new_type: ItemType) -> &mut ItemBuilder {
 		match new_type {
 			ItemType::Simple    => {
-				self.desc = Some(Description::new().name(format!("_simpleItem_{}", self.spawn_count)).desc("A simple Item.".to_string()));
-				self.render = Some(Renderable::new().glyph("i".to_string()).fg(4).bg(0));
+				self.desc = Some(Description::new().name(&*(format!("_simpleItem_{}", self.spawn_count))).desc("A simple Item."));
+				self.render = Some(Renderable::new().glyph("i").fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 			}
 			ItemType::Thing     => {
-				self.desc = Some(Description::new().name(format!("_thing_{}", self.spawn_count)).desc("A new Thing.".to_string()));
-				self.render = Some(Renderable::new().glyph("t".to_string()).fg(4).bg(0));
+				self.desc = Some(Description::new().name(&*(format!("_thing_{}", self.spawn_count))).desc("A new Thing."));
+				self.render = Some(Renderable::new().glyph("t").fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.portable = Some(Portable::empty());
 			}
 			ItemType::Fixture   => {
-				self.desc = Some(Description::new().name(format!("_fixture_{}", self.spawn_count)).desc("A plain Fixture.".to_string()));
-				self.render = Some(Renderable::new().glyph("#".to_string()).fg(4).bg(0));
+				self.desc = Some(Description::new().name(&*(format!("_fixture_{}", self.spawn_count))).desc("A plain Fixture."));
+				self.render = Some(Renderable::new().glyph("#").fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.obstruct = Some(Obstructive::default());
 				self.opaque = Some(Opaque::new(true));
 			}
 			ItemType::Furniture => {
-				self.desc = Some(Description::new().name(format!("_furnish_{}", self.spawn_count)).desc("A piece of Furniture.".to_string()));
-				self.render = Some(Renderable::new().glyph("h".to_string()).fg(12).bg(0));
+				self.desc = Some(Description::new().name(&*(format!("_furnish_{}", self.spawn_count))).desc("A piece of Furniture."));
+				self.render = Some(Renderable::new().glyph("h").fg(12).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.obstruct = Some(Obstructive::default());
 				self.opaque = Some(Opaque::new(true));
 			}
 			ItemType::Scenery   => {
 				self.backdrop = Some(Facade::default());
-				self.render = Some(Renderable::new().glyph("S".to_string()).fg(4).bg(0));
+				self.render = Some(Renderable::new().glyph("S").fg(4).bg(0));
 				self.obstruct = Some(Obstructive::default());
 				self.opaque = Some(Opaque::new(true));
 			}
 			ItemType::Door      => {
-				self.desc = Some(Description::new().name(format!("_door_{}", self.spawn_count)).desc("A regular Door.".to_string()));
-				self.render = Some(Renderable::new().glyph("█".to_string()).fg(4).bg(0));
+				self.desc = Some(Description::new().name(&*(format!("_door_{}", self.spawn_count))).desc("A regular Door."));
+				self.render = Some(Renderable::new().glyph("█").fg(4).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.obstruct = Some(Obstructive::default());
 				self.opaque = Some(Opaque::new(true));
-				self.open = Some(Openable::new(false, "▔".to_string(), "█".to_string(),));
+				self.open = Some(Openable::new(false, "▔", "█",));
 			}
 			ItemType::Snack     => {
-				self.desc = Some(Description::new().name(format!("_snack_{}", self.spawn_count)).desc("A tasty Snack.".to_string()));
-				self.render = Some(Renderable::new().glyph("%".to_string()).fg(5).bg(0));
+				self.desc = Some(Description::new().name(&*(format!("_snack_{}", self.spawn_count))).desc("A tasty Snack."));
+				self.render = Some(Renderable::new().glyph("%").fg(5).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.portable = Some(Portable::empty());
 			}
 			ItemType::Planq     => {
-				self.desc = Some(Description::new().name("PLANQ".to_string()).desc("It's your PLANQ.".to_string()));
-				self.render = Some(Renderable::new().glyph("¶".to_string()).fg(3).bg(0));
+				self.desc = Some(Description::new().name("PLANQ").desc("It's your PLANQ."));
+				self.render = Some(Renderable::new().glyph("¶").fg(3).bg(0));
 				self.actions = Some(ActionSet::new());
 				self.portable = Some(Portable::empty());
 				self.device = Some(Device::new(-1));
@@ -148,7 +148,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		self
 	}
 	pub fn at(&mut self, posn: Position) -> &mut ItemBuilder {
-		self.body = Some(Body::new(posn));
+		self.body = Some(Body::single(posn));
 		self
 	}
 	pub fn within(&mut self, target: Entity) -> &mut ItemBuilder {

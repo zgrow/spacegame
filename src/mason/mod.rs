@@ -1,17 +1,19 @@
 // mason/mod.rs
 // Provides the heavy lifting for building maps without cluttering up main()
 
+use simplelog::*;
 use std::fs::File;
 use std::io::BufReader;
 use crate::artisan::ItemType;
 use crate::components::Position;
-use crate::map::*;
+use crate::worldmap::*;
 pub mod rexpaint_loader;
 mod rexpaint_map;
 use rexpaint_map::RexMapBuilder;
 pub mod json_map;
 use json_map::*;
-//use simplelog::*;
+pub mod logical_map;
+use logical_map::*;
 
 pub trait WorldBuilder {
 	fn build_world(&mut self);
@@ -39,6 +41,7 @@ impl JsonWorldBuilder {
 		};
 		// Use the map lists to create the map stack and put it into the model
 		let mut hallway_tiles: Vec<Vec<Position>> = Vec::new();
+		let mut logical_door_list: Vec<Position> = Vec::new();
 		for (z_posn, input_map) in input_data.map_list.iter().enumerate() {
 			let mut new_map = Map::new(input_map.width, input_map.height);
 			let mut current_hallway = Vec::new();
@@ -50,10 +53,11 @@ impl JsonWorldBuilder {
 						'#' => { Tile::new_wall() }
 						'.' => { Tile::new_floor() }
 						',' => {
-							current_hallway.push(Position::new(x_posn as i32, y_posn as i32, z_posn as i32));
+							current_hallway.push((x_posn, y_posn, z_posn).into());
 							Tile::new_floor().glyph("x")
 						}
 						'=' => {
+							logical_door_list.push((x_posn, y_posn, z_posn).into());
 							self.new_entys.push((ItemType::Door, Position::new(x_posn as i32, y_posn as i32, z_posn as i32)));
 							Tile::new_floor()
 						}
@@ -75,10 +79,8 @@ impl JsonWorldBuilder {
 			} else {
 				room_index = self.model.layout.add_room((*cur_room).clone().into());
 			}
-			//debug!("* new cur_room: {}: {:?}", room_index, cur_room.exits);
 			// Iterate on all the exits attached to this room
 			for destination in &cur_room.exits {
-				//debug!("* dest: {:?}", destination);
 				let dest_index: usize;
 				if let Some(new_index) = self.model.layout.contains(destination.clone()) {
 					// If the destination cur_room already exists, get its room_index
@@ -97,6 +99,15 @@ impl JsonWorldBuilder {
 				self.model.layout.connect(room_index, dest_index);
 			}
 		}
+		// 2.5: Use the logical door list to populate those tiles in the logical maps of each room
+		for posn in logical_door_list.iter() {
+			// Get the room which contains the given position
+			// Change the position in the room to Occupied
+			if let Some(room_name) = self.model.layout.get_room_name(*posn) {
+				let room_index = self.model.layout.rooms.iter().position(|x| x.name == room_name).unwrap();
+				self.model.layout.rooms[room_index].new_interior.insert(*posn, GraphCell::new(CellType::Closed));
+			}
+		}
 		// 3: use the portal list to create the list of ladders that need to be spawned
 		for portal in input_data.ladder_list.iter() {
 			// The tiles at the target positions need to be set to TileType::Stairway
@@ -106,8 +117,23 @@ impl JsonWorldBuilder {
 			let right_side = Position::new(portal.points[1][0] as i32, portal.points[1][1] as i32, portal.points[1][2] as i32);
 			let r_index = self.model.levels[right_side.z as usize].to_index(right_side.x, right_side.y);
 			self.model.levels[right_side.z as usize].tiles[r_index] = Tile::new_stairway();
+			// Set the stairway positions in the logical room maps as occupied
+			let l_room_name = self.model.layout.get_room_name(left_side).unwrap();
+			let l_room_index = self.model.layout.rooms.iter().position(|x| x.name == l_room_name).unwrap();
+			self.model.layout.rooms[l_room_index].new_interior.insert(left_side, GraphCell::new(CellType::Closed));
+			let r_room_name = self.model.layout.get_room_name(right_side).unwrap();
+			let r_room_index = self.model.layout.rooms.iter().position(|x| x.name == r_room_name).unwrap();
+			self.model.layout.rooms[r_room_index].new_interior.insert(right_side, GraphCell::new(CellType::Closed));
+			// Add the graph connection between the two rooms using the manual method
 			self.model.add_portal(left_side, right_side, true);
 		}
+		// DEBUG: a bunch of different output formats for mapgen feedback
+		//for room in self.model.layout.rooms.iter() {
+		//	debug!("* new room: {}", room.name);
+		//	room.debug_print();
+		//}
+		//debug!("* new room: {}", cur_room.name.clone()); // DEBUG: print the generated room's logical map
+		//self.model.layout.rooms[room_index].debug_print();
 	}
 }
 impl WorldBuilder for JsonWorldBuilder {

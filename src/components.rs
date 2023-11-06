@@ -143,6 +143,23 @@ impl fmt::Display for Position {
 		write!(f, "{}, {}, {}", self.x, self.y, self.z)
 	}
 }
+impl std::ops::Add<(i32, i32, i32)> for Position {
+	type Output = Position;
+	fn add(self, rhs: (i32, i32, i32)) -> Position {
+		Position {
+			x: self.x + rhs.0,
+			y: self.y + rhs.1,
+			z: self.z + rhs.2,
+		}
+	}
+}
+impl std::ops::AddAssign<(i32, i32, i32)> for Position {
+	fn add_assign(&mut self, rhs: (i32, i32, i32)) {
+		self.x += rhs.0;
+		self.y += rhs.1;
+		self.z += rhs.2;
+	}
+}
 // ***
 /// Provides some ergonomics around Rust's type handling so that there's less "x as usize" casting everywhere;
 /// used for small adjustments on a grid map in the SAME z-level; if a z-level transition is required look elsewhere
@@ -210,6 +227,10 @@ impl std::ops::Sub<Position> for Position {
 }
 /// Defines the shape/form of an Entity's physical body within the gameworld, defined on absolute game Positions
 /// Allows Entities to track all of their physical shape, not just their canonical Position
+/// NOTE: if an Entity's 'extended' Body is supposed to use different glyphs, then the Renderable.glyph
+/// property should be set to the _entire_ string, in order, that the game should render
+/// ie the Positions listed in Body.extent need to correspond with the chars in the Entity's Renderable.glyph
+/// If there aren't enough chars to cover all the given Positions, then the last-used char will be repeated
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct Body { // aka Exterior, Veneer, Mass, Body, Visage, Shape, Bulk, Whole
@@ -217,13 +238,19 @@ pub struct Body { // aka Exterior, Veneer, Mass, Body, Visage, Shape, Bulk, Whol
 	pub extent: Vec<Position>
 }
 impl Body {
-	pub fn new(posn: Position) -> Body {
+	pub fn single(posn: Position) -> Body {
 		Body {
 			ref_posn: posn,
 			extent: vec![posn],
 		}
 	}
-	/// WARN: this does not check for duplicates!
+	pub fn multitile(posns: Vec<Position>) -> Body {
+		Body {
+			ref_posn: posns[0],
+			extent: posns.clone(),
+		}
+	}
+	/// WARN: this does not check for duplicates! It is meant to extend an entity that already has a body...
 	pub fn extend(mut self, mut new_posns: Vec<Position>) -> Self {
 		self.extent.append(&mut new_posns);
 		self
@@ -256,6 +283,15 @@ impl Body {
 		//debug!("move_to: {}({:?}) to {} => {:?}", self.ref_posn, self.extent, target, posn_diff);
 		self.ref_posn = target;
 	}
+	pub fn project_to(&self, target: Position) -> Vec<Position> {
+		let mut posn_list = Vec::new();
+		let posn_diff = target - self.ref_posn;
+		for posn in self.extent.iter() {
+			let new_posn = *posn + posn_diff;
+			posn_list.push(new_posn);
+		}
+		posn_list
+	}
 }
 
 // ***
@@ -273,16 +309,16 @@ impl Description {
 	pub fn new() -> Description {
 		Description::default()
 	}
-	pub fn name(mut self, new_name: String) -> Self {
-		self.name = new_name;
+	pub fn name(mut self, new_name: &str) -> Self {
+		self.name = new_name.to_string();
 		self
 	}
-	pub fn desc(mut self, new_desc: String) -> Self {
-		self.desc = new_desc;
+	pub fn desc(mut self, new_desc: &str) -> Self {
+		self.desc = new_desc.to_string();
 		self
 	}
-	pub fn locn(mut self, new_locn: String) -> Self {
-		self.locn = new_locn;
+	pub fn locn(mut self, new_locn: &str) -> Self {
+		self.locn = new_locn.to_string();
 		self
 	}
 	pub fn get_name(&self) -> String {
@@ -327,8 +363,8 @@ impl Renderable {
 	pub fn new() -> Renderable {
 		Renderable::default()
 	}
-	pub fn glyph(mut self, new_glyph: String) -> Renderable {
-		self.glyph = new_glyph;
+	pub fn glyph(mut self, new_glyph: &str) -> Renderable {
+		self.glyph = new_glyph.to_string();
 		self
 	}
 	pub fn dims(mut self, new_width: u32, new_height: u32) -> Renderable {
@@ -382,7 +418,7 @@ impl Memory {
 		// Find all Positions in the actor's memory that contain this Entity
 		let all_points: Vec<Position> = self.visual.iter()
 			.filter_map(|(key, val)| if val.contains(&target) { Some(*key) } else { None }).collect();
-		debug!("remove_from_memory: {:?}", all_points);
+		//debug!("remove_from_memory: {:?}", all_points);
 		// Remove the Entity from those Positions in the actor's memory
 		for posn in all_points.iter() {
 			if let Some(enty_list) = self.visual.get_mut(posn) {
@@ -397,10 +433,10 @@ impl Memory {
 		// Update the memory with the new position
 		if let Some(enty_list) = self.visual.get_mut(&posn) {
 			enty_list.push(target);
-			debug!("Memory::update: {:?}", enty_list);
+			//debug!("Memory::update: {:?}", enty_list);
 		} else {
 			self.visual.insert(posn, vec![target]);
-			debug!("Memory::insert: {:?} @{:?}", target, posn);
+			//debug!("Memory::insert: {:?} @{:?}", target, posn);
 		}
 	}
 }
@@ -468,12 +504,12 @@ pub struct Openable {
 	pub closed_glyph: String,
 }
 impl Openable {
-	pub fn new(state: bool, opened: String, closed: String) -> Openable {
+	pub fn new(state: bool, opened: &str, closed: &str) -> Openable {
 		Openable {
 			is_open: state,
 			is_stuck: false,
-			open_glyph: opened,
-			closed_glyph: closed,
+			open_glyph: opened.to_string(),
+			closed_glyph: closed.to_string(),
 		}
 	}
 }

@@ -25,8 +25,7 @@ use simplelog::*;
 
 // *** INTERNAL LIBS
 use crate::components::*;
-use crate::map::*;
-use crate::artisan::furniture::Facade;
+use crate::worldmap::*;
 
 
 /// Represents a 'flattened' view of the Map's layers, with all entities and effects painted in,
@@ -196,144 +195,6 @@ impl ScreenCell {
 		//&& self.modifier == 0
 	}
 }
-/*
-/// Provides the camera update system for Bevy
-pub fn old_camera_update_system(mut camera:   ResMut<CameraView>,
-	                          model:        Res<Model>, // Provides the Terrain map
-	                          s_query:      Query<(Entity, &Body, &Renderable), With<Facade>>,
-	                          mut p_query:  Query<(Entity, &Body, &Renderable, &Viewshed, &Memory), With<Player>>,
-	                          p_posn:   Res<Position>,
-	                          //b_query:      Query for blinkenlights: With<Blinken>
-	                          //v_query:      Query for visual effects: With<Sparkle>
-	                          // This last query is intended to cover *everything* that isn't in one of the above
-	                          // It will need additional qualifiers applied as this method gets more complex
-	                          //e_query:      Query<(Entity, &Position, &Renderable), (Without<Facade>, Without<Player>)>,
-	                          e_query:      Query<(Entity, &Body, &Renderable), Without<Player>>,
-) {
-	// Bail out if any of the required objects aren't in place already
-	if p_query.get_single_mut().is_err() { return; }
-	let player = p_query.get_single_mut().unwrap();
-	let world_map = &model.levels[p_posn.z as usize];
-	assert!(!camera.output.is_empty(), "camera.output has length 0!");
-	assert!(!world_map.tiles.is_empty(), "world_map.tiles has length 0!");
-	// Everything checks out OK, so get started on the update
-	let camera_width = camera.width as usize;
-	let screen_center = Position::new((camera_width / 2) as i32, camera.height / 2, 0);
-	// These map_frame values together define the area of the map that we'll be polling
-	let map_frame_ul = Position::new(p_posn.x - screen_center.x, p_posn.y - screen_center.y, 0);
-	let map_frame_dr = Position::new(p_posn.x + screen_center.x, p_posn.y + screen_center.y, 0);
-	// STAGE 1: update each map layer in the camera
-	// Reset the map layers so we don't get overprinting
-	// We don't have to worry about resetting the terrain map because all of it will be overwritten
-	for entry in &mut camera.scenery { *entry = ScreenCell::blank(); }
-	for entry in &mut camera.actors { *entry = ScreenCell::blank(); }
-	for entry in &mut camera.blinken { *entry = ScreenCell::blank(); }
-	//for entry in &mut camera.vfx { *entry = ScreenCell::blank(); } // -> stub for later impl
-	// For every y-position in the map frame ...
-	for (scr_y, map_y) in (map_frame_ul.y..map_frame_dr.y).enumerate() {
-		// For every x-position in the map frame ...
-		for (scr_x, map_x) in (map_frame_ul.x..map_frame_dr.x).enumerate() {
-			//debug!("* scr: {}, {}; map: {}, {}", scr_x, scr_y, map_x, map_y); // DEBUG: print the loop iteration values
-			let scr_index = xy_to_index(scr_x, scr_y, camera_width); // Indexes into the camera's map of the screen
-			let map_posn = Position::new(map_x, map_y, p_posn.z); // handy container
-			let map_index = world_map.to_index(map_x, map_y); // Indexes into the worldmap's tilemap
-			let is_visible = player.3.visible_tiles.contains(&Point::new(map_x, map_y));
-			let has_seen = if map_index < world_map.revealed_tiles.len() {
-				world_map.revealed_tiles[map_index]
-			} else {
-				false
-			};
-			// Update the terrain map
-			if map_x >= 0 && map_x < world_map.width as i32
-			&& map_y >= 0 && map_y < world_map.height as i32
-			&& (is_visible || has_seen)
-			{
-				camera.terrain[scr_index] = world_map.tiles[map_index].clone().into();
-				if !is_visible { camera.terrain[scr_index].fg(8); }
-			} else {
-				camera.terrain[scr_index] = ScreenCell::blank(); // Painting this blank tile helps prevent artifacting
-			}
-			// Update the scenery map
-			for scenery in s_query.iter() {
-				if scenery.1.ref_posn.x == map_x && scenery.1.ref_posn.y == map_y {
-					camera.scenery[scr_index] = scenery.2.into();
-				}
-			}
-			// Update the actor map
-			for actor in e_query.iter() {
-				if actor.1.ref_posn == map_posn && is_visible {
-					camera.actors[scr_index] = actor.2.into();
-				}
-			}
-			// Update the actor map with the player's memories as well
-			/*for memory in player.4.visual.iter() {
-				if *memory.1 == map_posn && !is_visible {
-					if let Ok(enty) = e_query.get(*memory.0) {
-						camera.actors[scr_index] = enty.2.into();
-						camera.actors[scr_index].fg(8);
-					}
-				}
-			}*/
-			// Paint the player onto the actor map
-			if *p_posn == map_posn {
-				camera.actors[scr_index] = player.2.into();
-			}
-			// TODO: Update the Blinkenlights map (persistent/cyclic effects)
-			// Paint the targeting reticle onto the map if needed
-			if camera.reticle != Position::INVALID {
-				// TODO: Add some logic that will detect other entity positions (such as the player!) and choose
-				//       a reticle shape that minimizes the number of entities who will be hidden by the points
-				// TODO: Add a line-of-sight ruler that can show where the LOS is blocked with line coloration
-				let ul_index = xy_to_index(camera.reticle.x as usize - 1, camera.reticle.y as usize - 1, camera_width);
-				let ur_index = xy_to_index(camera.reticle.x as usize + 1, camera.reticle.y as usize - 1, camera_width);
-				let dl_index = xy_to_index(camera.reticle.x as usize - 1, camera.reticle.y as usize + 1, camera_width);
-				let dr_index = xy_to_index(camera.reticle.x as usize + 1, camera.reticle.y as usize + 1, camera_width);
-				let ret_chars = camera.reticle_glyphs.clone();
-				for (index, corner) in ret_chars.chars().enumerate() {
-					match ret_chars.chars().count() {
-						3 => { todo!(); /* TODO: impl logic for 3-point reticles */ }
-						4 => {
-							match index {
-								0 => {camera.blinken[ul_index].glyph = corner.to_string(); camera.blinken[ul_index].fg = 11; camera.blinken[ul_index].bg = 8;}
-								1 => {camera.blinken[ur_index].glyph = corner.to_string(); camera.blinken[ur_index].fg = 11; camera.blinken[ur_index].bg = 8;}
-								2 => {camera.blinken[dl_index].glyph = corner.to_string(); camera.blinken[dl_index].fg = 11; camera.blinken[dl_index].bg = 8;}
-								3 => {camera.blinken[dr_index].glyph = corner.to_string(); camera.blinken[dr_index].fg = 11; camera.blinken[dr_index].bg = 8;}
-								_ => { }
-							}
-						}
-						_ => { }
-					}
-				}
-			}
-			// TODO: Update the Sparkles map (the transitory visual effects)
-		}
-	}
-	// STAGE 2: flatten the maps downward into a single map for the ratatui widget
-	// Make a temp container of a vector of vectors where each inner vec's first element is a terrain tile
-	let mut bucket: Vec<Vec<ScreenCell>> = camera.terrain.iter().map(|x| vec![x.clone()]).collect();
-	// Make a pair-iterator out of the set of terrain tiles in the bucket, and each of the camera layer maps
-	// If a non-blank tile is found in one of the maps, append it to the vec-of-vecs for that position
-	for (target, input) in bucket.iter_mut().zip(camera.scenery.iter()) {
-		if !input.is_blank() {
-			target.push(input.clone());
-		}
-	}
-	for (target, input) in bucket.iter_mut().zip(camera.actors.iter()) {
-		if !input.is_blank() {
-			target.push(input.clone());
-		}
-	}
-	for (target, input) in bucket.iter_mut().zip(camera.blinken.iter()) {
-		if !input.is_blank() {
-			target.push(input.clone());
-		}
-	}
-	// Build the camera map out of the stacked layers, choosing the 'highest'/last element in each vector
-	for (index, cell) in bucket.iter().enumerate() {
-		camera.output[index] = cell.iter().last().unwrap().clone();
-	}
-}
-*/
 
 pub fn camera_update_system(mut camera: ResMut<CameraView>,
 	                              model: Res<Model>,
@@ -381,7 +242,7 @@ pub fn camera_update_system(mut camera: ResMut<CameraView>,
 					// There's no System access over in the WorldMap stuff, so we have to pull the Entity ourselves
 					if let Some(enty) = world_map.get_visible_entity_at(map_posn) {
 						if enty == p_enty { // If it's the player after all, draw the player
-							debug!("rendering visible entity 'player' at posn {}", map_posn);
+							//debug!("rendering visible entity 'player' at posn {}", map_posn);
 							p_render.into()
 						} else if let Ok((_enty, _body, e_render)) = e_query.get(enty) { // It's a non-player entity
 							e_render.into()

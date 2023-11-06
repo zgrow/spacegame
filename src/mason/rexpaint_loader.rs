@@ -1,7 +1,7 @@
 // rexpaint_loader.rs - converts REXPaint files into game resources
 use std::collections::HashMap;
 use bracket_rex::prelude::*;
-use crate::map::*;
+use crate::worldmap::*;
 use ratatui::text::{Span, Text};
 use codepage_437::CP437_WINGDINGS;
 use crate::components::Position;

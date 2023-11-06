@@ -41,7 +41,7 @@ use crate::engine::event::GameEventType::*;
 use crate::engine::event::ActionType::*;
 use crate::engine::messagelog::*;
 use crate::engine::planq::*;
-use crate::map::*;
+use crate::worldmap::*;
 
 // *** CONTINUOUS SYSTEMS
 /// Handles connections between maintenance devices like the PLANQ and access ports on external entities
@@ -312,7 +312,8 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				}
 				let econtext = event.context.unwrap();
 				let origin = e_query.get_mut(econtext.subject);
-				let (actor_enty, mut actor_room, mut actor_posn, view_ref, _) = origin.unwrap();
+				let (actor_enty, mut actor_desc, mut actor_body, actor_viewshed, _) = origin.unwrap();
+				// TODO: this is now overkill, just use the match case to make an implicit PosnOffset applied to the old position
 				let mut xdiff = 0;
 				let mut ydiff = 0;
 				let mut zdiff = 0; // NOTE: not a typical component: z-level indexes to map stack, not Euclidean space
@@ -329,24 +330,24 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					Direction::UP   =>      { zdiff += 1 }
 					Direction::DOWN =>      { zdiff -= 1 }
 				}
-				let mut new_location = Position::new(actor_posn.ref_posn.x + xdiff, actor_posn.ref_posn.y + ydiff, actor_posn.ref_posn.z + zdiff);
+				let mut new_location = Position::new(actor_body.ref_posn.x + xdiff, actor_body.ref_posn.y + ydiff, actor_body.ref_posn.z + zdiff);
+				// If the actor is moving between z-levels, we have some extra logic to handle
 				if dir == Direction::UP || dir == Direction::DOWN { // Is the actor moving between z-levels?
 					// Prevent movement if an invalid z-level was calculated, or if they are not standing on stairs
 					debug!("* Attempting ladder traverse to target posn {}", new_location);
 					// CASE 1: The target location is beyond the Model's height
-					if new_location.z < 0 || new_location.z as usize >= model.levels.len()
-					{
+					if new_location.z < 0 || new_location.z as usize >= model.levels.len() {
 						msglog.tell_player(format!("You're already on the {}-most deck.", dir));
 						continue;
 					}
 					// CASE 2: The actor is not standing on a ladder Tile
-					let actor_index = model.levels[actor_posn.ref_posn.z as usize].to_index(actor_posn.ref_posn.x, actor_posn.ref_posn.y);
-					if model.levels[actor_posn.ref_posn.z as usize].tiles[actor_index].ttype != TileType::Stairway {
+					let actor_index = model.levels[actor_body.ref_posn.z as usize].to_index(actor_body.ref_posn.x, actor_body.ref_posn.y);
+					if model.levels[actor_body.ref_posn.z as usize].tiles[actor_index].ttype != TileType::Stairway {
 						msglog.tell_player(format!("You can't go {} without a ladder.", dir));
 						continue;
 					}
 					// CASE 3: Attempt to retrieve a Portal (aka ladder) from the list for this Position
-					let possible = model.get_exit(actor_posn.ref_posn);
+					let possible = model.get_exit(actor_body.ref_posn);
 					if let Some(portal) = possible {
 						new_location = portal;
 					} else {
@@ -354,51 +355,52 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 						continue;
 					}
 					// CASE 4: The actor is trying to climb higher than the ladder allows
-					if dir == Direction::UP && (actor_posn.ref_posn.z > new_location.z) {
+					if dir == Direction::UP && (actor_body.ref_posn.z > new_location.z) {
 						msglog.tell_player("You're already at the top of the ladder.".to_string());
 						continue;
 					}
 					// CASE 5: The actor is trying to climb lower than the ladder allows
-					if dir == Direction::DOWN && (actor_posn.ref_posn.z < new_location.z) {
+					if dir == Direction::DOWN && (actor_body.ref_posn.z < new_location.z) {
 						msglog.tell_player("You're already at the bottom of the ladder.".to_string());
 						continue;
 					}
 				}
-				let locn_index = model.levels[new_location.z as usize].to_index(new_location.x, new_location.y);
-				if model.levels[new_location.z as usize].blocked_tiles[locn_index] { // Is there anything blocking movement?
-					// CASE 1: Another Actor is blocking the way
-					for guy in e_query.iter() {
-						if guy.2.ref_posn == new_location {
-							msglog.tell_player(format!("The way {} is blocked by the {}.", dir, guy.1));
-							return;
+				let _locn_index = model.levels[new_location.z as usize].to_index(new_location.x, new_location.y);
+				// Get a picture of where the actor wants to move to so we can check it for collisions
+				let target_extent = actor_body.project_to(new_location);
+				if let Some(mut blocked_tiles) = model.get_obstructions_at(target_extent, Some(actor_enty)) {
+					blocked_tiles.retain(|x| x.1 != Obstructor::Actor(actor_enty));
+					// We have a list of positions that are definitely blocked, but we don't know why
+					// Get the first one off the list, find out why it's blocked, and report it
+					debug!("blocked tiles: {:?}, {:?}", dir, blocked_tiles);
+					let reply_msg = match blocked_tiles[0].1 {
+						Obstructor::Actor(enty) => {
+							// build an entity message
+							let actor = e_query.get(enty).unwrap();
+							format!("a {}", actor.1.name)
 						}
-					}
-					// CASE 2: An inert Entity (ie a Thing or Fixture) is blocking the way
-					msglog.tell_player(format!("The way {} is blocked by a {}.",
-						                 dir, &model.levels[new_location.z as usize].tiles[locn_index].ttype.to_string()));
+						Obstructor::Object(ttype) => {
+							// build a tile message
+							format!("a {}", ttype)
+						}
+					};
+					msglog.tell_player(format!("The way {} is blocked by {}", dir, reply_msg));
 					return;
 				}
-				// Get a copy of the actor's current Body positions so we can update the Tiles that change
-				let old_posns = actor_posn.extent.clone();
 				// -> POINT OF NO RETURN
 				// Nothing's in the way, so go ahead and update the actor's position
-				actor_posn.move_to(new_location);
-				// Update the Tile contents now that the actor's updated its Body positions
-				let new_posns = actor_posn.extent.clone();
-				debug!("old_posns: {:?}", old_posns);
-				debug!("new_posns: {:?}", new_posns);
-				//let remove_posns = old_posns.clone().into_iter().filter(|x| !new_posns.contains(x)).collect();
-				//let update_posns = new_posns.into_iter().filter(|x| !old_posns.contains(x)).collect();
-				//model.remove_contents(remove_posns, actor_enty);
-				//model.add_contents(update_posns, 0, actor_enty); // FIXME: this needs to use the actor's *actual* rendering priority
+				//let old_posns = actor_body.extent;
+				model.remove_contents(&actor_body.extent, actor_enty);
+				actor_body.move_to(new_location);
+				model.add_contents(&actor_body.extent, 0, actor_enty);
 				// If the actor has a Viewshed, flag it as dirty to be updated
-				if let Some(mut viewshed) = view_ref {
+				if let Some(mut viewshed) = actor_viewshed {
 					viewshed.dirty = true;
 				}
 				// If the entity changed rooms, update their description to reflect that
 				if let Some(new_name) = model.layout.get_room_name(new_location) {
-					if new_name != actor_room.locn {
-						actor_room.locn = format!("{}: {}", new_name, actor_posn.ref_posn);
+					if new_name != actor_desc.locn {
+						actor_desc.locn = format!("{}: {}", new_name, actor_body.ref_posn);
 					}
 				}
 				// If it was the player specifically moving around, we need to do a few more things
@@ -413,7 +415,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					// 2. looks for the position of a specified element to return as a usize
 					// 3. the closure obtains the entity using the given entityId,
 					// 4. > unwraps it to obtain the entity's components,
-					// 5. > and checks to see if it successfully unwrapped a Player component
+					// 5. > and checks to see if it successfully unwrapped a Player component (the '.4.is_some()' field below)
 					// 6. > and if so, return the index of that element from the position() function to the index variable
 					// 7. which then uses the known-good index variable as an argument to remove the player from the list
 					if let Some(index) = contents_list.iter().position(|x| e_query.get(*x).unwrap().4.is_some()) {
@@ -561,7 +563,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 	                       observable: Query<(Entity, &Body, &Renderable)>,
 ) {
 	for (mut viewshed, s_posn, player, memory) in &mut seers {
-		debug!("* [vis_sys] s_posn: {s_posn:?}"); // DEBUG: print the position of the entity being examined
+		//debug!("* [vis_sys] s_posn: {s_posn:?}"); // DEBUG: print the position of the entity being examined
 		if viewshed.dirty {
 			assert!(s_posn.ref_posn.z != -1);
 			let map = &mut model.levels[s_posn.ref_posn.z as usize];
@@ -606,13 +608,23 @@ pub fn new_player_spawn(mut commands: Commands,
 		commands.entity(player.0).insert(Viewshed::new(8));
 		return;
 	}
+	// DEBUG: testing multitile entities
+	// - remove the 'extend()' call from the Body component
+	//let extra_posns = vec![
+	//	*spawnpoint + (1, 0, 0),
+	//	*spawnpoint + (0, 1, 0),
+	//	*spawnpoint + (-1, 0, 0),
+	//	*spawnpoint + (0, -1, 0),
+	//];
+	// DEBUG: end testing code
 	let player = commands.spawn((
 		Player { },
 		ActionSet::new(),
-		Description::new().name("Pleyeur".to_string()).desc("Still your old self.".to_string()),
+		Description::new().name("Pleyeur").desc("Still your old self."),
 		*spawnpoint,
-		Body::new(*spawnpoint),
-		Renderable::new().glyph("@".to_string()).fg(2).bg(0),
+		//Body::single(*spawnpoint).extend(extra_posns),
+		Body::single(*spawnpoint),
+		Renderable::new().glyph("@").fg(2).bg(0),
 		Viewshed::new(8),
 		Mobile::default(),
 		Obstructive::default(),
@@ -623,8 +635,8 @@ pub fn new_player_spawn(mut commands: Commands,
 	commands.spawn((
 		Planq::new(),
 		ActionSet::new(),
-		Description::new().name("PLANQ".to_string()).desc("It's your PLANQ.".to_string()),
-		Renderable::new().glyph("¶".to_string()).fg(3).bg(0),
+		Description::new().name("PLANQ").desc("It's your PLANQ."),
+		Renderable::new().glyph("¶").fg(3).bg(0),
 		Portable::new(player),
 		Device::new(-1),
 		RngComponent::from(&mut global_rng),
@@ -643,9 +655,9 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 	commands.spawn((
 		LMR         { },
 		ActionSet::new(),
-		Description::new().name("LMR".to_string()).desc("The Light Maintenance Robot is awaiting instructions.".to_string()),
+		Description::new().name("LMR").desc("The Light Maintenance Robot is awaiting instructions."),
 		Position::new(12, 12, 0), // TODO: remove magic numbers
-		Renderable::new().glyph("l".to_string()).fg(14).bg(0),
+		Renderable::new().glyph("l").fg(14).bg(0),
 		Viewshed::new(5),
 		Mobile::default(),
 		Obstructive::default(),
@@ -670,15 +682,34 @@ pub fn test_npc_spawn(mut commands: Commands,
 	}
 	commands.spawn((
 		ActionSet::new(),
-		Description::new().name("Jenaryk".to_string()).desc("Behold, a generic virtual cariacature of a man.".to_string()),
+		Description::new().name("Jenaryk").desc("Behold, a generic virtual cariacature of a man."),
 		spawnpoint,
-		Renderable::new().glyph("&".to_string()).fg(1).bg(0),
+		Renderable::new().glyph("&").fg(1).bg(0),
 		Viewshed::new(8),
 		Mobile::default(),
 		Obstructive::default(),
 		Container::default(),
 	));
 	debug!("* Spawned new npc at {}", spawnpoint); // DEBUG: announce npc creation
+}
+/// Adds some testing furniture to the game world
+pub fn test_furniture_spawn(mut commands: Commands,
+														model: ResMut<Model>,
+	                          mut _rng: ResMut<GlobalRng>,
+	                          _e_query: Query<(Entity, &Body)>,
+) {
+	if let Some(spawnpoints) = model.find_spawn_area_in("Control", 3, 1) {
+		commands.spawn((
+			ActionSet::new(),
+			Description::new().name("techno-device").desc("A large chromed construction with many blinkenlights and buttons."),
+			Body::multitile(spawnpoints.clone()),
+			Renderable::new().glyph("123").fg(5).bg(0),
+			Obstructive::default(),
+		));
+		debug!("* Spawned a test furniture piece at {}", spawnpoints[0]); // DEBUG: announce test furniture
+	} else {
+		debug!("* Could not find room to spawn test furniture");
+	}
 }
 
 // *** UTILITIES
