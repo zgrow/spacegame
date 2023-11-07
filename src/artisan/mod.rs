@@ -148,7 +148,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		self
 	}
 	pub fn at(&mut self, posn: Position) -> &mut ItemBuilder {
-		self.body = Some(Body::single(posn));
+		self.body = Some(Body::single(posn, self.render.clone().unwrap().into()));
 		self
 	}
 	pub fn within(&mut self, target: Entity) -> &mut ItemBuilder {

@@ -121,6 +121,16 @@ impl From<Tile> for ScreenCell { // Used for converting my custom Tile objects i
 		}
 	}
 }
+impl From<Renderable> for ScreenCell {
+	fn from(input: Renderable) -> Self {
+		ScreenCell {
+			glyph: input.glyph.clone(),
+			fg: input.fg,
+			bg: input.bg,
+			modifier: input.mods,
+		}
+	}
+}
 impl From<&Renderable> for ScreenCell {
 	fn from(input: &Renderable) -> Self {
 		ScreenCell {
@@ -132,8 +142,19 @@ impl From<&Renderable> for ScreenCell {
 	}
 }
 impl ScreenCell {
-	pub fn glyph(&mut self, new_glyph: String) -> &mut Self {
-		self.glyph = new_glyph;
+	pub fn create(new_glyph: &str, new_fg: u8, new_bg: u8, mods: u16) -> ScreenCell {
+		ScreenCell {
+			glyph: new_glyph.to_string(),
+			fg: new_fg,
+			bg: new_bg,
+			modifier: mods,
+		}
+	}
+	pub fn new() -> ScreenCell {
+		ScreenCell::default()
+	}
+	pub fn glyph(&mut self, new_glyph: &str) -> &mut Self {
+		self.glyph = new_glyph.to_string();
 		self
 	}
 	pub fn fg(&mut self, new_color: u8) -> &mut Self {
@@ -205,7 +226,7 @@ pub fn camera_update_system(mut camera: ResMut<CameraView>,
 	// Bail out of the method if we're missing any of the structure we need
 	if p_query.get_single_mut().is_err() { return; }
 	//let player = p_query.get_single_mut().unwrap(); // DEBUG: why is this mutable again?
-	let (p_enty, _body, p_render, p_viewshed, p_memory) = p_query.get_single_mut().unwrap(); // DEBUG: why is this mutable again?
+	let (p_enty, p_body, p_render, p_viewshed, p_memory) = p_query.get_single_mut().unwrap(); // DEBUG: why is this mutable again?
 	let world_map = &model.levels[p_posn.z as usize];
 	assert!(!camera.output.is_empty(), "camera.output has length 0!");
 	assert!(!world_map.tiles.is_empty(), "world_map.tiles has length 0!");
@@ -243,11 +264,9 @@ pub fn camera_update_system(mut camera: ResMut<CameraView>,
 					if let Some(enty) = world_map.get_visible_entity_at(map_posn) {
 						if enty == p_enty { // If it's the player after all, draw the player
 							//debug!("rendering visible entity 'player' at posn {}", map_posn);
-							//p_render.into()
-							p_render.glyph_at(&map_posn)
-						} else if let Ok((_enty, _body, e_render)) = e_query.get(enty) { // It's a non-player entity
-							//e_render.into()
-							e_render.glyph_at(&map_posn)
+							p_body.glyph_at(&map_posn).unwrap().into()
+						} else if let Ok((_enty, e_body, _render)) = e_query.get(enty) { // It's a non-player entity
+							e_body.glyph_at(&map_posn).unwrap().into()
 						} else { // There was somehow a failure to retrieve the visible entity; fallback to the map tile
 							//world_map.get_display_tile(map_posn).into() // DEBUG: disabled so i can catch this error case
 							warn!("Error retrieving visible entity {:?} from the e_query during camera_update_system at posn {}", enty, map_posn);

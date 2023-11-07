@@ -165,6 +165,15 @@ impl std::ops::AddAssign<(i32, i32, i32)> for Position {
 		self.z += rhs.2;
 	}
 }
+impl std::ops::Add<PosnOffset> for Glyph {
+	type Output = Glyph;
+	fn add(self, rhs: PosnOffset) -> Glyph {
+		Glyph {
+			posn: self.posn + rhs,
+			cell: self.cell
+		}
+	}
+}
 // ***
 /// Provides some ergonomics around Rust's type handling so that there's less "x as usize" casting everywhere;
 /// used for small adjustments on a grid map in the SAME z-level; if a z-level transition is required look elsewhere
@@ -230,76 +239,7 @@ impl std::ops::Sub<Position> for Position {
 		}
 	}
 }
-/// Defines the shape/form of an Entity's physical body within the gameworld, defined on absolute game Positions
-/// Allows Entities to track all of their physical shape, not just their canonical Position
-/// NOTE: if an Entity's 'extended' Body is supposed to use different glyphs, then the Renderable.glyph
-/// property should be set to the _entire_ string, in order, that the game should render
-/// ie the Positions listed in Body.extent need to correspond with the chars in the Entity's Renderable.glyph
-/// If there aren't enough chars to cover all the given Positions, then the last-used char will be repeated
-#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
-pub struct Body { // aka Exterior, Veneer, Mass, Body, Visage, Shape, Bulk, Whole
-	pub ref_posn: Position,
-	pub extent: Vec<Position>
-}
-impl Body {
-	pub fn single(posn: Position) -> Body {
-		Body {
-			ref_posn: posn,
-			extent: vec![posn],
-		}
-	}
-	pub fn multitile(posns: Vec<Position>) -> Body {
-		Body {
-			ref_posn: posns[0],
-			extent: posns.clone(),
-		}
-	}
-	/// WARN: this does not check for duplicates! It is meant to extend an entity that already has a body...
-	pub fn extend(mut self, mut new_posns: Vec<Position>) -> Self {
-		self.extent.append(&mut new_posns);
-		self
-	}
-	pub fn contains(&self, target: &Position) -> bool {
-		self.extent.contains(target)
-	}
-	pub fn is_adjacent_to(&self, target: &Position) -> bool {
-		for point in self.extent.iter() {
-			if point.in_range_of(target, 1) {
-				return true;
-			}
-		}
-		false
-	}
-	pub fn in_range_of(&self, target: &Position, range: i32) -> bool {
-		for point in self.extent.iter() {
-			if point.in_range_of(target, range) {
-				return true;
-			}
-		}
-		false
-	}
-	pub fn move_to(&mut self, target: Position) {
-		//let posn_diff = self.ref_posn - target;
-		let posn_diff = target - self.ref_posn;
-		for posn in self.extent.iter_mut() {
-			*posn += posn_diff;
-		}
-		//debug!("move_to: {}({:?}) to {} => {:?}", self.ref_posn, self.extent, target, posn_diff);
-		self.ref_posn = target;
-	}
-	pub fn project_to(&self, target: Position) -> Vec<Position> {
-		let mut posn_list = Vec::new();
-		let posn_diff = target - self.ref_posn;
-		for posn in self.extent.iter() {
-			let new_posn = *posn + posn_diff;
-			posn_list.push(new_posn);
-		}
-		posn_list
-	}
-}
 
-// ***
 /// Holds the narrative description of an object. If this component is used as an input for text formatting, it will produce
 /// the name of the entity that owns it. See also the name() and desc() methods
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
@@ -350,6 +290,79 @@ impl fmt::Display for Description {
 		write!(f, "{}", self.name)
 	}
 }
+
+/// Defines the shape/form of an Entity's physical body within the gameworld, defined on absolute game Positions
+/// Allows Entities to track all of their physical shape, not just their canonical Position
+/// NOTE: if an Entity's 'extended' Body is supposed to use different glyphs, then the Renderable.glyph
+/// property should be set to the _entire_ string, in order, that the game should render
+/// ie the Positions listed in Body.extent need to correspond with the chars in the Entity's Renderable.glyph
+/// If there aren't enough chars to cover all the given Positions, then the last-used char will be repeated
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct Body { // aka Exterior, Veneer, Mass, Body, Visage, Shape, Bulk, Whole
+	pub ref_posn: Position,
+	//pub extent: Vec<Position>,
+	pub extent: Vec<Glyph>,
+}
+impl Body {
+	pub fn new() -> Body {
+		Body::default()
+	}
+	pub fn single(new_posn: Position, new_glyph: ScreenCell) -> Body {
+		Body {
+			ref_posn: new_posn,
+			extent: vec![(new_posn, new_glyph).into()]
+		}
+	}
+	pub fn glyphs(mut self, new_glyphs: Vec<Glyph>) -> Self {
+		self.extent = new_glyphs;
+		self
+	}
+	pub fn contains(&self, target: &Position) -> bool {
+		for piece in self.extent.iter() {
+			if piece.posn == *target {
+				return true;
+			}
+		}
+		false
+	}
+	pub fn is_adjacent_to(&self, target: &Position) -> bool {
+		self.in_range_of(target, 1)
+	}
+	pub fn in_range_of(&self, target: &Position, range: i32) -> bool {
+		for point in self.extent.iter() {
+			if point.posn.in_range_of(target, range) {
+				return true;
+			}
+		}
+		false
+	}
+	pub fn move_to(&mut self, target: Position) {
+		//let posn_diff = self.ref_posn - target;
+		let posn_diff = target - self.ref_posn;
+		for glyph in self.extent.iter_mut() {
+			glyph.posn += posn_diff;
+		}
+		//debug!("move_to: {}({:?}) to {} => {:?}", self.ref_posn, self.extent, target, posn_diff);
+		self.ref_posn = target;
+	}
+	pub fn project_to(&self, target: Position) -> Vec<Position> {
+		let mut posn_list = Vec::new();
+		let posn_diff = target - self.ref_posn;
+		for glyph in self.extent.iter() {
+			let new_posn = glyph.posn + posn_diff;
+			posn_list.push(new_posn);
+		}
+		posn_list
+	}
+	pub fn posns(&self) -> Vec<Position> {
+		self.extent.iter().map(|x| x.posn).collect()
+	}
+	pub fn glyph_at(&self, target: &Position) -> Option<Glyph> {
+		self.extent.iter().find(|x| x.posn == *target).cloned()
+	}
+}
+
 /// Holds the information needed to display an Entity on the worldmap
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
@@ -363,7 +376,8 @@ pub struct Renderable {
 	pub height: u32,
 	// The above fields will be superceded by the ScreenCell object list
 	//pub glyphs: HashMap<ScreenCell, Position>,
-	pub glyphs: Vec<Position, ScreenCell>
+	//pub glyphs: Vec<Position, ScreenCell>
+	pub glyphs: Vec<Glyph>,
 }
 impl Renderable {
 	pub fn new() -> Renderable {
@@ -386,13 +400,43 @@ impl Renderable {
 		self.bg = bg_value;
 		self
 	}
-	pub fn glyph_at(&self, target: &Position) -> ScreenCell {
-		for cell in self.glyphs.iter() {
-			if cell.1 == target {
-				return cell.0.clone();
-			}
+	pub fn get_glyph_at(&self, target: Position) -> Option<Glyph> {
+		self.glyphs.iter().find(|x| x.posn == target).cloned()
+	}
+}
+
+/// Represents a single ScreenCell as a part of an Entity; the Body component can use more than one of these
+/// to construct a multitile entity
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct Glyph {
+	pub posn: Position,
+	pub cell: ScreenCell,
+}
+impl Glyph {
+	pub fn new() -> Glyph {
+		Glyph::default()
+	}
+	pub fn posn(mut self, target: Position) -> Self {
+		self.posn = target;
+		self
+	}
+	pub fn cell(mut self, new_cell: ScreenCell) -> Self {
+		self.cell = new_cell;
+		self
+	}
+}
+impl From<(Position, ScreenCell)> for Glyph {
+	fn from(value: (Position, ScreenCell)) -> Self {
+		Glyph {
+			posn: value.0,
+			cell: value.1,
 		}
-		ScreenCell::placeholder()
+	}
+}
+impl From<Glyph> for ScreenCell {
+	fn from(value: Glyph) -> ScreenCell {
+		value.cell
 	}
 }
 

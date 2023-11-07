@@ -28,6 +28,7 @@ use bracket_pathfinding::prelude::*;
 use simplelog::*;
 
 // *** INTERNAL LIBS
+use crate::camera::*;
 use crate::components::*;
 use crate::components::{
 	Direction,
@@ -279,13 +280,13 @@ pub fn map_indexing_system(mut model:         ResMut<Model>,
 		// Then, step through all blocking entities and flag their locations on the map as well
 		for guy in blocker_query.iter() {
 			for posn in &guy.extent {
-				floor.set_blocked(*posn, true);
+				floor.set_blocked(posn.posn, true);
 			}
 		}
 		// Do the same for the opaque entities
 		for guy in opaque_query.iter() {
 			for posn in &guy.0.extent {
-				floor.set_opaque(*posn, guy.1.opaque);
+				floor.set_opaque(posn.posn, guy.1.opaque);
 			}
 		}
 	}
@@ -387,9 +388,9 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				// -> POINT OF NO RETURN
 				// Nothing's in the way, so go ahead and update the actor's position
 				//let old_posns = actor_body.extent;
-				model.remove_contents(&actor_body.extent, actor_enty);
+				model.remove_contents(&actor_body.posns(), actor_enty);
 				actor_body.move_to(new_location);
-				model.add_contents(&actor_body.extent, 0, actor_enty);
+				model.add_contents(&actor_body.posns(), 0, actor_enty);
 				// If the actor has a Viewshed, flag it as dirty to be updated
 				if let Some(mut viewshed) = actor_viewshed {
 					viewshed.dirty = true;
@@ -621,7 +622,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Description::new().name("Pleyeur").desc("Still your old self."),
 		*spawnpoint,
 		//Body::single(*spawnpoint).extend(extra_posns),
-		Body::single(*spawnpoint),
+		Body::single(*spawnpoint, ScreenCell::new().glyph("@").fg(2).bg(0).clone()),
 		Renderable::new().glyph("@").fg(2).bg(0),
 		Viewshed::new(8),
 		Mobile::default(),
@@ -699,11 +700,16 @@ pub fn test_furniture_spawn(mut commands: Commands,
 ) {
 	if let Some(spawnpoints) = model.find_spawn_area_in("MedBay", 3, 1) {
 		//commands.spawn((
+		let mut body_glyphs = Vec::new();
+		body_glyphs.push(Glyph::new().cell(ScreenCell::create("1", 5, 0, 0)).posn(spawnpoints[0]).clone());
+		body_glyphs.push(Glyph::new().cell(ScreenCell::create("2", 5, 0, 0)).posn(spawnpoints[1]).clone());
+		body_glyphs.push(Glyph::new().cell(ScreenCell::create("3", 5, 0, 0)).posn(spawnpoints[2]).clone());
 		let new_id = commands.spawn((
 			ActionSet::new(),
 			Description::new().name("techno-device").desc("A large chromed construction with many blinkenlights and buttons."),
-			Body::multitile(spawnpoints.clone()),
 			//Body::single(spawnpoints[0]).extend(spawnpoints.clone()),
+			//Body::new().glyphs(spawnpoints.iter().zip("123".chars()).collect()),
+			Body::new().glyphs(body_glyphs),
 			Renderable::new().glyph("123").fg(5).bg(0),
 			Obstructive::default(),
 		)).id();
