@@ -15,6 +15,39 @@ use json_map::*;
 pub mod logical_map;
 use logical_map::*;
 
+type Qpoint = (f32, f32);
+
+/// Returns a vector of Positions that describe a direct line/path between the two inputs
+pub fn get_line(first: &Position, second: &Position) -> Vec<Position> {
+	let alpha: Qpoint = (first.x as f32, first.y as f32);
+	let beta: Qpoint = (second.x as f32, second.y as f32);
+	let mut points = Vec::new();
+	let enn = diagonal_distance(&alpha, &beta);
+	let end = enn as i32;
+	for step in 0..end {
+		let tee = if enn == 0.0 { 0.0 } else { step as f32 / enn };
+		let qpoint = round_point(&lerp_point(&alpha, &beta, tee));
+		let posn = Position::new(qpoint.0 as i32, qpoint.1 as i32, first.z);
+		//points.push(round_point(lerp_point(&alpha, &beta, tee)));
+		points.push(posn);
+	}
+	points
+}
+pub fn diagonal_distance(alpha: &Qpoint, beta: &Qpoint) -> f32 {
+	let dx = beta.0 - alpha.0;
+	let dy = beta.1 - alpha.1;
+	f32::max(dx.abs(), dy.abs())
+}
+pub fn round_point(input: &Qpoint) -> Qpoint {
+	(input.0.round(), input.1.round())
+}
+pub fn lerp_point(alpha: &Qpoint, beta: &Qpoint, tee: f32) -> Qpoint {
+	(lerp(alpha.0, beta.0, tee), lerp(alpha.1, beta.1, tee))
+}
+pub fn lerp(start: f32, end: f32, tee: f32) -> f32 {
+	start * (1.0 - tee) + tee * end
+}
+
 pub trait WorldBuilder {
 	fn build_world(&mut self);
 	fn get_model(&self) -> Model;
@@ -106,7 +139,9 @@ impl JsonWorldBuilder {
 			if let Some(room_name) = self.model.layout.get_room_name(*posn) {
 				let room_index = self.model.layout.rooms.iter().position(|x| x.name == room_name).unwrap();
 				self.model.layout.rooms[room_index].new_interior.insert(*posn, GraphCell::new(CellType::Closed));
+				// FIXME: NEED to add Margin tiles around the door
 			}
+			self.model.layout.add_door_to_map_at(*posn);
 		}
 		// 3: use the portal list to create the list of ladders that need to be spawned
 		for portal in input_data.ladder_list.iter() {
@@ -118,20 +153,23 @@ impl JsonWorldBuilder {
 			let r_index = self.model.levels[right_side.z as usize].to_index(right_side.x, right_side.y);
 			self.model.levels[right_side.z as usize].tiles[r_index] = Tile::new_stairway();
 			// Set the stairway positions in the logical room maps as occupied
-			let l_room_name = self.model.layout.get_room_name(left_side).unwrap();
-			let l_room_index = self.model.layout.rooms.iter().position(|x| x.name == l_room_name).unwrap();
-			self.model.layout.rooms[l_room_index].new_interior.insert(left_side, GraphCell::new(CellType::Closed));
-			let r_room_name = self.model.layout.get_room_name(right_side).unwrap();
-			let r_room_index = self.model.layout.rooms.iter().position(|x| x.name == r_room_name).unwrap();
-			self.model.layout.rooms[r_room_index].new_interior.insert(right_side, GraphCell::new(CellType::Closed));
+			// FIXME: NEED to add Margin tiles around the stairs
+			//let l_room_name = self.model.layout.get_room_name(left_side).unwrap();
+			//let l_room_index = self.model.layout.rooms.iter().position(|x| x.name == l_room_name).unwrap();
+			//self.model.layout.rooms[l_room_index].new_interior.insert(left_side, GraphCell::new(CellType::Closed));
+			//let r_room_name = self.model.layout.get_room_name(right_side).unwrap();
+			//let r_room_index = self.model.layout.rooms.iter().position(|x| x.name == r_room_name).unwrap();
+			//self.model.layout.rooms[r_room_index].new_interior.insert(right_side, GraphCell::new(CellType::Closed));
+			self.model.layout.add_stairs_to_map_at(left_side);
+			self.model.layout.add_stairs_to_map_at(right_side);
 			// Add the graph connection between the two rooms using the manual method
 			self.model.add_portal(left_side, right_side, true);
 		}
 		// DEBUG: a bunch of different output formats for mapgen feedback
-		//for room in self.model.layout.rooms.iter() {
-		//	debug!("* new room: {}", room.name);
-		//	room.debug_print();
-		//}
+		for room in self.model.layout.rooms.iter() {
+			debug!("* new room: {}", room.name);
+			room.debug_print();
+		}
 		//debug!("* new room: {}", cur_room.name.clone()); // DEBUG: print the generated room's logical map
 		//self.model.layout.rooms[room_index].debug_print();
 	}
@@ -287,4 +325,7 @@ impl Default for DevMapBasement {
 		DevMapBasement::new()
 	}
 }
+
+
+
 // EOF

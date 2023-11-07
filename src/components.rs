@@ -113,6 +113,11 @@ impl Position {
 		let d_y = p_map.y - self.y;
 		Position::new(c_x as i32 - d_x, c_y as i32 - d_y, 0)
 	}
+	/// A special method that produces the difference between the two Positions as integers,
+	/// intended for use in index-based loops to allow simple iteration
+	pub fn difference(&self, rhs: &Position) -> (i32, i32, i32) {
+		((rhs.x - self.x), (rhs.y - self.y), (rhs.z - self.z))
+	}
 }
 impl From<(i32, i32, i32)> for Position {
 	fn from(value: (i32, i32, i32)) -> Self {

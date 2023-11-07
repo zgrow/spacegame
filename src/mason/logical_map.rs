@@ -70,6 +70,52 @@ impl ShipGraph {
 		}
 		None
 	}
+	/// Adds a door to a room's logical map; returns False if it could not be added
+	pub fn add_door_to_map_at(&mut self, mut target: Position) -> bool {
+		// Find the index of the room that contains this position
+		if let Some(room_index)  = self.rooms.iter().position(|x| x.contains(target)) {
+			// Draw a line of Margin tiles from the door to the centerpoint of the room
+			let centerpoint = self.rooms[room_index].centerpoint;
+			if target.x != centerpoint.x && target.y != centerpoint.y {
+				if target.x < centerpoint.x {
+					target.x -= 1;
+				} else {
+					target.x += 1;
+				}
+			}
+			let pathway = crate::mason::get_line(&centerpoint, &target);
+			debug!("* {}", pathway.len());
+			for point in pathway {
+				self.rooms[room_index].new_interior.insert(point, GraphCell::new(CellType::Margin));
+			}
+			true
+		} else {
+			false
+		}
+	}
+	/// Adds a stairway to a room's logical map, returns False if it could not be added
+	pub fn add_stairs_to_map_at(&mut self, target: Position) -> bool {
+		if let Some(room_index) = self.rooms.iter().position(|x| x.contains(target)) {
+			// We want the stairs itself, and at least one Margin cell nearby depending on Walls
+			// First mark the stairs itself as Closed
+			self.rooms[room_index].new_interior.insert(target, GraphCell::new(CellType::Closed));
+			// Then make a list of points to mark with Margin if they're Open
+			let point_list = vec![
+				Position::new(target.x + 1, target.y, target.z),
+				Position::new(target.x - 1, target.y, target.z),
+				Position::new(target.x, target.y + 1, target.z),
+				Position::new(target.x, target.y - 1, target.z),
+			];
+			for point in point_list {
+				if self.rooms[room_index].new_interior[&point].cell_type == CellType::Open {
+					self.rooms[room_index].new_interior.insert(point, GraphCell::new(CellType::Margin));
+				}
+			}
+			true
+		} else {
+			false
+		}
+	}
 }
 
 /// Describes a node in the topology graph, a single Room which is composed of a set of Positions
@@ -230,7 +276,7 @@ impl GraphCell {
 	}
 }
 /// Describes the different types of GraphCells in the map, which determine layout constraints
-#[derive(Clone, Copy, Debug, Default, Reflect)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum CellType {
 	#[default]
 	Open, // A Cell that can but does not have an occupant

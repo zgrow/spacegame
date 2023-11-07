@@ -73,7 +73,7 @@ impl Model {
 		self.levels[target.z as usize].tiles[index].ttype
 	}
 	pub fn add_contents(&mut self, posns: &Vec<Position>, priority: i32, enty: Entity) {
-		debug!("add_contents: {:?} for enty {:?} at priority {}", posns, enty, priority);
+		//debug!("add_contents: {:?} for enty {:?} at priority {}", posns, enty, priority);
 		for posn in posns {
 			self.levels[posn.z as usize].add_occupant(priority, enty, *posn);
 		}
@@ -129,7 +129,7 @@ impl Model {
 		//      have a different width; if not, go straight to a rotation
 		// 3. try rotating the template 90deg and see if it will fit along any of the rows/cols
 		// 4. return either the valid position set, or a None, as appropriate
-		todo!("Unfinished method")
+		todo!("Unfinished method") // <<< START HERE
 	}
 }
 
