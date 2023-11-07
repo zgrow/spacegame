@@ -273,24 +273,21 @@ pub fn map_indexing_system(mut model:         ResMut<Model>,
 	                         blocker_query: Query<&Body, With<Obstructive>>,
 	                         opaque_query:  Query<(&Body, &Opaque)>,
 ) {
-	// First, rebuild the blocking map by the map tiles
-	let mut f_index = 0;
-	let mut index;
+	// Rebuild each map floor-by-floor
 	for floor in model.levels.iter_mut() {
 		floor.update_tilemaps(); // Update tilemaps based on their tiletypes
 		// Then, step through all blocking entities and flag their locations on the map as well
 		for guy in blocker_query.iter() {
-			if guy.ref_posn.z != f_index { continue; }
-			index = floor.to_index(guy.ref_posn.x, guy.ref_posn.y);
-			floor.blocked_tiles[index] = true;
+			for posn in &guy.extent {
+				floor.set_blocked(*posn, true);
+			}
 		}
 		// Do the same for the opaque entities
 		for guy in opaque_query.iter() {
-			if guy.0.ref_posn.z != f_index { continue; }
-			index = floor.to_index(guy.0.ref_posn.x, guy.0.ref_posn.y);
-			floor.opaque_tiles[index] = guy.1.opaque;
+			for posn in &guy.0.extent {
+				floor.set_opaque(*posn, guy.1.opaque);
+			}
 		}
-		f_index += 1;
 	}
 }
 /// Handles updates for entities that can move around
@@ -598,6 +595,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 /// Adds a new player entity to a new game world
 pub fn new_player_spawn(mut commands: Commands,
 	                      spawnpoint:   Res<Position>,
+												mut model:    ResMut<Model>,
 	                      mut p_query:  Query<(Entity, &Player)>,
 	                      mut msglog:   ResMut<MessageLog>,
 	                      mut global_rng: ResMut<GlobalRng>,
@@ -631,7 +629,8 @@ pub fn new_player_spawn(mut commands: Commands,
 		Container::default(),
 		Memory::new(),
 	)).id();
-	//debug!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
+	model.add_contents(&vec![*spawnpoint], 0, player);
+	debug!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
 	commands.spawn((
 		Planq::new(),
 		ActionSet::new(),
@@ -694,19 +693,23 @@ pub fn test_npc_spawn(mut commands: Commands,
 }
 /// Adds some testing furniture to the game world
 pub fn test_furniture_spawn(mut commands: Commands,
-														model: ResMut<Model>,
+														mut model: ResMut<Model>,
 	                          mut _rng: ResMut<GlobalRng>,
 	                          _e_query: Query<(Entity, &Body)>,
 ) {
-	if let Some(spawnpoints) = model.find_spawn_area_in("Control", 3, 1) {
-		commands.spawn((
+	if let Some(spawnpoints) = model.find_spawn_area_in("MedBay", 3, 1) {
+		//commands.spawn((
+		let new_id = commands.spawn((
 			ActionSet::new(),
 			Description::new().name("techno-device").desc("A large chromed construction with many blinkenlights and buttons."),
 			Body::multitile(spawnpoints.clone()),
+			//Body::single(spawnpoints[0]).extend(spawnpoints.clone()),
 			Renderable::new().glyph("123").fg(5).bg(0),
 			Obstructive::default(),
-		));
-		debug!("* Spawned a test furniture piece at {}", spawnpoints[0]); // DEBUG: announce test furniture
+		)).id();
+		model.add_contents(&spawnpoints, 0, new_id);
+		//debug!("* Spawned a test furniture piece at {}", spawnpoints[0]); // DEBUG: announce test furniture
+		debug!("* Spawned a test furniture piece {:?} at {}", new_id, spawnpoints[0]); // DEBUG: announce test furniture
 	} else {
 		debug!("* Could not find room to spawn test furniture");
 	}

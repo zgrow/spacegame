@@ -460,7 +460,7 @@ impl GameEngine<'_> {
 		.add_plugins(RngPlugin::default())
 		.add_systems(Startup, (new_player_spawn,
 			                     new_lmr_spawn,
-//													 test_furniture_spawn,
+													 test_furniture_spawn,
 			                     ))
 		.add_systems(Update, (action_referee_system,
 			                    camera_update_system,

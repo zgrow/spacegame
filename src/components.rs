@@ -362,7 +362,8 @@ pub struct Renderable {
 	pub width: u32,
 	pub height: u32,
 	// The above fields will be superceded by the ScreenCell object list
-	pub glyphs: HashMap<Position, ScreenCell>,
+	//pub glyphs: HashMap<ScreenCell, Position>,
+	pub glyphs: Vec<Position, ScreenCell>
 }
 impl Renderable {
 	pub fn new() -> Renderable {
@@ -384,6 +385,14 @@ impl Renderable {
 	pub fn bg(mut self, bg_value: u8) -> Renderable {
 		self.bg = bg_value;
 		self
+	}
+	pub fn glyph_at(&self, target: &Position) -> ScreenCell {
+		for cell in self.glyphs.iter() {
+			if cell.1 == target {
+				return cell.0.clone();
+			}
+		}
+		ScreenCell::placeholder()
 	}
 }
 

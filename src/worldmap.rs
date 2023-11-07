@@ -129,7 +129,21 @@ impl Model {
 		//      have a different width; if not, go straight to a rotation
 		// 3. try rotating the template 90deg and see if it will fit along any of the rows/cols
 		// 4. return either the valid position set, or a None, as appropriate
-		todo!("Unfinished method") // <<< START HERE
+		// Don't bother with any of this if we didn't specify a valid target in the first place
+		if let Some(room_index) = self.layout.get_room_index(target_room) {
+			debug!("* looking for spawn area in room {}", target_room); // DEBUG:
+			self.layout.rooms[room_index].debug_print(); // DEBUG:
+			// Make a template box from the input dims
+			let mut template = Vec::new();
+			for whye in 0..height {
+				for echs in 0..width {
+					template.push(((echs as f32, whye as f32), CellType::Open));
+				}
+			}
+			// Pass the template to the room itself to see if it can find a large-enough open space
+			return self.layout.rooms[room_index].find_open_space(template);
+		}
+		None
 	}
 }
 
@@ -203,6 +217,16 @@ impl Map {
 		let index = self.to_index(posn.x, posn.y);
 		self.tiles[index].remove_from_contents(target);
 		//debug!("removed occupant {:?} from position {}", target, posn);
+	}
+	/// Sets a particular Position to blocked or not in the blocked_tiles map
+	pub fn set_blocked(&mut self, target: Position, state: bool) {
+		let index = self.to_index(target.x, target.y);
+		self.blocked_tiles[index] = state;
+	}
+	/// Sets a particular Position to opaque or not on the opaque_tiles map
+	pub fn set_opaque(&mut self, target: Position, state: bool) {
+		let index = self.to_index(target.x, target.y);
+		self.opaque_tiles[index] = state;
 	}
 	// ****
 	// Returns the Entity of whatever is occupying the target Position, if any. If there are multiple,

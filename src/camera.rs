@@ -91,7 +91,7 @@ impl CameraView {
 	*/
 }
 /// Compatibility type for better integration with ratatui; converts directly to a ratatui::Buffer::Cell
-#[derive(Component, Resource, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[derive(Component, Resource, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
 #[reflect(Component, Resource)]
 pub struct ScreenCell {
 	pub glyph: String,
@@ -243,9 +243,11 @@ pub fn camera_update_system(mut camera: ResMut<CameraView>,
 					if let Some(enty) = world_map.get_visible_entity_at(map_posn) {
 						if enty == p_enty { // If it's the player after all, draw the player
 							//debug!("rendering visible entity 'player' at posn {}", map_posn);
-							p_render.into()
+							//p_render.into()
+							p_render.glyph_at(&map_posn)
 						} else if let Ok((_enty, _body, e_render)) = e_query.get(enty) { // It's a non-player entity
-							e_render.into()
+							//e_render.into()
+							e_render.glyph_at(&map_posn)
 						} else { // There was somehow a failure to retrieve the visible entity; fallback to the map tile
 							//world_map.get_display_tile(map_posn).into() // DEBUG: disabled so i can catch this error case
 							warn!("Error retrieving visible entity {:?} from the e_query during camera_update_system at posn {}", enty, map_posn);

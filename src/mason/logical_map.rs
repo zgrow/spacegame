@@ -70,6 +70,10 @@ impl ShipGraph {
 		}
 		None
 	}
+	/// Gets the RoomIndex of the named Room
+	pub fn get_room_index(&self, target: &str) -> Option<RoomIndex> {
+		self.rooms.iter().position(|x| x.name == target)
+	}
 	/// Adds a door to a room's logical map; returns False if it could not be added
 	pub fn add_door_to_map_at(&mut self, mut target: Position) -> bool {
 		// Find the index of the room that contains this position
@@ -239,6 +243,53 @@ impl GraphRoom {
 				}
 			}
 			debug!("{}", line_string);
+		}
+	}
+	pub fn find_open_space(&self, template: Vec<(Qpoint, CellType)>) -> Option<Vec<Position>> {
+		debug!("* find_open_space called");
+		// METHOD
+		// Choose a random starting point within the room
+		// Use the template's offsets to validate the tiles needed for the spawn position
+		// If all of the tiles are good, pass the list of positions back out
+		let mut success_flag = true;
+		let mut start_points = Vec::new();
+		for s_point in self.new_interior.iter() {
+			if s_point.1.cell_type == CellType::Open {
+				start_points.push(s_point.0);
+			}
+		}
+		debug!("* start_points: {:?}", start_points);
+		let mut point_list = Vec::new();
+		loop {
+			// Get a starting point to test
+			let start_point = start_points.pop().unwrap();
+			// Check the points in the template
+			for t_point in template.iter() {
+				//let next_point = start_point + t_point.0;
+				let next_point: Position = Position {
+					x: start_point.x + t_point.0.0 as i32,
+					y: start_point.y + t_point.0.1 as i32,
+					z: start_point.z
+				};
+				if !self.new_interior.contains_key(&next_point) {
+					break;
+				}
+				if self.new_interior[&next_point].cell_type == CellType::Open {
+					point_list.push(next_point);
+				}
+			}
+			// The template and the output should have exactly the same list length
+			debug!("* tested points: {:?}", point_list);
+			if template.len() == point_list.len() {
+				success_flag = true;
+			} else {
+				point_list = Vec::new();
+			}
+			if success_flag {
+				return Some(point_list);
+			} else if start_points.is_empty() {
+				return None;
+			}
 		}
 	}
 }

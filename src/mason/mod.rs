@@ -166,10 +166,10 @@ impl JsonWorldBuilder {
 			self.model.add_portal(left_side, right_side, true);
 		}
 		// DEBUG: a bunch of different output formats for mapgen feedback
-		for room in self.model.layout.rooms.iter() {
-			debug!("* new room: {}", room.name);
-			room.debug_print();
-		}
+		//for room in self.model.layout.rooms.iter() {
+		//	debug!("* new room: {}", room.name);
+		//	room.debug_print();
+		//}
 		//debug!("* new room: {}", cur_room.name.clone()); // DEBUG: print the generated room's logical map
 		//self.model.layout.rooms[room_index].debug_print();
 	}
