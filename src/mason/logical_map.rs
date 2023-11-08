@@ -251,7 +251,7 @@ impl GraphRoom {
 		// Choose a random starting point within the room
 		// Use the template's offsets to validate the tiles needed for the spawn position
 		// If all of the tiles are good, pass the list of positions back out
-		let mut success_flag = true;
+		let mut success_flag = false;
 		let mut start_points = Vec::new();
 		for s_point in self.new_interior.iter() {
 			if s_point.1.cell_type == CellType::Open {
@@ -279,7 +279,8 @@ impl GraphRoom {
 				}
 			}
 			// The template and the output should have exactly the same list length
-			debug!("* tested points: {:?}", point_list);
+			debug!("* resulting points: {:?}", point_list);
+			debug!("* template.len(): {} point_list.len(): {}", template.len(), point_list.len());
 			if template.len() == point_list.len() {
 				success_flag = true;
 			} else {
@@ -287,8 +288,6 @@ impl GraphRoom {
 			}
 			if success_flag {
 				return Some(point_list);
-			} else if start_points.is_empty() {
-				return None;
 			}
 		}
 	}

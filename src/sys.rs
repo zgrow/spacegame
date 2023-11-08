@@ -699,11 +699,17 @@ pub fn test_furniture_spawn(mut commands: Commands,
 	                          _e_query: Query<(Entity, &Body)>,
 ) {
 	if let Some(spawnpoints) = model.find_spawn_area_in("MedBay", 3, 1) {
+		debug!("* spawnpoints for test_furniture_spawn: {:?}", spawnpoints);
 		//commands.spawn((
-		let mut body_glyphs = Vec::new();
-		body_glyphs.push(Glyph::new().cell(ScreenCell::create("1", 5, 0, 0)).posn(spawnpoints[0]).clone());
-		body_glyphs.push(Glyph::new().cell(ScreenCell::create("2", 5, 0, 0)).posn(spawnpoints[1]).clone());
-		body_glyphs.push(Glyph::new().cell(ScreenCell::create("3", 5, 0, 0)).posn(spawnpoints[2]).clone());
+		//let mut body_glyphs = Vec::new();
+		//body_glyphs.push(Glyph::new().cell(ScreenCell::create("1", 5, 0, 0)).posn(spawnpoints[0]).clone());
+		//body_glyphs.push(Glyph::new().cell(ScreenCell::create("2", 5, 0, 0)).posn(spawnpoints[1]).clone());
+		//body_glyphs.push(Glyph::new().cell(ScreenCell::create("3", 5, 0, 0)).posn(spawnpoints[2]).clone());
+		let body_glyphs = vec![
+			Glyph::new().cell(ScreenCell::create("1", 5, 0, 0)).posn(spawnpoints[0]).clone(),
+			Glyph::new().cell(ScreenCell::create("2", 5, 0, 0)).posn(spawnpoints[1]).clone(),
+			Glyph::new().cell(ScreenCell::create("3", 5, 0, 0)).posn(spawnpoints[2]).clone(),
+		];
 		let new_id = commands.spawn((
 			ActionSet::new(),
 			Description::new().name("techno-device").desc("A large chromed construction with many blinkenlights and buttons."),
