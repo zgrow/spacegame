@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::mason::*;
 use crate::components::Position;
 use crate::artisan::ItemType;
-use simplelog::*;
+//use simplelog::*;
 
 /* The format of the input json as of October 10, 2023:
  *  {
@@ -112,12 +112,12 @@ pub struct JsonMap {
 	pub width: usize,
 	pub height: usize,
 }
-impl From<JsonMap> for Map {
+impl From<JsonMap> for GameMap {
 	fn from(input: JsonMap) -> Self {
 		for jmap in input.tilemap {
 			debug!("ooo {:?}", jmap);
 		}
-		Map::default()
+		GameMap::default()
 	}
 }
 /// Data structure that maps to the JSON as laid out in the map generator for fast deserialization
@@ -130,7 +130,7 @@ pub struct JsonBucket {
 /// The Builder object that produces maps from JSON
 #[derive(Default, Debug)]
 pub struct JsonMapBuilder {
-	map: Map,
+	map: GameMap,
 	new_entys: Vec<(ItemType, Position)>,
 }
 impl MapBuilder for JsonMapBuilder {
@@ -139,7 +139,7 @@ impl MapBuilder for JsonMapBuilder {
 		JsonMapBuilder::load_map_file(self)
 	}
 	/// Retrieves a copy of the constructed Map from this builder
-	fn get_map(&self) -> Map {
+	fn get_map(&self) -> GameMap {
 		self.map.clone()
 	}
 	/// Retrieves a list of entities that need to be spawned after the Map is instantiated
@@ -150,7 +150,7 @@ impl MapBuilder for JsonMapBuilder {
 impl JsonMapBuilder {
 	pub fn new() -> JsonMapBuilder {
 		JsonMapBuilder {
-			map: Map::new(1, 1),
+			map: GameMap::new(1, 1),
 			new_entys: Vec::new(),
 		}
 	}
@@ -161,7 +161,7 @@ impl JsonMapBuilder {
 	}
 }
 
-pub fn load_json_map(filename: &str) -> (Map, Vec<(ItemType, Position)>) {
+pub fn load_json_map(filename: &str) -> (GameMap, Vec<(ItemType, Position)>) {
 	// METHOD
 	// 1 for each level,
 	//      - copy each row of the tilemap into a new Map
@@ -171,7 +171,7 @@ pub fn load_json_map(filename: &str) -> (Map, Vec<(ItemType, Position)>) {
 	let reader = BufReader::new(file);
 	let value: JsonBucket = match serde_json::from_reader(reader) {
 			Ok(output) => output,
-			Err(e) => {debug!("OOO {}", e); JsonBucket::default()},
+			Err(e) => {debug!("* load_json_map error: {}", e); JsonBucket::default()},
 	};
 	let map = value.map_list;
 	(map[0].clone().into(), Vec::new()) // DEBUG: how come this works? doesn't it overwrite the list of doors?

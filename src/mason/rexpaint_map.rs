@@ -9,7 +9,7 @@ use crate::components::Position;
 use crate::artisan::ItemType;
 
 pub struct RexMapBuilder {
-	map: Map,
+	map: GameMap,
 	new_entys: Vec<(ItemType, Position)>,
 }
 
@@ -18,7 +18,7 @@ impl MapBuilder for RexMapBuilder {
 		RexMapBuilder::load_test_map(self);
 		debug!("* build_map::new_entys: {}", self.new_entys.len()); // DEBUG: announce creation of rexpaint map
 	}
-	fn get_map(&self) -> Map {
+	fn get_map(&self) -> GameMap {
 		self.map.clone()
 	}
 	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
@@ -30,7 +30,7 @@ impl MapBuilder for RexMapBuilder {
 impl RexMapBuilder {
 	pub fn new() -> RexMapBuilder {
 		RexMapBuilder {
-			map: Map::new(1, 1),
+			map: GameMap::new(1, 1),
 			new_entys: Vec::new(),
 		}
 	}

@@ -66,7 +66,6 @@ pub struct GameEngine<'a> {
 	pub standby:        bool, // If true, the game loop is on standby (ie paused)
 	pub mode:           EngineMode,
 	pub bevy:           App, // bevy::app::App, contains all of the ECS and related things
-	//pub mason:          Box<dyn MapBuilder>,
 	pub mason:          Box<dyn WorldBuilder>,
 	pub artisan:        ItemBuilder,
 	pub visible_menu:   MenuType,
@@ -89,7 +88,6 @@ impl GameEngine<'_> {
 			standby: true,
 			mode: EngineMode::Standby,
 			bevy: App::new(),
-			//mason: get_map_builder(2), // only pulls in the DevMapBuilder right now
 			mason: get_world_builder(),
 			artisan: ItemBuilder::new(),
 			// HINT: These menu items are handled via a match case in GameEngine::tick()
@@ -111,23 +109,23 @@ impl GameEngine<'_> {
 	}
 	/// Runs a single update cycle of the GameEngine
 	pub fn tick(&mut self) {
-		/* HINT: This is a known-good local method for obtaining data from a selected entity
-		_ => {
-			error!("! unhandled option '{}' selected from menu", item); // DEBUG: report an unhandled menu option
-			let enty_id = item.parse::<u32>().unwrap();
-			let enty_ref = self.bevy.world.entities().resolve_from_id(enty_id);
-			if let Some(enty) = enty_ref {
-				if self.bevy.world.entities().contains(enty) {
-					debug!("* produced a valid enty_ref from an entity.index()"); // DEBUG: report entity reference success
-				if let Some(name) = self.bevy.world.get::<ActorName>(enty) {
-						debug!("* Entity {} named {} was selected", enty_id, name.name.clone()); // DEBUG: announce entity selection
-					} else {
-						warn!("* Could not retrieve the name of the selected entity"); // DEBUG: report entity component retrieval failure
-					}
-				}
-			}
-		}
-		*/
+	/* HINT: This is a known-good local method for obtaining data from a selected entity
+	 *	_ => {
+	 *		error!("! unhandled option '{}' selected from menu", item); // DEBUG: report an unhandled menu option
+	 *		let enty_id = item.parse::<u32>().unwrap();
+	 *		let enty_ref = self.bevy.world.entities().resolve_from_id(enty_id);
+	 *		if let Some(enty) = enty_ref {
+	 *			if self.bevy.world.entities().contains(enty) {
+	 *				debug!("* produced a valid enty_ref from an entity.index()"); // DEBUG: report entity reference success
+	 *			if let Some(name) = self.bevy.world.get::<ActorName>(enty) {
+	 *					debug!("* Entity {} named {} was selected", enty_id, name.name.clone()); // DEBUG: announce entity selection
+	 *				} else {
+	 *					warn!("* Could not retrieve the name of the selected entity"); // DEBUG: report entity component retrieval failure
+	 *				}
+	 *			}
+	 *		}
+	 *	}
+	 */
 		// This is where I'd pull any mode changes that might have happened during the last Bevy update and apply them
 		//if settings.mode_changed { ... }
 		// If there are any menu events, handle them
@@ -485,7 +483,7 @@ impl GameEngine<'_> {
 		.register_type::<TimerMode>()
 		.register_type::<Vec<bool>>()
 		.register_type::<Vec<Entity>>()
-		.register_type::<Vec<Map>>()
+		.register_type::<Vec<GameMap>>()
 		.register_type::<Vec<Message>>()
 		.register_type::<Vec<MessageChannel>>()
 		.register_type::<Vec<Portal>>()
@@ -512,7 +510,7 @@ impl GameEngine<'_> {
 		.register_saveable::<Key>()
 		.register_saveable::<LMR>()
 		.register_saveable::<Lockable>()
-		.register_saveable::<Map>()
+		.register_saveable::<GameMap>()
 		.register_saveable::<Memory>()
 		.register_saveable::<Message>()
 		.register_saveable::<MessageChannel>()
@@ -532,7 +530,7 @@ impl GameEngine<'_> {
 		.register_saveable::<Player>()
 		.register_saveable::<Portable>()
 		.register_saveable::<Position>()
-		.register_saveable::<Renderable>()
+		//.register_saveable::<Renderable>()
 		.register_saveable::<RngComponent>()
 		.register_saveable::<Tile>()
 		.register_saveable::<TileType>()
@@ -555,13 +553,20 @@ impl GameEngine<'_> {
 		self.mason.build_world();
 		let mut model = self.mason.get_model();
 		// Construct the various furniture/scenery/backdrop items
+		// Get the list of items that we know for sure need to be generated
 		let item_spawns = self.mason.get_item_spawn_list(); // a list of ItemTypes and Positions
-		eprintln!("spawning items");
-		debug!("* item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
+		// Next, get a list of items that will populate and decorate the rest of the ship
+		//let addtl_items = self.artisan.decorate(&model); // TODO: this method isn't done with implementation yet
+		let temp_loc = Position::new(17, 13, 1); // DEBUG: test item
+		let (new_item, item_shape) = self.artisan.create("test_item").at(temp_loc).build(&mut self.bevy.world);
+		model.add_contents(&item_shape, 0, new_item.id());
+		//debug!("* new_item: {:?}", new_item);
+		// TODO: append the addtl_items to the item_spawns list
+		debug!("* build_new_worldmap(): item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
 		for item in item_spawns.iter() {
-			let new_enty = self.artisan.create(item.0).at(item.1).build(&mut self.bevy.world);
-			//model.levels[item.1.z as usize].add_occupant(0, new_enty.id(), item.1);
-			model.add_contents(&vec![item.1], 0, new_enty.id());
+			//let new_enty = self.artisan.create_by_itemtype(item.0).at(item.1).build(&mut self.bevy.world);
+			//model.add_contents(&vec![item.1], 0, new_enty.id());
+			debug!("* pretending to spawn new item: {:?}", item);
 		}
 		self.bevy.insert_resource(model);
 	}
@@ -610,12 +615,14 @@ impl GameEngine<'_> {
 		}
 	}
 	/// Requests the creation of an item from the item builder
-	pub fn make_item(&mut self, new_type: ItemType, location: Position) {
-		self.artisan.create(new_type).at(location).build(&mut self.bevy.world);
+	pub fn make_item(&mut self, new_item: ItemType, location: Position) {
+		//self.artisan.create_by_itemtype(new_type).at(location).build(&mut self.bevy.world);
+		self.artisan.create_by_itemtype(new_item).at(location).build(&mut self.bevy.world);
 	}
 	/// Requests to give a new Item to a specific Entity
-	pub fn give_item(&mut self, new_type: ItemType, target: Entity) {
-		self.artisan.create(new_type).within(target).build(&mut self.bevy.world);
+	pub fn give_item(&mut self, new_item: ItemType, target: Entity) {
+		//self.artisan.create_by_itemtype(new_type).give_to(target).build(&mut self.bevy.world);
+		self.artisan.create_by_itemtype(new_item).give_to(target).build(&mut self.bevy.world);
 	}
 	/// Executes a command on the PLANQ, generally from the CLI
 	pub fn exec(&mut self, cmd: PlanqCmd) -> bool {

@@ -54,6 +54,7 @@ impl From<Message> for Line<'_> {
 			let trim_chars: &[_] = &['[', ']']; // the split() is supposed to do this, but let's just make sure
 			let style_line: Vec<&str> = spans[0].trim_matches(trim_chars).split(',').collect(); // Split the control chars into ind. mods
 			// For each individual modification, figure out what type it is and apply it to the Style
+			// TODO: make use of the color/modification conversion tools in camera.rs (maybe export them to lib.rs?)
 			for token in style_line.iter() {
 				let keyval: Vec<&str> = token.split(':').collect();
 				match keyval[0] {

@@ -1,6 +1,77 @@
 // components.rs
 // July 12 2023
+// * COMPONENTS REFERENCE LIST
+/* components.rs
+ *   AccessPort - "accessport"
+ *   ActionSet - "actionset"
+ *     actions: HashSet<ActionType>
+ *   Body - "body NNN"
+ *     ref_posn: Position
+ *     extent: Vec<Glyph>
+ *   Container - "container"
+ *   Description - "description name desc"
+ *     name: String
+ *     desc: String
+ *     locn: String (set during gameplay, specify its Body.ref_posn instead)
+ *   Device - "device state voltage discharge"
+ *     pw_switch: bool
+ *     batt_voltage: i32
+ *     batt_discharge: i32
+ *     state: DeviceState (gameplay property)
+ *   Glyph - use a Body component for this instead
+ *     posn: Position
+ *     cell: ScreenCell
+ *   IsCarried - "iscarried"
+ *   Key - "key id"
+ *     key_id: i32
+ *   LMR - "lmr"
+ *   Lockable - "lockable state key_id"
+ *     is_locked: bool
+ *     key: i32
+ *   Memory - "memory"
+ *     visual: HashMap<Position, Vec<Entity>>
+ *   Mobile - "mobile"
+ *   Networkable - "networkable"
+ *   Obstructive - "obstructive"
+ *   Opaque - "opaque state"
+ *     opaque: bool
+ *   Openable - "openable state stuck open closed"
+ *     is_open: bool
+ *     is_stuck: bool
+ *     open_glyph: String
+ *     closed_glyph: String
+ *   Player - "player"
+ *   Portable - "portable"
+ *     carrier: Entity
+ *   Viewshed - "viewshed range"
+ *     visible_tiles: Vec<Point>
+ *     range: i32
+ *     dirty: bool
+ */
+/* camera.rs
+ *   CameraView
+ *     output: Vec<ScreenCell>
+ *     width: i32
+ *     height: i32
+ *     reticle: Position
+ *     reticle_glyphs: String
+ *     terrain: Vec<ScreenCell>
+ *     scenery: Vec<ScreenCell>
+ *     actors: Vec<ScreenCell>
+ *     blinken: Vec<ScreenCell>
+ *     vfx: Vec<ScreenCell>
+ */
+/* planq.rs
+ *   DataSampleTimer - "datasampletimer"
+ *     timer: Timer
+ *     source: String
+ *   Planq - "planq"
+ *   PlanqProcess - "planqprocess"
+ *     timer: Timer
+ *     outcome: PlanqEvent
+ */
 
+// * EXTERNAL LIBS
 use std::fmt;
 use std::hash::Hash;
 use bevy::ecs::entity::*;
@@ -19,20 +90,13 @@ use ratatui::layout::Rect;
 use strum_macros::AsRefStr;
 use crate::engine::event::ActionType;
 use crate::camera::ScreenCell;
+use serde::{Deserialize, Serialize};
 use simplelog::*;
 
 // Full-length derive macros
 //#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 //#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 
-/// Identifies the Entity that represents the player character
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct Player { }
-/// Identifies the LMR in the ECS
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct LMR { }
 /// Allows an entity to identify the set of ActionTypes that it supports.
 /// The presence of an ActionType in actions indicates it is compatible;
 /// finding the intersection between two ActionSets results in the set of actions
@@ -58,6 +122,514 @@ impl Default for ActionSet {
 		}
 	}
 }
+/// Holds the narrative description of an object. If this component is used as an input for text formatting, it will produce
+/// the name of the entity that owns it. See also the name() and desc() methods
+#[derive(Component, Clone, Debug, PartialEq, Eq, Reflect, Serialize, Deserialize)]
+#[reflect(Component)]
+pub struct Description {
+	pub name: String,
+	pub desc: String,
+	pub locn: String,
+}
+impl Description {
+	/// Creates a new Description with the given name and description
+	pub fn new() -> Description {
+		Description::default()
+	}
+	pub fn name(mut self, new_name: &str) -> Self {
+		self.name = new_name.to_string();
+		self
+	}
+	pub fn desc(mut self, new_desc: &str) -> Self {
+		self.desc = new_desc.to_string();
+		self
+	}
+	pub fn locn(mut self, new_locn: &str) -> Self {
+		self.locn = new_locn.to_string();
+		self
+	}
+	pub fn get_name(&self) -> String {
+		self.name.clone()
+	}
+	pub fn get_desc(&self) -> String {
+		self.desc.clone()
+	}
+	pub fn get_locn(&self) -> String {
+		self.locn.clone()
+	}
+}
+impl Default for Description {
+	fn default() -> Description {
+		Description {
+			name: "default_name".to_string(),
+			desc: "default_desc".to_string(),
+			locn: "default_locn".to_string(),
+		}
+	}
+}
+impl fmt::Display for Description {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.name)
+	}
+}
+
+/// Defines the shape/form of an Entity's physical body within the gameworld, defined on absolute game Positions
+/// Allows Entities to track all of their physical shape, not just their canonical Position
+/// NOTE: if an Entity's 'extended' Body is supposed to use different glyphs, then the Renderable.glyph
+/// property should be set to the _entire_ string, in order, that the game should render
+/// ie the Positions listed in Body.extent need to correspond with the chars in the Entity's Renderable.glyph
+/// If there aren't enough chars to cover all the given Positions, then the last-used char will be repeated
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct Body { // aka Exterior, Veneer, Mass, Body, Visage, Shape, Bulk, Whole
+	pub ref_posn: Position,
+	pub extent: Vec<Glyph>,
+}
+impl Body {
+	//  - Builder
+	pub fn new() -> Body {
+		Body::default()
+	}
+	/// Creates a new Body component from a set of input strings, formatted as "x,y G F B M" where 'x,y' or 'x,y,z'
+	/// is the spawnpoint coordinates; 'G' is the display glyph, 'F' is the foreground color, 'B' is the background
+	/// color, and 'M' is the set of text modifications to apply to the display glyph
+	pub fn new_from_str(input: Vec<String>) -> Body {
+		if input.is_empty() { return Body::default(); };
+		let mut posns = Vec::new();
+		let mut cells = Vec::new();
+		for line in input.iter() {
+			let mut body_parts = line.split(' ');
+			let posn: Position = body_parts.next().unwrap().into();
+			posns.push(posn);
+			cells.push(ScreenCell::new_from_str(body_parts.collect()));
+		}
+		Body::large(posns, cells)
+	}
+	/// Creates a new Body component for an single-tile-sized Entity
+	pub fn small(new_posn: Position, new_glyph: ScreenCell) -> Body {
+		Body {
+			ref_posn: new_posn,
+			extent: vec![(new_posn, new_glyph).into()]
+		}
+	}
+	/// Creates a new Body component for a multitile Entity: if there are more Positions than ScreenCells given,
+	/// then the remaining Positions will be filled with copies of the last ScreenCell in the list;
+	/// If there are more ScreenCells than Positions, the remainder will be silently dropped
+	pub fn large(posns: Vec<Position>, mut glyphs: Vec<ScreenCell>) -> Body {
+		// Pad out the list of glyphs if it's not long enough
+		loop {
+			if posns.len() <= glyphs.len() {
+				break;
+			}
+			glyphs.push(glyphs.last().unwrap().clone());
+		}
+		// Assign the first Position in the list as the reference position, and then make the full extent of the new Body
+		Body {
+			ref_posn: posns[0],
+			extent: posns.iter().zip(glyphs.iter()).map(|x| x.into()).collect(),
+		}
+	}
+	//  - Get/Set
+	/// Returns true if any of this Body's parts are occupying the given Position
+	pub fn contains(&self, target: &Position) -> bool {
+		for piece in self.extent.iter() {
+			if piece.posn == *target {
+				return true;
+			}
+		}
+		false
+	}
+	/// Returns true if any of this Body's parts are within a single tile of the target
+	pub fn is_adjacent_to(&self, target: &Position) -> bool {
+		self.in_range_of(target, 1)
+	}
+	/// Performs a simple/naive range check between this Body component and the given Position; will return true
+	/// if _any_ of the Body's parts are within range
+	pub fn in_range_of(&self, target: &Position, range: i32) -> bool {
+		for point in self.extent.iter() {
+			if point.posn.in_range_of(target, range) {
+				return true;
+			}
+		}
+		false
+	}
+	/// Moves this Body's parts to the new Position without losing cohesion
+	pub fn move_to(&mut self, target: Position) {
+		//let posn_diff = self.ref_posn - target;
+		let posn_diff = target - self.ref_posn;
+		for glyph in self.extent.iter_mut() {
+			glyph.posn += posn_diff;
+		}
+		//debug!("move_to: {}({:?}) to {} => {:?}", self.ref_posn, self.extent, target, posn_diff);
+		self.ref_posn = target;
+	}
+	/// Produces the set of Positions that this Body would occupy if it moved to the target Position
+	pub fn project_to(&self, target: Position) -> Vec<Position> {
+		let mut posn_list = Vec::new();
+		let posn_diff = target - self.ref_posn;
+		for glyph in self.extent.iter() {
+			let new_posn = glyph.posn + posn_diff;
+			posn_list.push(new_posn);
+		}
+		posn_list
+	}
+	/// Returns the full set of Positions that this Body currently occupies
+	pub fn posns(&self) -> Vec<Position> {
+		self.extent.iter().map(|x| x.posn).collect()
+	}
+	/// Retrieves a particular glyph at a particular position; returns None if nothing found
+	pub fn glyph_at(&self, target: &Position) -> Option<Glyph> {
+		self.extent.iter().find(|x| x.posn == *target).cloned()
+	}
+	/// Sets a particular Glyph at a particular Position of a given Entity; returns false if the change failed for
+	/// one reason or another, such as an invalid Position
+	pub fn set_glyph_at(&mut self, target: Position, glyph: &str) -> bool {
+		if let Some(index) = self.extent.iter().position(|x| x.posn == target) {
+			self.extent[index].cell.set_glyph(glyph);
+			true
+		} else {
+			false
+		}
+	}
+	/// (possible deprecation!) Sets a Body's extent to the given list of Glyphs
+	pub fn glyphs(mut self, new_glyphs: Vec<Glyph>) -> Self {
+		self.extent = new_glyphs;
+		self
+	}
+}
+/// Represents a single ScreenCell as a part of an Entity; the Body component can use more than one of these
+/// to construct a multitile entity
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct Glyph {
+	pub posn: Position,
+	pub cell: ScreenCell,
+}
+impl Glyph {
+	pub fn new() -> Glyph {
+		Glyph::default()
+	}
+	pub fn posn(mut self, target: Position) -> Self {
+		self.posn = target;
+		self
+	}
+	pub fn cell(mut self, new_cell: ScreenCell) -> Self {
+		self.cell = new_cell;
+		self
+	}
+}
+impl From<(Position, ScreenCell)> for Glyph {
+	fn from(value: (Position, ScreenCell)) -> Self {
+		Glyph {
+			posn: value.0,
+			cell: value.1,
+		}
+	}
+}
+impl From<(&Position, &ScreenCell)> for Glyph {
+	fn from(value: (&Position, &ScreenCell)) -> Self {
+		Glyph {
+			posn: *value.0,
+			cell: value.1.clone(),
+		}
+	}
+}
+impl From<Glyph> for ScreenCell {
+	fn from(value: Glyph) -> ScreenCell {
+		value.cell
+	}
+}
+/// Provides an object abstraction for the sensory range of a given entity
+//  INFO: This Viewshed type is NOT eligible for bevy_save because bracket_lib::Point doesn't impl Reflect/FromReflect
+#[derive(Component, Clone, Debug)]
+pub struct Viewshed {
+	pub visible_points: Vec<Point>, // for bracket_lib::pathfinding::field_of_view
+	pub range: i32,
+	pub dirty: bool, // indicates whether this viewshed needs to be updated from world data
+	// TODO: Adding an Entity type to the enty_memory ought to allow for retrieving that information later, so that the
+	// player's own memory can be queried, something like the Nethack dungeon feature notes tracker
+}
+impl Viewshed {
+	pub fn new(new_range: i32) -> Self {
+		Self {
+			visible_points: Vec::new(),
+			range: new_range,
+			dirty: true,
+		}
+	}
+}
+/// Provides a memory of seen entities and other things to an entity with sentience
+#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct Memory {
+	pub visual: HashMap<Position, Vec<Entity>>,
+}
+impl Memory {
+	pub fn new() -> Self {
+		Memory::default()
+	}
+	/// Updates the memorized positions for the specified entity; adds to memory if not already present; clears the memory
+	/// if there's nothing there any more
+	pub fn update(&mut self, targets: Vec<(Position, Option<Vec<Entity>>)>) {
+		for (posn, entys) in targets.iter() {
+			if let Some(guys) = entys {
+				self.visual.insert(*posn, guys.clone());
+			} else {
+				self.visual.remove(posn);
+			}
+		}
+	}
+}
+/// Describes an entity that can be picked up and carried around
+//#[derive(Component, Clone, Copy, Debug, Default)]
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct Portable {
+	pub carrier: Entity
+}
+impl Portable {
+	pub fn new(target: Entity) -> Portable { Portable { carrier: target } }
+	pub fn empty() -> Portable { Portable { carrier: Entity::PLACEHOLDER } }
+}
+impl MapEntities for Portable {
+	fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
+		self.carrier = entity_mapper.get_or_reserve(self.carrier);
+	}
+}
+impl FromWorld for Portable {
+	// This is intentional (lmao) to prevent issues when loading from save game
+	fn from_world(_world: &mut World) -> Self {
+		Self {
+			carrier: Entity::PLACEHOLDER,
+		}
+	}
+}
+/// Describes an entity that blocks line of sight; comes with an internal state for temp use
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Opaque {
+	pub opaque: bool
+}
+impl Opaque {
+	pub fn new(setting: bool) -> Self {
+		Opaque {
+			opaque: setting,
+		}
+	}
+}
+/// Describes an entity with an operable barrier of some kind: a container's lid, or a door, &c
+#[derive(Component, Clone, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Openable {
+	pub is_open: bool,
+	pub is_stuck: bool,
+	pub open_glyph: String,
+	pub closed_glyph: String,
+}
+impl Openable {
+	pub fn new(state: bool, opened: &str, closed: &str) -> Openable {
+		Openable {
+			is_open: state,
+			is_stuck: false,
+			open_glyph: opened.to_string(),
+			closed_glyph: closed.to_string(),
+		}
+	}
+}
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Lockable {
+	pub is_locked: bool,
+	pub key_id: i32
+}
+impl Lockable {
+	// Unlocks, given the correct key value as input
+	pub fn unlock(&mut self, test_key: i32) -> bool {
+		if test_key == self.key_id {
+			self.is_locked = false;
+			return true;
+		}
+		false
+	}
+	// Locks when called; if a key is given, it will overwrite the previous key-value
+	// Specify a value of 0 to obtain the existing key-value instead
+	pub fn lock(&mut self, new_key: i32) -> i32 {
+		self.is_locked = true;
+		if new_key != 0 { self.key_id = new_key; }
+		self.key_id
+	}
+}
+/// Describes an entity that can lock or unlock a Lockable object
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Key { pub key_id: i32 }
+/// Describes an entity with behavior that can be applied/used/manipulated by another entity
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Device {
+	pub pw_switch: bool,
+	pub batt_voltage: i32,
+	pub batt_discharge: i32,
+	pub state: DeviceState,
+}
+impl Device {
+	/// Creates a new Device; set the batt_discharge param to 0 to disable battery use
+	pub fn new(discharge_rate: i32) -> Device {
+		Device {
+			pw_switch: false,
+			batt_voltage: 0, // BATTERIES NOT INCLUDED LMAOOO
+			batt_discharge: discharge_rate,
+			state: DeviceState::Offline,
+		}
+	}
+	/// Turns on the device, if there's any power remaining. Returns false if no power left.
+	pub fn power_on(&mut self) -> bool {
+		if self.batt_voltage > 0
+		|| self.batt_discharge == 0 {
+			self.pw_switch = true;
+			self.state = DeviceState::Idle;
+		}
+		self.pw_switch
+	}
+	/// Turns off the device.
+	pub fn power_off(&mut self) {
+		self.pw_switch = false;
+		self.state = DeviceState::Offline;
+	}
+	/// Discharges battery power according to the specified duration, returns current power level
+	pub fn discharge(&mut self, duration: i32) -> i32 {
+		if self.batt_discharge < 0 {
+			// This item does not need a battery/has infinite power, so no discharge can occur
+			return self.batt_voltage;
+		}
+		self.batt_voltage -= self.batt_discharge * duration;
+		if self.batt_voltage < 0 { self.batt_voltage = 0; }
+		self.batt_voltage
+	}
+	/// Recharges the battery to the given percentage
+	pub fn recharge(&mut self, charge_level: i32) -> i32 {
+		self.batt_voltage += charge_level;
+		self.batt_voltage
+	}
+	/// power toggle
+	pub fn power_toggle(&mut self) -> bool {
+		// NOTE: trying to invoke these methods doesn't seem to work here; not sure why
+		//if !self.pw_switch { self.power_on(); }
+		//else { self.power_off(); }
+		self.pw_switch = !self.pw_switch;
+		self.pw_switch
+	}
+}
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub enum DeviceState {
+	#[default]
+	Offline,
+	Idle,
+	Working,
+	Error(u32) // Takes an error code as a specifier
+}
+
+//  *** TAG COMPONENTS
+/// Identifies the Entity that represents the player character
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Player { }
+/// Identifies the LMR in the ECS
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct LMR { }
+/// Describes an Entity that is currently located within a Container
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct IsCarried { }
+/// Describes an entity which may contain entities tagged with the Portable Component
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Container { } // TODO: this almost definitely needs a capacity field attached to it
+/// Describes an entity with a PLANQ-compatible maintenance system
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct AccessPort { }
+/// Describes an entity that can connect to and communicate with the shipnet
+#[derive(Component, Copy, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct Networkable { }
+/// Describes an Entity that can move around under its own power
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Mobile { }
+/// Describes an entity that obstructs movement by other entities
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct Obstructive { }
+
+//  *** PRIMITIVES AND COMPUTED VALUES (ie no save/load)
+/// A small type that lets us specify friendly names for colors instead of using ints everywhere
+/// Because none of these carry any data, they can be cast to numeric types directly
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+pub enum Color {
+	// These are arranged in order of their ANSI index
+	Black,    // 00
+	Red,      // 01
+	Green,    // 02
+	Yellow,   // 03
+	Blue,     // 04
+	Pink,     // 05
+	Cyan,     // 06
+	White,    // 07
+	#[default]
+	LtBlack,  // 08
+	LtRed,    // 09
+	LtGreen,  // 10
+	LtYellow, // 11
+	LtBlue,   // 12
+	LtPink,   // 13
+	LtCyan,   // 14
+	LtWhite   // 15
+}
+/// A convenient type that makes it clear whether we mean the Player entity or some other
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Creature {
+	Player,     // The player(s)
+	Zilch,      // Any non-player entity or character
+}
+/// The compass rose - note this is not a component...
+/// These are mapped to cardinals just for ease of comprehension
+#[derive(AsRefStr, Component, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[reflect(Component)]
+pub enum Direction {
+	#[default]
+	X,
+	N,
+	NW,
+	W,
+	SW,
+	S,
+	SE,
+	E,
+	NE,
+	UP,
+	DOWN
+}
+impl fmt::Display for Direction {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let text: String = match self {
+			Direction::X    => { "null_dir".to_string() }
+			Direction::N    => { "North".to_string() }
+			Direction::NW   => { "Northwest".to_string() }
+			Direction::W    => { "West".to_string() }
+			Direction::SW   => { "Southwest".to_string() }
+			Direction::S    => { "South".to_string() }
+			Direction::SE   => { "Southeast".to_string() }
+			Direction::E    => { "East".to_string() }
+			Direction::NE   => { "Northeast".to_string() }
+			Direction::UP   => { "Up".to_string() }
+			Direction::DOWN => { "Down".to_string() }
+		};
+		write!(f, "{}", text)
+	}
+}
 /// Represents a point on a 2D grid as an XY pair, plus a Z-coordinate to indicate what floor the entity is on
 #[derive(Component, Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Reflect)]
 #[reflect(Component, Resource)]
@@ -77,7 +649,7 @@ impl Position {
 	/// Thus it runs very quickly by virtue of not needing to call into the ECS
 	/// Returns true if distance == range (ie is inclusive)
 	pub fn in_range_of(&self, target: &Position, range: i32) -> bool {
-		debug!("* Testing range {} between positions {} to {}", range, self, target); // DEBUG: announce range check
+		//debug!("* Testing range {} between positions {} to {}", range, self, target); // DEBUG: announce range check
 		if self.z != target.z { return false; } // z-levels must match (ie on same floor)
 		if range == 0 {
 			// This case is provided against errors; it's often faster/easier to just compare
@@ -86,12 +658,12 @@ impl Position {
 		} else {
 			let mut d_x = f32::powi((target.y - self.y) as f32, 2);
 			let mut d_y = f32::powi((target.x - self.x) as f32, 2);
-			debug!("dx: {}, dy: {}", d_x, d_y); // DEBUG: print the raw values for dx, dy
+			//debug!("dx: {}, dy: {}", d_x, d_y); // DEBUG: print the raw values for dx, dy
 			if d_x.signum() != 1.0 { d_x *= -1.0; }
 			if d_y.signum() != 1.0 { d_y *= -1.0; }
-			debug!("dx: {}, dy: {}", d_x, d_y); // DEBUG: print the normalized values for dx, dy
+			//debug!("dx: {}, dy: {}", d_x, d_y); // DEBUG: print the normalized values for dx, dy
 			let distance = f32::sqrt(d_x + d_y).round();
-			debug!("* in_range_of(): calc dist = {self:?} to {target:?}: {} in range {} -> {}", distance, range, (distance as i32 <= range)); // DEBUG: print the result of the calculation
+			//debug!("* in_range_of(): calc dist = {self:?} to {target:?}: {} in range {} -> {}", distance, range, (distance as i32 <= range)); // DEBUG: print the result of the calculation
 			if distance as i32 <= range { return true; }
 		}
 		false
@@ -117,6 +689,24 @@ impl Position {
 	/// intended for use in index-based loops to allow simple iteration
 	pub fn difference(&self, rhs: &Position) -> (i32, i32, i32) {
 		((rhs.x - self.x), (rhs.y - self.y), (rhs.z - self.z))
+	}
+}
+impl From<&str> for Position {
+	/// Parses a comma-separated string into a Position triplet; will return the Position::INVALID if there are problems
+	/// parsing the input; if no z-coordinate is specified, will be set to zero
+	fn from(input: &str) -> Self {
+		let parts: Vec<&str> = input.split(',').collect();
+		if parts.len() < 2 || parts.len() > 3 {
+			return Position::INVALID;
+		}
+		let echs = parts[0].parse::<i32>().unwrap_or(-1);
+		let whye = parts[1].parse::<i32>().unwrap_or(-1);
+		let zhee = if parts.len() < 3 { 0 } else { parts[2].parse::<i32>().unwrap_or(-1) };
+		Position {
+			x: echs,
+			y: whye,
+			z: zhee
+		}
 	}
 }
 impl From<(i32, i32, i32)> for Position {
@@ -237,506 +827,6 @@ impl std::ops::Sub<Position> for Position {
 			y_diff: self.y - rhs.y,
 			z_diff: self.z - rhs.z,
 		}
-	}
-}
-
-/// Holds the narrative description of an object. If this component is used as an input for text formatting, it will produce
-/// the name of the entity that owns it. See also the name() and desc() methods
-#[derive(Component, Clone, Debug, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
-pub struct Description {
-	pub name: String,
-	pub desc: String,
-	pub locn: String,
-}
-impl Description {
-	/// Creates a new Description with the given name and description
-	pub fn new() -> Description {
-		Description::default()
-	}
-	pub fn name(mut self, new_name: &str) -> Self {
-		self.name = new_name.to_string();
-		self
-	}
-	pub fn desc(mut self, new_desc: &str) -> Self {
-		self.desc = new_desc.to_string();
-		self
-	}
-	pub fn locn(mut self, new_locn: &str) -> Self {
-		self.locn = new_locn.to_string();
-		self
-	}
-	pub fn get_name(&self) -> String {
-		self.name.clone()
-	}
-	pub fn get_desc(&self) -> String {
-		self.desc.clone()
-	}
-	pub fn get_locn(&self) -> String {
-		self.locn.clone()
-	}
-}
-impl Default for Description {
-	fn default() -> Description {
-		Description {
-			name: "default_name".to_string(),
-			desc: "default_desc".to_string(),
-			locn: "default_locn".to_string(),
-		}
-	}
-}
-impl fmt::Display for Description {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", self.name)
-	}
-}
-
-/// Defines the shape/form of an Entity's physical body within the gameworld, defined on absolute game Positions
-/// Allows Entities to track all of their physical shape, not just their canonical Position
-/// NOTE: if an Entity's 'extended' Body is supposed to use different glyphs, then the Renderable.glyph
-/// property should be set to the _entire_ string, in order, that the game should render
-/// ie the Positions listed in Body.extent need to correspond with the chars in the Entity's Renderable.glyph
-/// If there aren't enough chars to cover all the given Positions, then the last-used char will be repeated
-#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
-pub struct Body { // aka Exterior, Veneer, Mass, Body, Visage, Shape, Bulk, Whole
-	pub ref_posn: Position,
-	//pub extent: Vec<Position>,
-	pub extent: Vec<Glyph>,
-}
-impl Body {
-	pub fn new() -> Body {
-		Body::default()
-	}
-	pub fn single(new_posn: Position, new_glyph: ScreenCell) -> Body {
-		Body {
-			ref_posn: new_posn,
-			extent: vec![(new_posn, new_glyph).into()]
-		}
-	}
-	pub fn glyphs(mut self, new_glyphs: Vec<Glyph>) -> Self {
-		self.extent = new_glyphs;
-		self
-	}
-	pub fn contains(&self, target: &Position) -> bool {
-		for piece in self.extent.iter() {
-			if piece.posn == *target {
-				return true;
-			}
-		}
-		false
-	}
-	pub fn is_adjacent_to(&self, target: &Position) -> bool {
-		self.in_range_of(target, 1)
-	}
-	pub fn in_range_of(&self, target: &Position, range: i32) -> bool {
-		for point in self.extent.iter() {
-			if point.posn.in_range_of(target, range) {
-				return true;
-			}
-		}
-		false
-	}
-	pub fn move_to(&mut self, target: Position) {
-		//let posn_diff = self.ref_posn - target;
-		let posn_diff = target - self.ref_posn;
-		for glyph in self.extent.iter_mut() {
-			glyph.posn += posn_diff;
-		}
-		//debug!("move_to: {}({:?}) to {} => {:?}", self.ref_posn, self.extent, target, posn_diff);
-		self.ref_posn = target;
-	}
-	pub fn project_to(&self, target: Position) -> Vec<Position> {
-		let mut posn_list = Vec::new();
-		let posn_diff = target - self.ref_posn;
-		for glyph in self.extent.iter() {
-			let new_posn = glyph.posn + posn_diff;
-			posn_list.push(new_posn);
-		}
-		posn_list
-	}
-	pub fn posns(&self) -> Vec<Position> {
-		self.extent.iter().map(|x| x.posn).collect()
-	}
-	pub fn glyph_at(&self, target: &Position) -> Option<Glyph> {
-		self.extent.iter().find(|x| x.posn == *target).cloned()
-	}
-}
-
-/// Holds the information needed to display an Entity on the worldmap
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct Renderable {
-	// Field types selected for compatibility with ratatui::buffer::Cell
-	pub glyph: String,  // stdlib
-	pub fg: u8,         // ratatui as a Color::Indexed
-	pub bg: u8,         // ratatui
-	pub mods: u16,      // ratatui
-	pub width: u32,
-	pub height: u32,
-	// The above fields will be superceded by the ScreenCell object list
-	//pub glyphs: HashMap<ScreenCell, Position>,
-	//pub glyphs: Vec<Position, ScreenCell>
-	pub glyphs: Vec<Glyph>,
-}
-impl Renderable {
-	pub fn new() -> Renderable {
-		Renderable::default()
-	}
-	pub fn glyph(mut self, new_glyph: &str) -> Renderable {
-		self.glyph = new_glyph.to_string();
-		self
-	}
-	pub fn dims(mut self, new_width: u32, new_height: u32) -> Renderable {
-		self.width = new_width;
-		self.height = new_height;
-		self
-	}
-	pub fn fg(mut self, fg_value: u8) -> Renderable {
-		self.fg = fg_value;
-		self
-	}
-	pub fn bg(mut self, bg_value: u8) -> Renderable {
-		self.bg = bg_value;
-		self
-	}
-	pub fn get_glyph_at(&self, target: Position) -> Option<Glyph> {
-		self.glyphs.iter().find(|x| x.posn == target).cloned()
-	}
-}
-
-/// Represents a single ScreenCell as a part of an Entity; the Body component can use more than one of these
-/// to construct a multitile entity
-#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
-pub struct Glyph {
-	pub posn: Position,
-	pub cell: ScreenCell,
-}
-impl Glyph {
-	pub fn new() -> Glyph {
-		Glyph::default()
-	}
-	pub fn posn(mut self, target: Position) -> Self {
-		self.posn = target;
-		self
-	}
-	pub fn cell(mut self, new_cell: ScreenCell) -> Self {
-		self.cell = new_cell;
-		self
-	}
-}
-impl From<(Position, ScreenCell)> for Glyph {
-	fn from(value: (Position, ScreenCell)) -> Self {
-		Glyph {
-			posn: value.0,
-			cell: value.1,
-		}
-	}
-}
-impl From<Glyph> for ScreenCell {
-	fn from(value: Glyph) -> ScreenCell {
-		value.cell
-	}
-}
-
-/// Provides an object abstraction for the sensory range of a given entity
-//  INFO: This Viewshed type is NOT eligible for bevy_save because bracket_lib::Point doesn't impl Reflect/FromReflect
-#[derive(Component, Clone, Debug)]
-pub struct Viewshed {
-	pub visible_tiles: Vec<Point>, // for bracket_lib::pathfinding::field_of_view
-	pub range: i32,
-	pub dirty: bool, // indicates whether this viewshed needs to be updated from world data
-	// Adding an Entity type to the enty_memory ought to allow for retrieving that information later, so that the
-	// player's own memory can be queried, something like the Nethack dungeon feature notes tracker
-}
-impl Viewshed {
-	pub fn new(new_range: i32) -> Self {
-		Self {
-			visible_tiles: Vec::new(),
-			range: new_range,
-			dirty: true,
-		}
-	}
-}
-/// Provides a memory of seen entities and other things to an entity with sentience
-#[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
-pub struct Memory {
-	//pub visual: HashMap<Entity, Position>,
-	pub visual: HashMap<Position, Vec<Entity>>,
-}
-impl Memory {
-	pub fn new() -> Self {
-		Memory::default()
-	}
-	fn remove_from_memory(&mut self, target: Entity) {
-		// This line will find the first key-value pair where the value is 'target' and return the key
-		//self.visual.iter().find_map(|(key, &val)| if val.contains(&target) { Some(key) } else { None });
-		// Find all Positions in the actor's memory that contain this Entity
-		let all_points: Vec<Position> = self.visual.iter()
-			.filter_map(|(key, val)| if val.contains(&target) { Some(*key) } else { None }).collect();
-		//debug!("remove_from_memory: {:?}", all_points);
-		// Remove the Entity from those Positions in the actor's memory
-		for posn in all_points.iter() {
-			if let Some(enty_list) = self.visual.get_mut(posn) {
-				enty_list.remove(enty_list.iter().position(|x| *x == target).unwrap());
-			}
-		}
-	}
-	/// Updates the memorized positions for the specified entity; adds to memory if not already present
-	pub fn update(&mut self, target: Entity, posn: Position) {
-		// Find any previous references to this entity in the visual memory and remove them
-		self.remove_from_memory(target); // DEBUG: this method seems to work fine without this call...?
-		// Update the memory with the new position
-		if let Some(enty_list) = self.visual.get_mut(&posn) {
-			enty_list.push(target);
-			//debug!("Memory::update: {:?}", enty_list);
-		} else {
-			self.visual.insert(posn, vec![target]);
-			//debug!("Memory::insert: {:?} @{:?}", target, posn);
-		}
-	}
-}
-/// Defines a set of mechanisms that allow an entity to maintain some internal state and memory of game context
-/// Describes an Entity that can move around under its own power
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct Mobile { }
-/// Describes an entity that obstructs movement by other entities
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct Obstructive { }
-/// Describes an entity that can be picked up and carried around
-//#[derive(Component, Clone, Copy, Debug, Default)]
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
-pub struct Portable {
-	pub carrier: Entity
-}
-impl Portable {
-	pub fn new(target: Entity) -> Portable { Portable { carrier: target } }
-	pub fn empty() -> Portable { Portable { carrier: Entity::PLACEHOLDER } }
-}
-impl MapEntities for Portable {
-	fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
-		self.carrier = entity_mapper.get_or_reserve(self.carrier);
-	}
-}
-impl FromWorld for Portable {
-	// This is intentional (lmao) to prevent issues when loading from save game
-	fn from_world(_world: &mut World) -> Self {
-		Self {
-			carrier: Entity::PLACEHOLDER,
-		}
-	}
-}
-/// Describes an Entity that is currently located within a Container
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct IsCarried { }
-/// Describes an entity which may contain entities tagged with the Portable Component
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct Container { }
-/// Describes an entity that blocks line of sight; comes with an internal state for temp use
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct Opaque {
-	pub opaque: bool
-}
-impl Opaque {
-	pub fn new(setting: bool) -> Self {
-		Opaque {
-			opaque: setting,
-		}
-	}
-}
-/// Describes an entity with an operable barrier of some kind: a container's lid, or a door, &c
-#[derive(Component, Clone, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct Openable {
-	pub is_open: bool,
-	pub is_stuck: bool,
-	pub open_glyph: String,
-	pub closed_glyph: String,
-}
-impl Openable {
-	pub fn new(state: bool, opened: &str, closed: &str) -> Openable {
-		Openable {
-			is_open: state,
-			is_stuck: false,
-			open_glyph: opened.to_string(),
-			closed_glyph: closed.to_string(),
-		}
-	}
-}
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct Lockable {
-	pub is_locked: bool,
-	pub key: i32
-}
-impl Lockable {
-	// Unlocks, given the correct key value as input
-	pub fn unlock(&mut self, test_key: i32) -> bool {
-		if test_key == self.key {
-			self.is_locked = false;
-			return true;
-		}
-		false
-	}
-	// Locks when called; if a key is given, it will overwrite the previous key-value
-	// Specify a value of 0 to obtain the existing key-value instead
-	pub fn lock(&mut self, new_key: i32) -> i32 {
-		self.is_locked = true;
-		if new_key != 0 { self.key = new_key; }
-		self.key
-	}
-}
-/// Describes an entity that can lock or unlock a Lockable object
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct Key { pub key_id: i32 }
-/// Describes an entity with behavior that can be applied/used/manipulated by another entity
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
-#[reflect(Component)]
-pub struct Device {
-	pub pw_switch: bool,
-	pub batt_voltage: i32,
-	pub batt_discharge: i32,
-	pub state: DeviceState,
-}
-impl Device {
-	/// Creates a new Device; set the batt_discharge param to 0 to disable battery use
-	pub fn new(discharge_rate: i32) -> Device {
-		Device {
-			pw_switch: false,
-			batt_voltage: 0, // BATTERIES NOT INCLUDED LMAOOO
-			batt_discharge: discharge_rate,
-			state: DeviceState::Offline,
-		}
-	}
-	/// Turns on the device, if there's any power remaining. Returns false if no power left.
-	pub fn power_on(&mut self) -> bool {
-		if self.batt_voltage > 0
-		|| self.batt_discharge == 0 {
-			self.pw_switch = true;
-			self.state = DeviceState::Idle;
-		}
-		self.pw_switch
-	}
-	/// Turns off the device.
-	pub fn power_off(&mut self) {
-		self.pw_switch = false;
-		self.state = DeviceState::Offline;
-	}
-	/// Discharges battery power according to the specified duration, returns current power level
-	pub fn discharge(&mut self, duration: i32) -> i32 {
-		if self.batt_discharge < 0 {
-			// This item does not need a battery/has infinite power, so no discharge can occur
-			return self.batt_voltage;
-		}
-		self.batt_voltage -= self.batt_discharge * duration;
-		if self.batt_voltage < 0 { self.batt_voltage = 0; }
-		self.batt_voltage
-	}
-	/// Recharges the battery to the given percentage
-	pub fn recharge(&mut self, charge_level: i32) -> i32 {
-		self.batt_voltage += charge_level;
-		self.batt_voltage
-	}
-	/// power toggle
-	pub fn power_toggle(&mut self) -> bool {
-		// NOTE: trying to invoke these methods doesn't seem to work here; not sure why
-		//if !self.pw_switch { self.power_on(); }
-		//else { self.power_off(); }
-		self.pw_switch = !self.pw_switch;
-		self.pw_switch
-	}
-}
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
-pub enum DeviceState {
-	#[default]
-	Offline,
-	Idle,
-	Working,
-	Error(u32) // Takes an error code as a specifier
-}
-/// Describes an entity with a PLANQ-compatible maintenance system
-#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
-pub struct AccessPort { }
-/// Describes an entity that can connect to and communicate with the shipnet
-#[derive(Component, Copy, Clone, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
-pub struct Networkable { }
-
-//  *** PRIMITIVES AND COMPUTED VALUES (ie no save/load)
-/// A small type that lets us specify friendly names for colors instead of using ints everywhere
-/// Because none of these carry any data, they can be cast to numeric types directly
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-pub enum Color {
-	// These are arranged in order of their ANSI index
-	Black,    // 00
-	Red,      // 01
-	Green,    // 02
-	Yellow,   // 03
-	Blue,     // 04
-	Pink,     // 05
-	Cyan,     // 06
-	White,    // 07
-	#[default]
-	LtBlack,  // 08
-	LtRed,    // 09
-	LtGreen,  // 10
-	LtYellow, // 11
-	LtBlue,   // 12
-	LtPink,   // 13
-	LtCyan,   // 14
-	LtWhite   // 15
-}
-/// A convenient type that makes it clear whether we mean the Player entity or some other
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Creature {
-	Player,     // The player(s)
-	Zilch,      // Any non-player entity or character
-}
-/// The compass rose - note this is not a component...
-/// These are mapped to cardinals just for ease of comprehension
-#[derive(AsRefStr, Component, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
-#[reflect(Component)]
-pub enum Direction {
-	#[default]
-	X,
-	N,
-	NW,
-	W,
-	SW,
-	S,
-	SE,
-	E,
-	NE,
-	UP,
-	DOWN
-}
-impl fmt::Display for Direction {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let text: String = match self {
-			Direction::X    => { "null_dir".to_string() }
-			Direction::N    => { "North".to_string() }
-			Direction::NW   => { "Northwest".to_string() }
-			Direction::W    => { "West".to_string() }
-			Direction::SW   => { "Southwest".to_string() }
-			Direction::S    => { "South".to_string() }
-			Direction::SE   => { "Southeast".to_string() }
-			Direction::E    => { "East".to_string() }
-			Direction::NE   => { "Northeast".to_string() }
-			Direction::UP   => { "Up".to_string() }
-			Direction::DOWN => { "Down".to_string() }
-		};
-		write!(f, "{}", text)
 	}
 }
 

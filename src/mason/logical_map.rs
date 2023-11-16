@@ -9,6 +9,7 @@ use bevy::prelude::{
 	Resource
 };
 use crate::mason::*;
+use crate::artisan::*;
 
 //   - LOGICAL SHIP TOPOLOGY
 // These linked-list directed graph routines were transcribed from:
@@ -88,7 +89,6 @@ impl ShipGraph {
 				}
 			}
 			let pathway = crate::mason::get_line(&centerpoint, &target);
-			debug!("* {}", pathway.len());
 			for point in pathway {
 				self.rooms[room_index].new_interior.insert(point, GraphCell::new(CellType::Margin));
 			}
@@ -120,6 +120,10 @@ impl ShipGraph {
 			false
 		}
 	}
+	/// Returns the list of all rooms currently listed in the internal graph
+	pub fn get_room_list(&self) -> Vec<String> {
+		self.rooms.iter().map(|x| x.name.clone()).collect()
+	}
 }
 
 /// Describes a node in the topology graph, a single Room which is composed of a set of Positions
@@ -150,18 +154,6 @@ impl Default for GraphRoom {
 		}
 	}
 }
-// JsonRoom:
-// name: String
-// exits: Vec<String> (other room names)
-// corner: Vec<usize> (raw position triplet)
-// width: usize (add +1 to include the right wall)
-// height: usize (add +1 to include the lower wall)
-// POSNS:
-// centerpoint: corner.x + width / 2, corner.y + height / 2
-// Wall UL: corner
-// Wall DL: corner.x, corner.y + height
-// Wall UR: corner.x + width, corner.y
-// Wall DR: corner.x + width, corner.y + height
 impl From<JsonRoom> for GraphRoom {
 	fn from(new_room: JsonRoom) -> Self {
 		// *** OLD
@@ -220,6 +212,7 @@ impl GraphRoom {
 	}
 	pub fn debug_print(&self) {
 		let z_level = self.ul_corner.z;
+		debug!("--- interior map for GraphRoom {}", self.name);
 		for whye in self.ul_corner.y..=(self.dr_corner.y) {
 			let mut line_string: String = "".to_string();
 			for echs in self.ul_corner.x..=(self.dr_corner.x) {
@@ -242,11 +235,10 @@ impl GraphRoom {
 					}
 				}
 			}
-			debug!("{}", line_string);
+			debug!("{}", line_string); // DEBUG: prints the collision detection map of the room
 		}
 	}
 	pub fn find_open_space(&self, template: Vec<(Qpoint, CellType)>) -> Option<Vec<Position>> {
-		debug!("* find_open_space called");
 		// METHOD
 		// Choose a random starting point within the room
 		// Use the template's offsets to validate the tiles needed for the spawn position
@@ -258,14 +250,12 @@ impl GraphRoom {
 				start_points.push(s_point.0);
 			}
 		}
-		debug!("* start_points: {:?}", start_points);
 		let mut point_list = Vec::new();
 		loop {
 			// Get a starting point to test
 			let start_point = start_points.pop().unwrap();
 			// Check the points in the template
 			for t_point in template.iter() {
-				//let next_point = start_point + t_point.0;
 				let next_point: Position = Position {
 					x: start_point.x + t_point.0.0 as i32,
 					y: start_point.y + t_point.0.1 as i32,
@@ -279,8 +269,6 @@ impl GraphRoom {
 				}
 			}
 			// The template and the output should have exactly the same list length
-			debug!("* resulting points: {:?}", point_list);
-			debug!("* template.len(): {} point_list.len(): {}", template.len(), point_list.len());
 			if template.len() == point_list.len() {
 				success_flag = true;
 			} else {
@@ -290,6 +278,9 @@ impl GraphRoom {
 				return Some(point_list);
 			}
 		}
+	}
+	pub fn place_item(&self, _new_item: ItemPattern) {
+		todo!("* GraphRoom::place_item() unfinished: validate the ItemPattern in the GraphRoom's logical map")
 	}
 }
 /// Describes an edge in the topology graph, a connection between two GraphRooms

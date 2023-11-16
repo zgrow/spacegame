@@ -35,7 +35,7 @@ pub fn xy_to_index(x: usize, y: usize, w: usize) -> usize {
 #[derive(Resource, Clone, Debug, Default, Reflect)]
 #[reflect(Resource)]
 pub struct Model {
-	pub levels: Vec<Map>,
+	pub levels: Vec<GameMap>,
 	pub layout: ShipGraph,
 	// WARN: DO NOT CONVERT THIS TO A HASHMAP OR BTREEMAP
 	// Bevy's implementation of hashing and reflection makes this specific kind of Hashmap usage
@@ -131,7 +131,7 @@ impl Model {
 		// 4. return either the valid position set, or a None, as appropriate
 		// Don't bother with any of this if we didn't specify a valid target in the first place
 		if let Some(room_index) = self.layout.get_room_index(target_room) {
-			debug!("* looking for spawn area in room {}", target_room); // DEBUG:
+			//debug!("* looking for spawn area in room {}", target_room); // DEBUG:
 			self.layout.rooms[room_index].debug_print(); // DEBUG:
 			// Make a template box from the input dims
 			let mut template = Vec::new();
@@ -145,12 +145,15 @@ impl Model {
 		}
 		None
 	}
+	pub fn get_room_name_list(&self) -> Vec<String> {
+		self.layout.get_room_list()
+	}
 }
 
 /// Represents a single layer of physical space in the game world
 #[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
-pub struct Map {
+pub struct GameMap {
 	pub tiles: Vec<Tile>,
 	pub width: usize,
 	pub height: usize,
@@ -159,11 +162,11 @@ pub struct Map {
 	pub blocked_tiles: Vec<bool>,
 	pub opaque_tiles: Vec<bool>,
 }
-impl Map {
+impl GameMap {
 	/// Generates a map from the default settings
-	pub fn new(new_width: usize, new_height: usize) -> Map {
+	pub fn new(new_width: usize, new_height: usize) -> GameMap {
 		let map_size = new_width * new_height;
-		Map {
+		GameMap {
 			tiles: vec![Tile::default(); map_size],
 			width: new_width,
 			height: new_height,
@@ -237,7 +240,7 @@ impl Map {
 	//}
 }
 // bracket-lib uses the Algorithm2D and BaseMap traits for FOV and pathfinding
-impl Algorithm2D for Map {
+impl Algorithm2D for GameMap {
 	fn dimensions(&self) -> Point {
 		Point::new(self.width, self.height)
 	}
@@ -247,7 +250,7 @@ impl Algorithm2D for Map {
 	}
 	*/
 }
-impl BaseMap for Map {
+impl BaseMap for GameMap {
 	fn is_opaque(&self, index: usize) -> bool {
 		self.opaque_tiles[index]
 	}
@@ -321,7 +324,7 @@ impl Tile {
 		}
 		Some(self.contents[0].1)
 	}
-	/// Retrieves the entire list of contents of this Tile
+	/// Retrieves the entire list of contents of this Tile; returns an empty vector if there's nothing to see
 	pub fn get_all_contents(&self) -> Vec<Entity> {
 		self.contents.iter().map(|x| x.1).collect()
 	}

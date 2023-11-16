@@ -73,7 +73,7 @@ impl Default for XpFileParser {
 	}
 }
 /// Produces a Map object, complete with tilemap, from the specified REXPaint resource
-pub fn load_rex_map(xp_file: &XpFile) -> (Map, Vec<(ItemType, Position)>) {
+pub fn load_rex_map(xp_file: &XpFile) -> (GameMap, Vec<(ItemType, Position)>) {
 	let mut new_width: usize = 1;
 	let mut new_height: usize = 1;
 	let mut layer_count = 0;
@@ -84,7 +84,7 @@ pub fn load_rex_map(xp_file: &XpFile) -> (Map, Vec<(ItemType, Position)>) {
 	}
 	// WARN: We assume only ONE layer exists in the file!
 	assert!(layer_count == 1, "More than one layer detected in REXfile");
-	let mut map: Map = Map::new(new_width, new_height);
+	let mut map: GameMap = GameMap::new(new_width, new_height);
 	let mut enty_list = Vec::new();
 	for layer in &xp_file.layers {
 		debug!("- Loading map from rexfile"); //:DEBUG:

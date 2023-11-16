@@ -9,6 +9,12 @@
 //        Scenery
 // QUERY: It might be worth adapting Doors to be a special case of Furniture
 
+// The simplest possible object worth representing in the game world should have the following components:
+// - Description: provides the item's name, required for environment
+// - Body: provides the item's visual representation and canonical position, required for environment
+// - ActionSet: provides interaction context: not required for anything that the player shouldn't interact with
+// Any other fields are optional for functionality but if needed, must be provided by the item defn
+
 use bevy::prelude::*;
 
 use crate::artisan::*;
@@ -26,7 +32,7 @@ pub struct Furniture {
 #[derive(Bundle)]
 pub struct Scenery {
 	pub backdrop:  Facade, // tag Component to make exclusion from queries easier
-	pub render:    Renderable,
+	//pub render:    Renderable,
 	pub obstruct:  Obstructive,
 	pub opaque:    Opaque,
 }

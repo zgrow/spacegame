@@ -76,7 +76,7 @@ impl JsonWorldBuilder {
 		let mut hallway_tiles: Vec<Vec<Position>> = Vec::new();
 		let mut logical_door_list: Vec<Position> = Vec::new();
 		for (z_posn, input_map) in input_data.map_list.iter().enumerate() {
-			let mut new_map = Map::new(input_map.width, input_map.height);
+			let mut new_map = GameMap::new(input_map.width, input_map.height);
 			let mut current_hallway = Vec::new();
 			for (y_posn, line) in input_map.tilemap.iter().enumerate() {
 				for (x_posn, tile) in line.chars().enumerate() {
@@ -189,7 +189,7 @@ impl WorldBuilder for JsonWorldBuilder {
 // *** MAPBUILDER
 pub trait MapBuilder {
 	fn build_map(&mut self);
-	fn get_map(&self) -> Map;
+	fn get_map(&self) -> GameMap;
 	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)>;
 }
 pub fn get_map_builder(selection: i32) -> Box<dyn MapBuilder>{
@@ -203,7 +203,7 @@ pub fn get_map_builder(selection: i32) -> Box<dyn MapBuilder>{
 }
 /// Creates the top level of the dev testing map
 pub struct DevMapLobby {
-	map: Map,
+	map: GameMap,
 	new_entys: Vec<(ItemType, Position)>,
 }
 impl MapBuilder for DevMapLobby {
@@ -212,7 +212,7 @@ impl MapBuilder for DevMapLobby {
 		// make a blank map of size 30x30 tiles
 		let new_width = 30;
 		let new_height = 30;
-		self.map = Map::new(new_width, new_height);
+		self.map = GameMap::new(new_width, new_height);
 		// set the index and its maximums
 		let mut index;
 		// Put up some walls and floors
@@ -255,7 +255,7 @@ impl MapBuilder for DevMapLobby {
 		index = self.map.to_index(7, 7);
 		self.map.tiles[index] = Tile::new_stairway();
 	}
-	fn get_map(&self) -> Map {
+	fn get_map(&self) -> GameMap {
 		self.map.clone()
 	}
 	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
@@ -265,7 +265,7 @@ impl MapBuilder for DevMapLobby {
 impl DevMapLobby {
 	pub fn new() -> DevMapLobby {
 		DevMapLobby {
-			map: Map::new(1, 1),
+			map: GameMap::new(1, 1),
 			new_entys: Vec::new(),
 		}
 	}
@@ -277,7 +277,7 @@ impl Default for DevMapLobby {
 }
 /// Creates the bottom level of the dev testing map
 pub struct DevMapBasement {
-	map: Map,
+	map: GameMap,
 	new_entys: Vec<(ItemType, Position)>,
 }
 impl MapBuilder for DevMapBasement {
@@ -285,7 +285,7 @@ impl MapBuilder for DevMapBasement {
 		// do the thing
 		let new_width = 30;
 		let new_height = 30;
-		self.map = Map::new(new_width, new_height);
+		self.map = GameMap::new(new_width, new_height);
 		let mut index;
 		let x_max = new_width - 1;
 		let y_max = new_height - 1;
@@ -305,7 +305,7 @@ impl MapBuilder for DevMapBasement {
 		index = self.map.to_index(5, 5);
 		self.map.tiles[index] = Tile::new_stairway();
 	}
-	fn get_map(&self) -> Map {
+	fn get_map(&self) -> GameMap {
 		self.map.clone()
 	}
 	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
@@ -315,7 +315,7 @@ impl MapBuilder for DevMapBasement {
 impl DevMapBasement {
 	pub fn new() -> DevMapBasement {
 		DevMapBasement {
-			map: Map::new(1, 1),
+			map: GameMap::new(1, 1),
 			new_entys: Vec::new(),
 		}
 	}

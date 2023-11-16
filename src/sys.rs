@@ -35,7 +35,6 @@ use crate::components::{
 	Mobile,
 	Player,
 	Position,
-	Renderable
 };
 use crate::engine::event::*;
 use crate::engine::event::GameEventType::*;
@@ -246,7 +245,7 @@ pub fn lockable_system(mut _commands:    Commands,
 				if carried_keys.is_empty() { continue; } // no keys to try!
 				// The actor has at least one key to try in the lock
 				for key in carried_keys.iter() {
-					if key.1 == target.3.key {
+					if key.1 == target.3.key_id {
 						// the subject has the right key, unlock the lock
 						target.3.is_locked = false;
 						if player_action {
@@ -472,8 +471,8 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 pub fn openable_system(mut commands:    Commands,
 	                     mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
-	                     mut door_query:  Query<(Entity, &Body, &mut Openable, &mut Renderable, &mut Opaque, Option<&Obstructive>)>,
-	                     mut e_query:     Query<(Entity, &Body, &Description, Option<&Player>, Option<&mut Viewshed>)>,
+	                     mut door_query:  Query<(Entity, &mut Body, &mut Openable, &mut Opaque, Option<&Obstructive>)>,
+	                     mut e_query:     Query<(Entity, &Body, &Description, Option<&Player>, Option<&mut Viewshed>), Without<Openable>>,
 ) {
 	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
@@ -488,43 +487,48 @@ pub fn openable_system(mut commands:    Commands,
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
 		debug!("actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
-		let actor = e_query.get_mut(econtext.subject).unwrap();
-		let player_action = actor.3.is_some();
+		//let actor = e_query.get_mut(econtext.subject).unwrap();
+		let (_enty, _body, a_desc, a_player, a_viewshed) = e_query.get_mut(econtext.subject).unwrap();
+		let is_player_action = a_player.is_some();
 		let mut message: String = "".to_string();
 		match atype {
 			ActionType::OpenItem => {
 				debug!("Trying to open a door"); // DEBUG: announce opening a door
-				for mut door in door_query.iter_mut() {
-					if door.0 == econtext.object {
-						door.2.is_open = true;
-						door.3.glyph = door.2.open_glyph.clone();
-						door.4.opaque = false;
-						commands.entity(door.0).remove::<Obstructive>();
+				for (d_enty, mut d_body, mut d_open, mut d_opaque, _obstruct) in door_query.iter_mut() {
+					if d_enty == econtext.object {
+						d_open.is_open = true;
+						let ref_posn = d_body.ref_posn;
+						d_body.set_glyph_at(ref_posn, &d_open.open_glyph);
+						d_opaque.opaque = false;
+						commands.entity(d_enty).remove::<Obstructive>();
 					}
 				}
-				if player_action {
+				if is_player_action {
 					message = "You open the [door]".to_string();
 				} else {
-					message = format!("The {} opens a [door].", actor.2.name.clone());
+					message = format!("The {} opens a [door].", a_desc.name.clone());
 				}
-				if actor.4.is_some() { actor.4.unwrap().dirty = true; }
+				//if a_viewshed.is_some() { a_viewshed.unwrap().dirty = true; }
+				if let Some(mut view) = a_viewshed { view.dirty = true; }
 			}
 			ActionType::CloseItem => {
 				debug!("Trying to close a door"); // DEBUG: announce closing door
-				for mut door in door_query.iter_mut() {
-					if door.0 == econtext.object {
-						door.2.is_open = false;
-						door.3.glyph = door.2.closed_glyph.clone();
-						door.4.opaque = true;
-						commands.entity(door.0).insert(Obstructive {});
+				for (d_enty, mut d_body, mut d_open, mut d_opaque, _obstruct) in door_query.iter_mut() {
+					if d_enty == econtext.object {
+						d_open.is_open = false;
+						let ref_posn = d_body.ref_posn;
+						d_body.set_glyph_at(ref_posn, &d_open.closed_glyph);
+						d_opaque.opaque = true;
+						commands.entity(d_enty).insert(Obstructive {});
 					}
 				}
-				if player_action {
+				if is_player_action {
 					message = "The [door] slides shut.".to_string();
 				} else {
-					message = format!("The {} closes a [door].", actor.2.name.clone());
+					message = format!("The {} closes a [door].", a_desc.name.clone());
 				}
-				if actor.4.is_some() { actor.4.unwrap().dirty = true; }
+				//if a_viewshed.is_some() { a_viewshed.unwrap().dirty = true; }
+				if let Some(mut view) = a_viewshed { view.dirty = true; }
 			}
 			_ => { }
 		}
@@ -558,36 +562,42 @@ pub fn operable_system(mut ereader: EventReader<GameEvent>,
 /// Handles entities that can see physical light
 pub fn visibility_system(mut model:  ResMut<Model>,
 	                       mut seers:  Query<(&mut Viewshed, &Body, Option<&Player>, Option<&mut Memory>), Changed<Viewshed>>,
-	                       observable: Query<(Entity, &Body, &Renderable)>,
+	                       //observable: Query<(Entity, &Body)>,
 ) {
-	for (mut viewshed, s_posn, player, memory) in &mut seers {
+	for (mut s_viewshed, s_body, player, s_memory) in &mut seers {
 		//debug!("* [vis_sys] s_posn: {s_posn:?}"); // DEBUG: print the position of the entity being examined
-		if viewshed.dirty {
-			assert!(s_posn.ref_posn.z != -1);
-			let map = &mut model.levels[s_posn.ref_posn.z as usize];
-			viewshed.visible_tiles.clear();
-			viewshed.visible_tiles = field_of_view(posn_to_point(&s_posn.ref_posn), viewshed.range, map);
-			viewshed.visible_tiles.retain(|p| p.x >= 0 && p.x < map.width as i32
+		if s_viewshed.dirty {
+			assert!(s_body.ref_posn.z != -1, "! ERROR: Encountered negative z-level index!");
+			let map = &mut model.levels[s_body.ref_posn.z as usize];
+			s_viewshed.visible_points.clear();
+			// An interesting thought: should an Entity be able to 'see' from every part of its body?
+			// Right now it is calculated just from the Entity's reference point, the 'head'
+			s_viewshed.visible_points = field_of_view(posn_to_point(&s_body.ref_posn), s_viewshed.range, map);
+			s_viewshed.visible_points.retain(|p| p.x >= 0 && p.x < map.width as i32
 				                             && p.y >= 0 && p.y < map.height as i32
 			);
 			if let Some(_player) = player { // if this is the player...
-				for s_posn in &viewshed.visible_tiles { // For all the player's visible tiles...
+				for s_posn in &s_viewshed.visible_points { // For all the player's visible tiles...
 					// ... set the corresponding tile in the map.revealed_tiles to TRUE
 					let map_index = map.to_index(s_posn.x, s_posn.y);
 					map.revealed_tiles[map_index] = true;
 				}
 			}
-			if let Some(mut recall) = memory { // If the seer entity has a memory...
-				for v_posn in &viewshed.visible_tiles { // Iterate on all tiles they can see:
-					let new_posn = Position::new(v_posn.x, v_posn.y, s_posn.ref_posn.z);
-					for target in observable.iter() {
-						if target.1.ref_posn == new_posn {
-							recall.update(target.0, new_posn);
-						}
-					}
+			if let Some(mut recall) = s_memory { // If the seer entity has a memory...
+				let mut observations = Vec::new();
+				for v_posn in &s_viewshed.visible_points { // Iterate on all points they can see:
+					let observed_posn = Position::new(v_posn.x, v_posn.y, s_body.ref_posn.z);
+					let observation = model.get_contents_at(observed_posn); // Get the list of observed entities
+					let some_observed_entys = if !observation.is_empty() {
+						Some(observation)
+					} else {
+						None
+					};
+					observations.push((observed_posn, some_observed_entys));
 				}
+				recall.update(observations);
 			}
-			viewshed.dirty = false;
+			s_viewshed.dirty = false;
 		}
 	}
 }
@@ -596,7 +606,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 /// Adds a new player entity to a new game world
 pub fn new_player_spawn(mut commands: Commands,
 	                      spawnpoint:   Res<Position>,
-												mut model:    ResMut<Model>,
+	                      mut model:    ResMut<Model>,
 	                      mut p_query:  Query<(Entity, &Player)>,
 	                      mut msglog:   ResMut<MessageLog>,
 	                      mut global_rng: ResMut<GlobalRng>,
@@ -621,9 +631,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		ActionSet::new(),
 		Description::new().name("Pleyeur").desc("Still your old self."),
 		*spawnpoint,
-		//Body::single(*spawnpoint).extend(extra_posns),
-		Body::single(*spawnpoint, ScreenCell::new().glyph("@").fg(2).bg(0).clone()),
-		Renderable::new().glyph("@").fg(2).bg(0),
+		Body::small(*spawnpoint, ScreenCell::new().glyph("@").fg(2).bg(0).clone()),
 		Viewshed::new(8),
 		Mobile::default(),
 		Obstructive::default(),
@@ -636,7 +644,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Planq::new(),
 		ActionSet::new(),
 		Description::new().name("PLANQ").desc("It's your PLANQ."),
-		Renderable::new().glyph("¶").fg(3).bg(0),
+		Body::small(*spawnpoint, ScreenCell::new().glyph("¶").fg(3).bg(0)),
 		Portable::new(player),
 		Device::new(-1),
 		RngComponent::from(&mut global_rng),
@@ -652,12 +660,13 @@ pub fn new_player_spawn(mut commands: Commands,
 pub fn new_lmr_spawn(mut commands:  Commands,
 	                   mut msglog:    ResMut<MessageLog>,
 ) {
+	let lmr_spawnpoint = (12, 12, 0).into();
 	commands.spawn((
 		LMR         { },
 		ActionSet::new(),
 		Description::new().name("LMR").desc("The Light Maintenance Robot is awaiting instructions."),
-		Position::new(12, 12, 0), // TODO: remove magic numbers
-		Renderable::new().glyph("l").fg(14).bg(0),
+		lmr_spawnpoint, // TODO: remove magic numbers
+		Body::small(lmr_spawnpoint, ScreenCell::new().glyph("l").fg(14).bg(0)),
 		Viewshed::new(5),
 		Mobile::default(),
 		Obstructive::default(),
@@ -669,7 +678,7 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 /// Adds a demo NPC to the game world
 pub fn test_npc_spawn(mut commands: Commands,
 	                    mut rng:      ResMut<GlobalRng>,
-	                    e_query:      Query<(Entity, &Position)>,
+	                    e_query:      Query<(Entity, &Position)>, // ERROR: replace Position cmp. with Body!
 ) {
 	let spawnpoint = Position::new(rng.i32(1..30), rng.i32(1..30), 0);
 	// Check the spawnpoint for collisions
@@ -684,7 +693,6 @@ pub fn test_npc_spawn(mut commands: Commands,
 		ActionSet::new(),
 		Description::new().name("Jenaryk").desc("Behold, a generic virtual cariacature of a man."),
 		spawnpoint,
-		Renderable::new().glyph("&").fg(1).bg(0),
 		Viewshed::new(8),
 		Mobile::default(),
 		Obstructive::default(),
@@ -700,27 +708,18 @@ pub fn test_furniture_spawn(mut commands: Commands,
 ) {
 	if let Some(spawnpoints) = model.find_spawn_area_in("MedBay", 3, 1) {
 		debug!("* spawnpoints for test_furniture_spawn: {:?}", spawnpoints);
-		//commands.spawn((
-		//let mut body_glyphs = Vec::new();
-		//body_glyphs.push(Glyph::new().cell(ScreenCell::create("1", 5, 0, 0)).posn(spawnpoints[0]).clone());
-		//body_glyphs.push(Glyph::new().cell(ScreenCell::create("2", 5, 0, 0)).posn(spawnpoints[1]).clone());
-		//body_glyphs.push(Glyph::new().cell(ScreenCell::create("3", 5, 0, 0)).posn(spawnpoints[2]).clone());
-		let body_glyphs = vec![
-			Glyph::new().cell(ScreenCell::create("1", 5, 0, 0)).posn(spawnpoints[0]).clone(),
-			Glyph::new().cell(ScreenCell::create("2", 5, 0, 0)).posn(spawnpoints[1]).clone(),
-			Glyph::new().cell(ScreenCell::create("3", 5, 0, 0)).posn(spawnpoints[2]).clone(),
+		let body_cells = vec![
+			ScreenCell::create("1", 5, 0, 0),
+			ScreenCell::create("2", 5, 0, 0),
+			ScreenCell::create("3", 5, 0, 0),
 		];
 		let new_id = commands.spawn((
 			ActionSet::new(),
 			Description::new().name("techno-device").desc("A large chromed construction with many blinkenlights and buttons."),
-			//Body::single(spawnpoints[0]).extend(spawnpoints.clone()),
-			//Body::new().glyphs(spawnpoints.iter().zip("123".chars()).collect()),
-			Body::new().glyphs(body_glyphs),
-			Renderable::new().glyph("123").fg(5).bg(0),
+			Body::large(spawnpoints.clone(), body_cells),
 			Obstructive::default(),
 		)).id();
 		model.add_contents(&spawnpoints, 0, new_id);
-		//debug!("* Spawned a test furniture piece at {}", spawnpoints[0]); // DEBUG: announce test furniture
 		debug!("* Spawned a test furniture piece {:?} at {}", new_id, spawnpoints[0]); // DEBUG: announce test furniture
 	} else {
 		debug!("* Could not find room to spawn test furniture");
