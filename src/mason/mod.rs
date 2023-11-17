@@ -51,7 +51,8 @@ pub fn lerp(start: f32, end: f32, tee: f32) -> f32 {
 pub trait WorldBuilder {
 	fn build_world(&mut self);
 	fn get_model(&self) -> Model;
-	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)>;
+	//fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)>;
+	fn get_item_spawn_list(&self) -> Vec<(String, Position)>;
 }
 /// Loads a worldmodel from a pregenerated JSON file and sets it up for gameplay
 pub fn get_world_builder() -> Box<dyn WorldBuilder> {
@@ -63,6 +64,7 @@ pub fn get_world_builder() -> Box<dyn WorldBuilder> {
 pub struct JsonWorldBuilder {
 	model: Model,
 	new_entys: Vec<(ItemType, Position)>,
+	enty_list: Vec<(String, Position)>,
 }
 impl JsonWorldBuilder {
 	pub fn load_json_file(&mut self, file_path: &str) {
@@ -92,6 +94,7 @@ impl JsonWorldBuilder {
 						'=' => {
 							logical_door_list.push((x_posn, y_posn, z_posn).into());
 							self.new_entys.push((ItemType::Door, Position::new(x_posn as i32, y_posn as i32, z_posn as i32)));
+							self.enty_list.push(("door".to_string(), (x_posn, y_posn, z_posn).into()));
 							Tile::new_floor()
 						}
 						 _  => { Tile::new_vacuum() }
@@ -181,8 +184,11 @@ impl WorldBuilder for JsonWorldBuilder {
 	fn get_model(&self) -> Model {
 		self.model.clone()
 	}
-	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
-		self.new_entys.clone()
+	//fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
+	//	self.new_entys.clone()
+	//}
+	fn get_item_spawn_list(&self) -> Vec<(String, Position)> {
+		self.enty_list.clone()
 	}
 }
 

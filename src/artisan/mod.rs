@@ -70,16 +70,20 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		}
 	}
 	pub fn create(&mut self, new_item: &str) -> &mut ItemBuilder {
+		debug!("* ItemBuilder request: '{}'", new_item);
 		if let Some(item_data) = self.dict.furniture.iter().find(|x| x.name == new_item) {
 			self.desc = Some(Description::new().name(&item_data.name).desc(&item_data.desc));
+			for line in item_data.body.iter() {
+				debug!("*** {}", line);
+			}
 			debug!("* recvd item_data.body: {:?}", item_data.body.clone());
 			self.body = Some(Body::new_from_str(item_data.body.clone()));
 			// FIXME: need to import the placement pattern *here* as self.shape
 			if !item_data.extra.is_empty() {
 				// Parse and add any additional components that are in the item's definition
-				debug!("* recvd item_data.extra: {:?}", item_data.extra);
+				//debug!("* recvd item_data.extra: {:?}", item_data.extra);
 				for component in item_data.extra.iter() {
-					debug!("* raw component value: {}", component);
+					//debug!("* raw component value: {}", component);
 					// HINT: This will in fact return the entire string if the string consists of only a single word
 					//let new_string: Vec<&str> = component.split(' ').collect();
 					let mut new_cmpnt = component.split(' ');
@@ -97,9 +101,9 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 									match key {
 										"name" => { new_desc.name = value.to_string(); }
 										"desc" => { new_desc.desc = value.to_string(); }
-										_ => { debug!("* component key:value {}:{} was not recognized", key, value); }
+										_ => { warn!("* component key:value {}:{} was not recognized", key, value); }
 									}
-								} else { debug!("* could not split key:value on component {}", part); }
+								} else { warn!("* could not split key:value on component {}", part); }
 							}
 							self.desc = Some(new_desc);
 						}
@@ -111,9 +115,9 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 										"state" => { new_device.pw_switch = value.parse().expect(&(error_msg.to_owned() + "device:state")); }
 										"voltage" => { new_device.batt_voltage = value.parse().expect(&(error_msg.to_owned() + "device:voltage")); }
 										"rate" => { new_device.batt_discharge = value.parse().expect(&(error_msg.to_owned() + "device:rate")); }
-										_ => { debug!("* component key:value {}:{} was not recognized", key, value); }
+										_ => { warn!("* component key:value {}:{} was not recognized", key, value); }
 									}
-								} else { debug!("* could not split key:value on component {}", part); }
+								} else { warn!("* could not split key:value on component {}", part); }
 							}
 							self.device = Some(new_device);
 						}
@@ -122,8 +126,8 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 							for string in details.iter() {
 								if let Some((key, value)) = string.split_once(':') {
 									if key == "id" { new_key.key_id = value.parse().expect(&(error_msg.to_owned() + "key:id")); }
-									else { debug!("* component key:value {}:{} was not recognized", key, value); }
-								} else { debug!("* could not split key:value on component {}", part); }
+									else { warn!("* component key:value {}:{} was not recognized", key, value); }
+								} else { warn!("* could not split key:value on component {}", part); }
 							}
 							self.key = Some(new_key);
 						}
@@ -134,9 +138,9 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 									match key {
 										"state" => { new_lock.is_locked = value.parse().expect(&(error_msg.to_owned() + "lockable:state")); }
 										"key_id" => { new_lock.key_id = value.parse().expect(&(error_msg.to_owned() + "lockable:key_id")); }
-										_ => { debug!("* component key:value {}:{} was not recognized", key, value); }
+										_ => { warn!("* component key:value {}:{} was not recognized", key, value); }
 									}
-								} else { debug!("* could not split key:value on component {}", part); }
+								} else { warn!("* could not split key:value on component {}", part); }
 							}
 							self.lock = Some(new_lock);
 						}
@@ -145,10 +149,16 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 						"obstructs"   => { self.obstruct = Some(Obstructive::default()); } // tag component
 						"opaque"      => {
 							let mut new_opaque = Opaque::default();
-							for string in details.iter() {
-								if let Some((key, value)) = string.split_once(':') {
-									if key == "state" { new_opaque.opaque = value.parse().expect(&(error_msg.to_owned() + "opaque:state")); }
-									else { debug!("* component key:value {}:{} was not recognized", key, value); }
+							if details.is_empty() {
+								// The default for a boolean in Rust is 'false', which means that the Opaque::default()
+								// is an Opaque component with component.opaque = false, meaning transparent
+								new_opaque.opaque = true;
+							} else {
+								for string in details.iter() {
+									if let Some((key, value)) = string.split_once(':') {
+										if key == "state" { new_opaque.opaque = value.parse().expect(&(error_msg.to_owned() + "opaque:state")); }
+										else { warn!("* component key:value {}:{} was not recognized", key, value); }
+									}
 								}
 							}
 							self.opaque = Some(new_opaque);
@@ -162,9 +172,9 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 										"stuck" => { new_open.is_stuck = value.parse().expect(&(error_msg.to_owned() + "openable:stuck")); }
 										"open" => { new_open.open_glyph = value.to_string(); }
 										"closed" => { new_open.closed_glyph = value.to_string(); }
-										_ => { debug!("* component key:value {}:{} was not recognized", key, value); }
+										_ => { warn!("* component key:value {}:{} was not recognized", key, value); }
 									}
-								} else { debug!("* could not split key:value on component {}", part); }
+								} else { warn!("* could not split key:value on component {}", part); }
 							}
 							self.open = Some(new_open);
 						}
@@ -235,14 +245,12 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		}
 		self
 	}
-	pub fn inside(&mut self, room: String) -> &mut ItemBuilder {
-		// TODO: Find the specified room and then finds a place in the room to put the item
-		self
-	}
 	pub fn give_to(&mut self, target: Entity) -> &mut ItemBuilder {
 		self.portable = Some(Portable::new(target));
 		self
 	}
+	/// Constructs the item into the specified Bevy::App, and returns the generated Entity ID as well as the full set
+	/// of Positions, aka the Body.extent, aka the item's shape, that the item occupies on the map
 	pub fn build(&'b mut self, world: &'a mut World) -> (EntityMut<'b>, Vec<Position>) {
 		self.spawn_count += 1;
 		let mut item_shape = Vec::new();
@@ -250,7 +258,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		// Add all of the populated components to the new entity
 		if let Some(desc)     = &self.desc { new_item.insert(desc.clone()); self.desc = None; }
 		if let Some(body)     = &self.body {
-			debug!("* creating new item with shape {:?}", body.posns());
+			//debug!("* creating new item {} with shape {:?}", body.posns());
 			item_shape = body.posns();
 			new_item.insert(body.clone()); self.body = None;
 		}
@@ -274,7 +282,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		// - A defn for the item's Description component
 		// - A defn for the item's Body component
 		// Technically the ActionSet component is not required but leaving it out creates very boring objects
-		let posns = Vec::new();
+		//let posns = Vec::new();
 		// Get the list of rooms we're going to decorate
 		let room_names = worldmap.get_room_name_list();
 		for name in room_names.iter() {
@@ -315,7 +323,7 @@ pub fn load_furniture_defns(filename: &str) -> ItemDict {
 	let value: ItemDict = match serde_json::from_reader(reader) {
 		//Ok(output) => {debug!("* recvd: {:?}", output); output},
 		Ok(output) => {output},
-		Err(e) => {debug!("! load_furniture_defns(): {}", e); ItemDict::default()},
+		Err(e) => {debug!("! ERROR: load_furniture_defns() failed: {}", e); ItemDict::default()},
 	};
 	// Now return the dict from this function (or put it where it needs to go)
 	value

@@ -194,6 +194,7 @@ impl Body {
 	/// is the spawnpoint coordinates; 'G' is the display glyph, 'F' is the foreground color, 'B' is the background
 	/// color, and 'M' is the set of text modifications to apply to the display glyph
 	pub fn new_from_str(input: Vec<String>) -> Body {
+		debug!("* recvd input: {:?}", input);
 		if input.is_empty() { return Body::default(); };
 		let mut posns = Vec::new();
 		let mut cells = Vec::new();

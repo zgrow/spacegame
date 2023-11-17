@@ -366,8 +366,6 @@ impl GameEngine<'_> {
 	}
 	/// Starts a new game from scratch
 	pub fn new_game(&mut self) {
-		eprintln!("* new_game() called");
-		debug!("* new_game() called"); // DEBUG: announce new game
 		// If no game is running, then self.standby should be TRUE
 		if !self.standby {
 			warn!("* ! game is in progress!"); // DEBUG: warn about running game
@@ -550,24 +548,30 @@ impl GameEngine<'_> {
 	}
 	/// Creates the initial worldmap from scratch
 	pub fn build_new_worldmap(&mut self) {
+		// WARN: for some reason, the simplelog macros don't work in this method, but eprint/eprintln does...
 		self.mason.build_world();
 		let mut model = self.mason.get_model();
 		// Construct the various furniture/scenery/backdrop items
 		// Get the list of items that we know for sure need to be generated
 		let item_spawns = self.mason.get_item_spawn_list(); // a list of ItemTypes and Positions
+		eprintln!("DEBUG: * build_new_worldmap(): item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
 		// Next, get a list of items that will populate and decorate the rest of the ship
-		//let addtl_items = self.artisan.decorate(&model); // TODO: this method isn't done with implementation yet
+		// TODO: append the addtl_items to the item_spawns list
+		//let addtl_items = self.artisan.decorate(&model);
+		//let item_spawns = self.mason.enty_list.clone();
+		for (i_name, i_posn) in item_spawns.iter() {
+			//let new_enty = self.artisan.create_by_itemtype(item.0).at(item.1).build(&mut self.bevy.world);
+			//model.add_contents(&vec![item.1], 0, new_enty.id());
+			//eprintln!("DEBUG: * pretending to spawn new item: {:?}", item);
+			let (i_enty, i_shape) = self.artisan.create(i_name).at(*i_posn).build(&mut self.bevy.world);
+			model.add_contents(&i_shape, 0, i_enty.id());
+			eprintln!("DEBUG: * added new item {} at posn {:?}", i_name, i_posn);
+		}
+		// DEBUG: testing the 'spawn request by string' logic
 		let temp_loc = Position::new(17, 13, 1); // DEBUG: test item
 		let (new_item, item_shape) = self.artisan.create("test_item").at(temp_loc).build(&mut self.bevy.world);
 		model.add_contents(&item_shape, 0, new_item.id());
-		//debug!("* new_item: {:?}", new_item);
-		// TODO: append the addtl_items to the item_spawns list
-		debug!("* build_new_worldmap(): item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
-		for item in item_spawns.iter() {
-			//let new_enty = self.artisan.create_by_itemtype(item.0).at(item.1).build(&mut self.bevy.world);
-			//model.add_contents(&vec![item.1], 0, new_enty.id());
-			debug!("* pretending to spawn new item: {:?}", item);
-		}
+		// DEBUG: end test
 		self.bevy.insert_resource(model);
 	}
 	/// Handles the initial spawns for a new game, esp those items that are not included with the worldmap layout

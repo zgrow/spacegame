@@ -167,7 +167,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 		let mut message: String = "".to_string();
 		match atype {
 			ActionType::MoveItem => { // Move an Item into an Entity's possession
-				debug!("* Moving item..."); // DEBUG: announce item movement
+				//debug!("* Moving item..."); // DEBUG: announce item movement
 				// NOTE: the insert(Portable) call below will overwrite any previous instance of that component
 				cmd.entity(o_enty)
 				.insert(Portable{carrier: subject.0}) // put the container's ID to the target's Portable component
@@ -179,7 +179,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 				}
 			}
 			ActionType::DropItem => { // Remove an Item and place it into the World
-				debug!("* Dropping item..."); // DEBUG: announce item drop
+				//debug!("* Dropping item..."); // DEBUG: announce item drop
 				cmd.entity(o_enty)
 				.insert(Portable{carrier: Entity::PLACEHOLDER}) // still portable but not carried
 				.remove::<IsCarried>(); // remove the tag from the component
@@ -191,7 +191,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 				}
 			}
 			ActionType::KillItem => { // DESTROY an Item entirely, ie remove it from the game
-				debug!("* KILLing item..."); // DEBUG: announce item destruction
+				//debug!("* KILLing item..."); // DEBUG: announce item destruction
 				cmd.entity(o_enty).despawn();
 			}
 			action => {
@@ -276,19 +276,20 @@ pub fn map_indexing_system(mut model:         ResMut<Model>,
 	// Rebuild each map floor-by-floor
 	for floor in model.levels.iter_mut() {
 		floor.update_tilemaps(); // Update tilemaps based on their tiletypes
-		// Then, step through all blocking entities and flag their locations on the map as well
-		for guy in blocker_query.iter() {
-			for posn in &guy.extent {
-				floor.set_blocked(posn.posn, true);
-			}
-		}
-		// Do the same for the opaque entities
-		for guy in opaque_query.iter() {
-			for posn in &guy.0.extent {
-				floor.set_opaque(posn.posn, guy.1.opaque);
-			}
+	}
+	// Then, step through all blocking entities and flag their locations on the map as well
+	for guy in blocker_query.iter() {
+		for posn in &guy.extent {
+			model.set_blocked_state(posn.posn, true);
 		}
 	}
+	// Do the same for the opaque entities
+	for guy in opaque_query.iter() {
+		for posn in &guy.0.extent {
+			model.set_opaque_state(posn.posn, guy.1.opaque);
+		}
+	}
+	
 }
 /// Handles updates for entities that can move around
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
@@ -365,11 +366,12 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				let _locn_index = model.levels[new_location.z as usize].to_index(new_location.x, new_location.y);
 				// Get a picture of where the actor wants to move to so we can check it for collisions
 				let target_extent = actor_body.project_to(new_location);
+				debug!("* target_extent: {:?}", target_extent);
 				if let Some(mut blocked_tiles) = model.get_obstructions_at(target_extent, Some(actor_enty)) {
 					blocked_tiles.retain(|x| x.1 != Obstructor::Actor(actor_enty));
 					// We have a list of positions that are definitely blocked, but we don't know why
 					// Get the first one off the list, find out why it's blocked, and report it
-					debug!("blocked tiles: {:?}, {:?}", dir, blocked_tiles);
+					//debug!("blocked tiles: {:?}, {:?}", dir, blocked_tiles);
 					let reply_msg = match blocked_tiles[0].1 {
 						Obstructor::Actor(enty) => {
 							// build an entity message
@@ -486,14 +488,14 @@ pub fn openable_system(mut commands:    Commands,
 		}
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
-		debug!("actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
+		//debug!("actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
 		//let actor = e_query.get_mut(econtext.subject).unwrap();
 		let (_enty, _body, a_desc, a_player, a_viewshed) = e_query.get_mut(econtext.subject).unwrap();
 		let is_player_action = a_player.is_some();
 		let mut message: String = "".to_string();
 		match atype {
 			ActionType::OpenItem => {
-				debug!("Trying to open a door"); // DEBUG: announce opening a door
+				//debug!("Trying to open a door"); // DEBUG: announce opening a door
 				for (d_enty, mut d_body, mut d_open, mut d_opaque, _obstruct) in door_query.iter_mut() {
 					if d_enty == econtext.object {
 						d_open.is_open = true;
@@ -512,7 +514,7 @@ pub fn openable_system(mut commands:    Commands,
 				if let Some(mut view) = a_viewshed { view.dirty = true; }
 			}
 			ActionType::CloseItem => {
-				debug!("Trying to close a door"); // DEBUG: announce closing door
+				//debug!("Trying to close a door"); // DEBUG: announce closing door
 				for (d_enty, mut d_body, mut d_open, mut d_opaque, _obstruct) in door_query.iter_mut() {
 					if d_enty == econtext.object {
 						d_open.is_open = false;
@@ -707,7 +709,7 @@ pub fn test_furniture_spawn(mut commands: Commands,
 	                          _e_query: Query<(Entity, &Body)>,
 ) {
 	if let Some(spawnpoints) = model.find_spawn_area_in("MedBay", 3, 1) {
-		debug!("* spawnpoints for test_furniture_spawn: {:?}", spawnpoints);
+		//debug!("* spawnpoints for test_furniture_spawn: {:?}", spawnpoints);
 		let body_cells = vec![
 			ScreenCell::create("1", 5, 0, 0),
 			ScreenCell::create("2", 5, 0, 0),

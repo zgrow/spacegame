@@ -146,11 +146,16 @@ impl ScreenCell {
 	/// and m is the set of text modifications to apply
 	pub fn new_from_str(input: Vec<&str>) -> ScreenCell {
 		debug!("* new_from_str input: {:?}", input);
+		for (index, line) in input.iter().enumerate() {
+			debug!("*** {}: {}", index, line);
+		}
 		let mut new_cell = ScreenCell::new();
 		new_cell.glyph = input[0].to_string();
-		new_cell.fg = input[1].parse::<u8>().unwrap_or_else(|_| COLOR_DICT[input[1]]); // replace 0 with a call to a color name parser
-		new_cell.bg = input[2].parse::<u8>().unwrap_or_else(|_| COLOR_DICT[input[2]]);
-		new_cell.modifier = input[3].parse::<u16>().unwrap_or(0); // ditto but for modifier names
+		new_cell.fg = COLOR_DICT[input[1]];
+		new_cell.bg = COLOR_DICT[input[2]];
+		//new_cell.fg = input[1].parse::<u8>().unwrap_or_else(|_| COLOR_DICT[input[1]]); // replace 0 with a call to a color name parser
+		//new_cell.bg = input[2].parse::<u8>().unwrap_or_else(|_| COLOR_DICT[input[2]]);
+		//new_cell.modifier = input[3].parse::<u16>().unwrap_or(0); // ditto but for modifier names
 		new_cell
 	}
 	pub fn create(new_glyph: &str, new_fg: u8, new_bg: u8, mods: u16) -> ScreenCell {

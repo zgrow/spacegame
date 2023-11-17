@@ -79,7 +79,7 @@ impl Model {
 		}
 	}
 	pub fn remove_contents(&mut self, posns: &Vec<Position>, enty: Entity) {
-		debug!("remove_contents: {:?} for enty {:?}", posns, enty);
+		//debug!("remove_contents: {:?} for enty {:?}", posns, enty);
 		for posn in posns {
 			self.levels[posn.z as usize].remove_occupant(enty, *posn);
 		}
@@ -88,6 +88,7 @@ impl Model {
 		self.levels[target.z as usize].get_contents_at(target)
 	}
 	pub fn is_blocked_at(&self, target: Position) -> bool {
+		//debug!("* is_blocked_at({:?})", target);
 		let index = self.levels[target.z as usize].to_index(target.x, target.y);
 		self.levels[target.z as usize].blocked_tiles[index]
 	}
@@ -96,6 +97,7 @@ impl Model {
 		let observer = observer_enty.unwrap_or(Entity::PLACEHOLDER);
 		for posn in targets.iter() {
 			if self.is_blocked_at(*posn) {
+				debug!("* enty is_blocked_at {}", posn);
 				// Seems like a safe assumption that the most-visible entity at a given position will be the one blocking it
 				if let Some(observed) = self.levels[posn.z as usize].get_visible_entity_at(*posn) {
 					// Remember, this if-condition is evaluated serially: by definition, if the compiler evaluates the RHS,
@@ -147,6 +149,12 @@ impl Model {
 	}
 	pub fn get_room_name_list(&self) -> Vec<String> {
 		self.layout.get_room_list()
+	}
+	pub fn set_blocked_state(&mut self, target: Position, state: bool) {
+		self.levels[target.z as usize].set_blocked(target, state);
+	}
+	pub fn set_opaque_state(&mut self, target: Position, state: bool) {
+		self.levels[target.z as usize].set_opaque(target, state);
 	}
 }
 
@@ -336,7 +344,7 @@ impl Tile {
 				break;
 			}
 			if self.contents[index].1 == target {
-				debug!("Removing enty {:?}", target);
+				//debug!("Removing enty {:?}", target);
 				self.contents.remove(index);
 			}
 			index += 1;
