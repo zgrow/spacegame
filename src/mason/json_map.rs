@@ -1,13 +1,8 @@
 // mason/json_map.rs
 // Provides the logic for importing my custom spaceship map layouts from JSON format
 
-use std::fs::File;
-use std::io::BufReader;
 use serde::{Deserialize, Serialize};
 use crate::mason::*;
-use crate::components::Position;
-use crate::artisan::ItemType;
-//use simplelog::*;
 
 /* The format of the input json as of October 10, 2023:
  *  {
@@ -69,6 +64,7 @@ pub struct JsonRoom {
 	pub corner: Vec<usize>,
 	pub width: usize,
 	pub height: usize,
+	pub contents: Vec<(String, u32)>, // the name of the item and how many to spawn
 }
 impl Default for JsonRoom {
 	fn default() -> JsonRoom {
@@ -78,6 +74,7 @@ impl Default for JsonRoom {
 			corner: Vec::new(),
 			width: 0,
 			height: 0,
+			contents: Vec::new(),
 		}
 	}
 }
@@ -126,55 +123,6 @@ pub struct JsonBucket {
 	pub map_list: Vec<JsonMap>,
 	pub room_list: Vec<JsonRoom>,
 	pub ladder_list: Vec<JsonPortal>,
-}
-/// The Builder object that produces maps from JSON
-#[derive(Default, Debug)]
-pub struct JsonMapBuilder {
-	map: GameMap,
-	new_entys: Vec<(ItemType, Position)>,
-}
-impl MapBuilder for JsonMapBuilder {
-	/// Processes the loaded JSON file into the internal Map representation
-	fn build_map(&mut self) {
-		JsonMapBuilder::load_map_file(self)
-	}
-	/// Retrieves a copy of the constructed Map from this builder
-	fn get_map(&self) -> GameMap {
-		self.map.clone()
-	}
-	/// Retrieves a list of entities that need to be spawned after the Map is instantiated
-	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
-		self.new_entys.clone()
-	}
-}
-impl JsonMapBuilder {
-	pub fn new() -> JsonMapBuilder {
-		JsonMapBuilder {
-			map: GameMap::new(1, 1),
-			new_entys: Vec::new(),
-		}
-	}
-	fn load_map_file(&mut self) {
-		// FIXME: This uses a 'magic label' for the filename!
-		let filename = "resources/test_ship_v3.json";
-		load_json_map(filename);
-	}
-}
-
-pub fn load_json_map(filename: &str) -> (GameMap, Vec<(ItemType, Position)>) {
-	// METHOD
-	// 1 for each level,
-	//      - copy each row of the tilemap into a new Map
-	// 2 use the provided Graph object to construct the logical map of the rooms and connections
-	// 3 copy the list of portals out so that Mason can construct the ladders
-	let file = File::open(filename).unwrap();
-	let reader = BufReader::new(file);
-	let value: JsonBucket = match serde_json::from_reader(reader) {
-			Ok(output) => output,
-			Err(e) => {debug!("* load_json_map error: {}", e); JsonBucket::default()},
-	};
-	let map = value.map_list;
-	(map[0].clone().into(), Vec::new()) // DEBUG: how come this works? doesn't it overwrite the list of doors?
 }
 
 // EOF

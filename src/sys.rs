@@ -6,7 +6,7 @@
 #![allow(clippy::single_match)]
 #![allow(clippy::needless_lifetimes)]
 
-// *** EXTERNAL LIBS
+// ###: EXTERNAL LIBS
 use bevy::ecs::archetype::Archetypes;
 use bevy::ecs::component::{ComponentId, Components};
 use bevy::ecs::entity::Entity;
@@ -27,7 +27,7 @@ use bevy_turborand::*;
 use bracket_pathfinding::prelude::*;
 use simplelog::*;
 
-// *** INTERNAL LIBS
+// ###: INTERNAL LIBS
 use crate::camera::*;
 use crate::components::*;
 use crate::components::{
@@ -43,7 +43,7 @@ use crate::engine::messagelog::*;
 use crate::engine::planq::*;
 use crate::worldmap::*;
 
-// *** CONTINUOUS SYSTEMS
+// ###: CONTINUOUS SYSTEMS
 /// Handles connections between maintenance devices like the PLANQ and access ports on external entities
 pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
 	                        mut preader:      EventWriter<PlanqEvent>,
@@ -473,7 +473,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 pub fn openable_system(mut commands:    Commands,
 	                     mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
-	                     mut door_query:  Query<(Entity, &mut Body, &mut Openable, &mut Opaque, Option<&Obstructive>)>,
+	                     mut door_query:  Query<(Entity, &mut Body, &Description, &mut Openable, Option<&mut Opaque>, Option<&Obstructive>)>,
 	                     mut e_query:     Query<(Entity, &Body, &Description, Option<&Player>, Option<&mut Viewshed>), Without<Openable>>,
 ) {
 	if ereader.is_empty() { return; }
@@ -488,7 +488,7 @@ pub fn openable_system(mut commands:    Commands,
 		}
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
-		//debug!("actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
+		debug!("* actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
 		//let actor = e_query.get_mut(econtext.subject).unwrap();
 		let (_enty, _body, a_desc, a_player, a_viewshed) = e_query.get_mut(econtext.subject).unwrap();
 		let is_player_action = a_player.is_some();
@@ -496,38 +496,46 @@ pub fn openable_system(mut commands:    Commands,
 		match atype {
 			ActionType::OpenItem => {
 				//debug!("Trying to open a door"); // DEBUG: announce opening a door
-				for (d_enty, mut d_body, mut d_open, mut d_opaque, _obstruct) in door_query.iter_mut() {
+				let mut door_name = "".to_string();
+				for (d_enty, mut d_body, d_desc, mut d_open, d_opaque, _obstruct) in door_query.iter_mut() {
 					if d_enty == econtext.object {
 						d_open.is_open = true;
 						let ref_posn = d_body.ref_posn;
 						d_body.set_glyph_at(ref_posn, &d_open.open_glyph);
-						d_opaque.opaque = false;
+						door_name = d_desc.name.clone();
+						if let Some(mut opaque) = d_opaque {
+							opaque.opaque = false;
+						}
 						commands.entity(d_enty).remove::<Obstructive>();
 					}
 				}
 				if is_player_action {
-					message = "You open the [door]".to_string();
+					message = format!("You open the {}.", door_name);
 				} else {
-					message = format!("The {} opens a [door].", a_desc.name.clone());
+					message = format!("The {} opens a {}.", a_desc.name.clone(), door_name);
 				}
 				//if a_viewshed.is_some() { a_viewshed.unwrap().dirty = true; }
 				if let Some(mut view) = a_viewshed { view.dirty = true; }
 			}
 			ActionType::CloseItem => {
 				//debug!("Trying to close a door"); // DEBUG: announce closing door
-				for (d_enty, mut d_body, mut d_open, mut d_opaque, _obstruct) in door_query.iter_mut() {
+				let mut door_name = "".to_string();
+				for (d_enty, mut d_body, d_desc, mut d_open, d_opaque, _obstruct) in door_query.iter_mut() {
 					if d_enty == econtext.object {
 						d_open.is_open = false;
 						let ref_posn = d_body.ref_posn;
 						d_body.set_glyph_at(ref_posn, &d_open.closed_glyph);
-						d_opaque.opaque = true;
+						door_name = d_desc.name.clone();
+						if let Some(mut opaque) = d_opaque {
+							opaque.opaque = true;
+						}
 						commands.entity(d_enty).insert(Obstructive {});
 					}
 				}
 				if is_player_action {
-					message = "The [door] slides shut.".to_string();
+					message = format!("You close the {}.", door_name);
 				} else {
-					message = format!("The {} closes a [door].", a_desc.name.clone());
+					message = format!("The {} closes a {}.", a_desc.name.clone(), door_name);
 				}
 				//if a_viewshed.is_some() { a_viewshed.unwrap().dirty = true; }
 				if let Some(mut view) = a_viewshed { view.dirty = true; }
@@ -604,7 +612,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 	}
 }
 
-// *** SINGLETON SYSTEMS
+// ###: SINGLETON SYSTEMS
 /// Adds a new player entity to a new game world
 pub fn new_player_spawn(mut commands: Commands,
 	                      spawnpoint:   Res<Position>,
@@ -702,33 +710,8 @@ pub fn test_npc_spawn(mut commands: Commands,
 	));
 	debug!("* Spawned new npc at {}", spawnpoint); // DEBUG: announce npc creation
 }
-/// Adds some testing furniture to the game world
-pub fn test_furniture_spawn(mut commands: Commands,
-														mut model: ResMut<Model>,
-	                          mut _rng: ResMut<GlobalRng>,
-	                          _e_query: Query<(Entity, &Body)>,
-) {
-	if let Some(spawnpoints) = model.find_spawn_area_in("MedBay", 3, 1) {
-		//debug!("* spawnpoints for test_furniture_spawn: {:?}", spawnpoints);
-		let body_cells = vec![
-			ScreenCell::create("1", 5, 0, 0),
-			ScreenCell::create("2", 5, 0, 0),
-			ScreenCell::create("3", 5, 0, 0),
-		];
-		let new_id = commands.spawn((
-			ActionSet::new(),
-			Description::new().name("techno-device").desc("A large chromed construction with many blinkenlights and buttons."),
-			Body::large(spawnpoints.clone(), body_cells),
-			Obstructive::default(),
-		)).id();
-		model.add_contents(&spawnpoints, 0, new_id);
-		debug!("* Spawned a test furniture piece {:?} at {}", new_id, spawnpoints[0]); // DEBUG: announce test furniture
-	} else {
-		debug!("* Could not find room to spawn test furniture");
-	}
-}
 
-// *** UTILITIES
+// ###: UTILITIES
 /// Converts my Position type into a bracket_pathfinding::Point
 pub fn posn_to_point(input: &Position) -> Point { Point { x: input.x, y: input.y } }
 /// If the Entity exists, will return an Iterator that contains info on all the Components that belong to that Entity

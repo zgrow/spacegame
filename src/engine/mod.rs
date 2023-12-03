@@ -1,7 +1,7 @@
 // engine/mod.rs
 // July 12 2023
 
-// *** EXTERNAL LIBS
+// ###: EXTERNAL LIBS
 use std::borrow::Cow;
 use std::error;
 use bevy::{
@@ -29,7 +29,7 @@ use ratatui::{
 };
 use strum::IntoEnumIterator;
 
-// *** INTERNAL LIBS
+// ###: INTERNAL LIBS
 pub mod event;
 pub mod handler;
 pub mod menu;
@@ -60,7 +60,7 @@ use crate::{
 	sys::*
 };
 
-// *** GameEngine
+// ###: GameEngine
 pub struct GameEngine<'a> {
 	pub running:        bool, // If true, the game loop is running
 	pub standby:        bool, // If true, the game loop is on standby (ie paused)
@@ -155,9 +155,9 @@ impl GameEngine<'_> {
 		for events in self.menu_context.drain_events() {
 			match events {
 				MenuEvent::Selected(event) => {
-					debug!("* {:?}", event); // DEBUG: announce the context event that got matched
+					//debug!("* {:?}", event); // DEBUG: announce the context event that got matched
 					if event.is_valid() {
-						debug!("* Dispatching event..."); // DEBUG: announce event dispatch
+						//debug!("* Dispatching event..."); // DEBUG: announce event dispatch
 						let event_handler = &mut self.bevy.world.get_resource_mut::<Events<GameEvent>>().unwrap();
 						event_handler.send(event);
 					}
@@ -256,7 +256,7 @@ impl GameEngine<'_> {
 	}
 	/// Renders the main menu, using the main menu object
 	pub fn render_main_menu<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
-		debug!("* rendering main menu"); // DEBUG: announce main menu render event
+		//debug!("* rendering main menu"); // DEBUG: announce main menu render event
 		let menu = Menu::new().block(Block::default()
 			                           .borders(Borders::TOP | Borders::RIGHT)
 			                           .border_style(Style::default().fg(Color::White).bg(Color::DarkGray))
@@ -335,7 +335,7 @@ impl GameEngine<'_> {
 	/// Enables and places the given menu type at the specified position; should only need to be called at menu creation
 	/// If the type is Main, then the menu does not need to be pre-populated
 	pub fn set_menu(&mut self, m_type: MenuType, posn: (u16, u16)) {
-		debug!("* Enabling menu {:?} at {}, {}", m_type, posn.0, posn.1); // DEBUG: announce menu display
+		//debug!("* Enabling menu {:?} at {}, {}", m_type, posn.0, posn.1); // DEBUG: announce menu display
 		if m_type == MenuType::Main {
 			let mut menu_items: Vec<MenuItem<Cow<'_, str>>> = Vec::new();
 			menu_items.push(MenuItem::item("New Game", "main.new_game".into(), None));
@@ -357,7 +357,7 @@ impl GameEngine<'_> {
 	}
 	/// Helper for changing the current mode of the GameEngine
 	pub fn set_mode(&mut self, new_mode: EngineMode) {
-		debug!("* eng.mode set to {new_mode:?}"); // DEBUG: announce engine mode switch
+		//debug!("* eng.mode set to {new_mode:?}"); // DEBUG: announce engine mode switch
 		self.mode = new_mode;
 	}
 	/// Causes the GameEngine to halt and quit
@@ -391,7 +391,7 @@ impl GameEngine<'_> {
 	//  INFO: By default (not sure how to change this!), on Linux, this savegame will be at
 	//      ~/.local/share/spacegame/saves/FILENAME.sav
 	pub fn save_game(&mut self, filename: String) {
-		debug!("* save_game() called on {}", filename); // DEBUG: alert when save_game is called
+		//debug!("* save_game() called on {}", filename); // DEBUG: alert when save_game is called
 		if let Err(e) = self.bevy.world.save(&filename) {
 			error!("! ! save_game() failed on '{}', error: {}", filename, e); // DEBUG: warn about save game error
 			return;
@@ -400,7 +400,7 @@ impl GameEngine<'_> {
 	}
 	/// Loads a saved game from the given external file
 	pub fn load_game(&mut self, filename: String) {
-		debug!("* load_game() called on {} ({})", filename, self.standby); // DEBUG: alert when load_game is called
+		//debug!("* load_game() called on {} ({})", filename, self.standby); // DEBUG: alert when load_game is called
 		if !self.standby {
 			warn!("* ! game is in progress!"); // DEBUG: warn about running game
 			self.halt_game();
@@ -422,11 +422,11 @@ impl GameEngine<'_> {
 		self.standby = false;
 		self.running = true;
 		self.set_mode(EngineMode::Running);
-		debug!("* load_game() finished successfully"); // DEBUG: alert when load_game finishes
+		//debug!("* load_game() finished successfully"); // DEBUG: alert when load_game finishes
 	}
 	/// Deletes the game save, ie after dying or abandoning the game
 	pub fn delete_game(&mut self, filename: String) -> std::io::Result<()> {
-		debug!("* delete_game() called on {}", filename); // DEBUG: alert when delete_game is called
+		//debug!("* delete_game() called on {}", filename); // DEBUG: alert when delete_game is called
 		let filepath = bevy_save::get_save_file(&filename);
 		std::fs::remove_file(filepath)
 	}
@@ -448,15 +448,15 @@ impl GameEngine<'_> {
 	}
 	/// Gets Bevy instance set up from nothing, up to just before calling bevy.world.update()
 	pub fn init_bevy(&mut self) {
-		debug!("* Initializing Bevy..."); // DEBUG: announce Bevy startup
+		//debug!("* Initializing Bevy..."); // DEBUG: announce Bevy startup
 		let chanlist = vec!["world".to_string(),
 			                  "planq".to_string(),
 			                  "debug".to_string()];
 		self.bevy
-		.add_plugins(RngPlugin::default())
+		.add_plugins(RngPlugin::default()) // Non-deterministic RNG
+		//.add_plugins(RngPlugin::new().with_rng_seed(69420)) // Forces the RNG to be deterministic
 		.add_systems(Startup, (new_player_spawn,
 			                     new_lmr_spawn,
-													 test_furniture_spawn,
 			                     ))
 		.add_systems(Update, (action_referee_system,
 			                    camera_update_system,
@@ -528,7 +528,6 @@ impl GameEngine<'_> {
 		.register_saveable::<Player>()
 		.register_saveable::<Portable>()
 		.register_saveable::<Position>()
-		//.register_saveable::<Renderable>()
 		.register_saveable::<RngComponent>()
 		.register_saveable::<Tile>()
 		.register_saveable::<TileType>()
@@ -548,37 +547,53 @@ impl GameEngine<'_> {
 	}
 	/// Creates the initial worldmap from scratch
 	pub fn build_new_worldmap(&mut self) {
-		// WARN: for some reason, the simplelog macros don't work in this method, but eprint/eprintln does...
-		self.mason.build_world();
+		// Loads the generated JSON layout file and parses it out into the game's data structures:
+		// - Creates the 'physical' tilemaps of ScreenCells that represent the game's terrain
+		// - Creates the 'logical' topology map of GraphRooms/GraphPortals that provide pathfinding and placement
+		// - Generates the baseline list of doors required to connect all of the rooms in the map
+		// - Generates the list of 'ladders' that connect rooms across z-levels and allow movement
+		let mut rng = self.bevy.world.get_resource_mut::<GlobalRng>().unwrap();
+		self.mason.build_world(); // <- remove the RNG from here for starters, insert it closer to where it's needed
+		// Get a copy of the freshly-constructed world model
 		let mut model = self.mason.get_model();
-		// Construct the various furniture/scenery/backdrop items
-		// Get the list of items that we know for sure need to be generated
-		let item_spawns = self.mason.get_item_spawn_list(); // a list of ItemTypes and Positions
-		eprintln!("DEBUG: * build_new_worldmap(): item_spawns.len(): {}", item_spawns.len()); // DEBUG: announce number of spawning items
-		// Next, get a list of items that will populate and decorate the rest of the ship
-		// TODO: append the addtl_items to the item_spawns list
-		//let addtl_items = self.artisan.decorate(&model);
-		//let item_spawns = self.mason.enty_list.clone();
-		for (i_name, i_posn) in item_spawns.iter() {
-			//let new_enty = self.artisan.create_by_itemtype(item.0).at(item.1).build(&mut self.bevy.world);
-			//model.add_contents(&vec![item.1], 0, new_enty.id());
-			//eprintln!("DEBUG: * pretending to spawn new item: {:?}", item);
-			let (i_enty, i_shape) = self.artisan.create(i_name).at(*i_posn).build(&mut self.bevy.world);
-			model.add_contents(&i_shape, 0, i_enty.id());
-			eprintln!("DEBUG: * added new item {} at posn {:?}", i_name, i_posn);
+		let mut new_item_list = Vec::new();
+
+		// Get the list of items that we know for sure need to be generated at specific positions
+		let mut item_spawns = self.mason.get_essential_item_requests(); // list of (name, posn)
+		eprintln!("* DEBUG: build_new_worldmap: essential: {:?}", item_spawns);
+		new_item_list.append(&mut item_spawns);
+		// Next, get the list of requested items, find spawnpoints for them, and add them to the list of spawns
+		let item_reqs = self.mason.get_additional_item_requests();
+		eprintln!("* DEBUG: build_new_worldmap: additional: {:?}", item_reqs); // DEBUG:
+		for (room_name, item_name) in item_reqs.iter() {
+			eprintln!("* DEBUG: Attempting to spawn {} in {}", item_name, room_name); // DEBUG:
+			// get the item shape from artisan (returns a SpawnTemplate)
+			//eprintln!("** DEBUG: looking to get a shape for {}", item_name);
+			if let Some(item_shape) = self.artisan.get_random_shape(item_name, &mut rng) {
+				// try to get a spawnpoint from mason using the ItemTemplate (returns a Option<Vec<(name: String, ref_posn: Position)>>)
+				//eprintln!("*** DEBUG: looking to get a spawnpoint for {}", item_name);
+				if let Some(mut item_spawns) = model.find_spawnpoint_in(room_name, item_shape, &mut rng) {
+					eprintln!("**** DEBUG: found a place to spawn {}: {:?}", item_name, item_spawns);
+					new_item_list.append(&mut item_spawns);
+				}
+			}
 		}
-		// DEBUG: testing the 'spawn request by string' logic
-		let temp_loc = Position::new(17, 13, 1); // DEBUG: test item
-		let (new_item, item_shape) = self.artisan.create("test_item").at(temp_loc).build(&mut self.bevy.world);
-		model.add_contents(&item_shape, 0, new_item.id());
-		// DEBUG: end test
+		// Spawn all of the items we need for the game
+		// This CANNOT be executed in the loop above or Rust will complain about a double borrow
+		// WARN: Need to have *all* positions decided on by this point
+		eprintln!("* DEBUG: Sending the following list for spawn:\n{:#?}", new_item_list); // DEBUG:
+		for (i_name, i_posn) in new_item_list.iter() {
+			let item_list = self.artisan.create(i_name).at(*i_posn).build(&mut self.bevy.world);
+			for (i_enty, i_shape) in item_list.iter() {
+				model.add_contents(i_shape, 0, i_enty.id());
+				//debug!("* added new item '{}' at posn {:?}", i_name, i_posn);
+				//eprintln!("DEBUG: * added new item '{}' at posn {:?}", i_name, i_posn);
+			}
+		}
+		// Add the fully-constructed world model to Bevy
 		self.bevy.insert_resource(model);
 	}
-	/// Handles the initial spawns for a new game, esp those items that are not included with the worldmap layout
-	pub fn populate_new_worldmap(&mut self) {
-		todo!();
-	}
-	/// Creates a fallback dev map for testing purposes
+	/// DEBUG: Creates a fallback dev map for testing purposes
 	pub fn build_dev_worldmap(&mut self) {
 		/* disabled because i don't feel like updating it right now since the json loader works
 		let mut model = Model::default();
@@ -654,7 +669,7 @@ impl GameEngine<'_> {
 	}
 }
 
-// *** TYPES, HELPERS, and SINGLETONS
+// ###: TYPES, HELPERS, and SINGLETONS
 /// Application result type, provides some nice handling if the game crashes
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 

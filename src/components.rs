@@ -91,7 +91,7 @@ use strum_macros::AsRefStr;
 use crate::engine::event::ActionType;
 use crate::camera::ScreenCell;
 use serde::{Deserialize, Serialize};
-use simplelog::*;
+//use simplelog::*;
 
 // Full-length derive macros
 //#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -194,7 +194,7 @@ impl Body {
 	/// is the spawnpoint coordinates; 'G' is the display glyph, 'F' is the foreground color, 'B' is the background
 	/// color, and 'M' is the set of text modifications to apply to the display glyph
 	pub fn new_from_str(input: Vec<String>) -> Body {
-		debug!("* recvd input: {:?}", input);
+		//debug!("* recvd input: {:?}", input);
 		if input.is_empty() { return Body::default(); };
 		let mut posns = Vec::new();
 		let mut cells = Vec::new();
@@ -437,6 +437,8 @@ impl Openable {
 		}
 	}
 }
+/// Describes an Entity that can be locked and unlocked, such as a door or a locker
+// FIXME: how does this prevent something from being unlocked from the 'wrong' side?
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Lockable {

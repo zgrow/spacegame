@@ -2,7 +2,7 @@
 // July 12 2023
 // File was cribbed/copied from orhun/rust-tui-template output
 
-// *** EXTERNAL LIBS
+// ###: EXTERNAL LIBS
 use std::io;
 use std::sync::mpsc;
 use std::thread;
@@ -23,10 +23,10 @@ use crossterm::terminal::{
 use ratatui::backend::Backend;
 use ratatui::Terminal;
 
-// *** INTERNAL LIBS
+// ###: INTERNAL LIBS
 use crate::engine::{AppResult, GameEngine};
 
-// *** METHODS
+// ###: METHODS
 /// Defines the set of interface events in the TUI
 #[derive(Clone, Copy, Debug)]
 pub enum Event {

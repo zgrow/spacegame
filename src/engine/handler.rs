@@ -27,7 +27,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	 * The game_events object below will monopolize the mutable ref to the game world
 	 * Therefore, do not try to extract and send info from here; defer to Bevy's event handling
 	 */
-	// *** DEBUG KEY HANDLING
+	// ###: DEBUG KEY HANDLING
 	if (key_event.code == KeyCode::Char('c') || key_event.code == KeyCode::Char('C'))
 	&& key_event.modifiers == KeyModifiers::CONTROL {
 		// Always allow the program to be closed via Ctrl-C
@@ -37,12 +37,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	let mut player_query = eng.bevy.world.query_filtered::<Entity, With<Player>>();
 	let player_ref = player_query.get_single(&eng.bevy.world);
 	let player = player_ref.unwrap_or(Entity::PLACEHOLDER);
-	// *** GAME CONTROL HANDLING
+	// ###: GAME CONTROL HANDLING
 	if eng.mode == EngineMode::Running {
 		let mut new_game_event = GameEvent::new(GameEventType::NullEvent, Some(player), None);
 		let mut new_planq_event = PlanqEvent::new(PlanqEventType::NullEvent);
 		let planq = &mut eng.bevy.world.get_resource_mut::<PlanqData>().unwrap();
-		// *** PLANQ CLI INPUT MODE
+		//  ##: PLANQ CLI INPUT MODE
 		if planq.show_cli_input {
 			match key_event.code {
 				// close the CLI, do not run anything
@@ -86,9 +86,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			}
 			return Ok(()) // WARN: do not disable this, lest key inputs be parsed twice (ie again below) by mistake!
 		}
-		// *** STANDARD GAME INPUTS
+		//  ##: STANDARD GAME INPUTS
 		match key_event.code {
-			// Meta/menu controls
+			//   #: Meta/menu controls
 			KeyCode::Char('p') => { // Pause key toggle
 				// Dispatch immediately, do not defer
 				eng.pause_game();
@@ -111,7 +111,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					eng.menu_context.reset();
 				}
 			}
-			// The cursor controls will be directed to any open menu before fallthru to player movement
+			//   #: The cursor controls will be directed to any open menu before fallthru to player movement
 			KeyCode::Left => {
 				if eng.visible_menu == MenuType::Context {
 					eng.menu_context.left();
@@ -140,7 +140,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					new_game_event.etype = PlayerAction(MoveTo(Direction::E));
 				}
 			}
-			// Simple actions, no context required
+			//   #: Simple actions, no context required
 			// The player movement controls will only operate menus if the game is Paused
 			KeyCode::Char('h') => { new_game_event.etype = PlayerAction(MoveTo(Direction::W));}
 			KeyCode::Char('j') => { new_game_event.etype = PlayerAction(MoveTo(Direction::S));}
@@ -152,7 +152,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('n') => { new_game_event.etype = PlayerAction(MoveTo(Direction::SE));}
 			KeyCode::Char('>') => { new_game_event.etype = PlayerAction(MoveTo(Direction::DOWN));}
 			KeyCode::Char('<') => { new_game_event.etype = PlayerAction(MoveTo(Direction::UP));}
-			// Compound actions, context required: may require secondary inputs from player
+			//   #: Compound actions, context required: may require secondary inputs from player
 			KeyCode::Char('i') => { // INVENTORY the player's possessions and allow selection
 				let mut item_names = Vec::new();
 				// Get every Entity that has a Description, is Portable, and is currently being carried by someone
@@ -422,13 +422,13 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					new_game_event.context = Some(GameEventContext{ subject: player, object: planq.jack_cnxn });
 				}
 			}
-			// PLANQ 'sidebar'/ambient controls
+			//   #: PLANQ 'sidebar'/ambient controls
 			KeyCode::Char('P') | KeyCode::Char(':') => {
 				if planq.cpu_mode == PlanqCPUMode::Idle || planq.cpu_mode == PlanqCPUMode::Working {
 					new_planq_event.etype = PlanqEventType::CliOpen;
 				}
 			}
-			// Debug keys and other tools
+			//   #: Debug keys and other tools
 			KeyCode::Char('s') => { // DEBUG: Drop a generic snack item for testing
 				info!("* Dropping snack at 5, 5, 0"); // DEBUG: announce arrival of debug snack
 				eng.make_item(ItemType::Snack, Position::new(5, 5, 0));
@@ -451,7 +451,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			let planq_events: &mut Events<PlanqEvent> = &mut eng.bevy.world.get_resource_mut::<Events<PlanqEvent>>().unwrap();
 			planq_events.send(new_planq_event);
 		}
-	} else { // ALL OTHER SITUATIONS: Paused, Standby, etc
+	} else { // ###: ALL OTHER SITUATIONS: Paused, Standby, etc
 		match key_event.code {
 			// Only handle these keys if the game's actually in-progress
 			// Close open menus/unpause on Esc or Q

@@ -1,7 +1,7 @@
 // worldmap.rs
 // Defines the gameworld's terrain and interlocks with some bracket-lib logic
 
-// *** EXTERNAL LIBS
+// ###: EXTERNAL LIBS
 use std::fmt;
 use std::fmt::Display;
 use bracket_algorithm_traits::prelude::{Algorithm2D, BaseMap};
@@ -13,24 +13,25 @@ use bevy::prelude::{
 	Resource,
 };
 use simplelog::*;
+use bevy_turborand::*;
 
-// *** INTERNAL LIBS
+// ###: INTERNAL LIBS
 use crate::components::*;
 use crate::mason::logical_map::*;
 
-// *** CONSTANTS
+// ###: CONSTANTS
 pub const MAPWIDTH: i32 = 80;
 pub const MAPHEIGHT: i32 = 60;
 pub const MAPSIZE: i32 = MAPWIDTH * MAPHEIGHT;
 
-// *** METHODS
+// ###: METHODS
 /// Reference method that allows calculation from an arbitrary width
 pub fn xy_to_index(x: usize, y: usize, w: usize) -> usize {
 	(y * w) + x
 }
 
-// *** STRUCTS
-//   - THE WORLD MODEL
+// ###: STRUCTS
+//  ##: THE WORLD MODEL
 /// Represents the entire stack of Maps that comprise a 3D space
 #[derive(Resource, Clone, Debug, Default, Reflect)]
 #[reflect(Resource)]
@@ -97,7 +98,7 @@ impl Model {
 		let observer = observer_enty.unwrap_or(Entity::PLACEHOLDER);
 		for posn in targets.iter() {
 			if self.is_blocked_at(*posn) {
-				debug!("* enty is_blocked_at {}", posn);
+				//debug!("* enty is_blocked_at {}", posn);
 				// Seems like a safe assumption that the most-visible entity at a given position will be the one blocking it
 				if let Some(observed) = self.levels[posn.z as usize].get_visible_entity_at(*posn) {
 					// Remember, this if-condition is evaluated serially: by definition, if the compiler evaluates the RHS,
@@ -111,13 +112,14 @@ impl Model {
 				}
 			}
 		}
-		debug!("blockers found: {:?}", block_list);
+		//debug!(* "blockers found: {:?}", block_list);
 		if !block_list.is_empty() {
 			Some(block_list)
 		} else {
 			None
 		}
 	}
+	#[deprecated(note = "* replacing with find_spawnpoint_in()")]
 	pub fn find_spawn_area_in(&self, target_room: &str, width: u32, height: u32) -> Option<Vec<Position>> {
 		// METHOD
 		// Get a reference to the specified Room
@@ -143,7 +145,16 @@ impl Model {
 				}
 			}
 			// Pass the template to the room itself to see if it can find a large-enough open space
-			return self.layout.rooms[room_index].find_open_space(template);
+			//return self.layout.rooms[room_index].find_open_space(ItemTemplate { shape:template });
+		}
+		None
+	}
+	/// Tries to find the specified room in the world model, and if successful, tries to obtain a spawnpoint within
+	pub fn find_spawnpoint_in(&mut self, target_room: &str, template: SpawnTemplate, rng: &mut GlobalRng) -> Option<Vec<(String, Position)>> {
+		//debug!("* find_spawnpoint_in {} for {:?}", target_room, template);
+		if let Some(room_index) = self.layout.get_room_index(target_room) {
+			//self.layout.rooms[room_index].debug_print(); // DEBUG: display the current layout map of the room
+			return self.layout.rooms[room_index].find_open_space(template, rng);
 		}
 		None
 	}
@@ -239,7 +250,7 @@ impl GameMap {
 		let index = self.to_index(target.x, target.y);
 		self.opaque_tiles[index] = state;
 	}
-	// ****
+	// ###:*
 	// Returns the Entity of whatever is occupying the target Position, if any. If there are multiple,
 	// this method will only return the first one it finds; no guarantees of consistency are made at this time
 	//pub fn get_occupant_at(&self, target: Position) -> Option<Entity> {
@@ -396,7 +407,7 @@ impl Tile {
 	}
 }
 
-//   - PHYSICAL GAMEWORLD TYPES
+//  ##: PHYSICAL GAMEWORLD TYPES
 /// Decides whether the Tile is open terrain, a wall, et cetera
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Resource)]
@@ -476,6 +487,5 @@ impl PartialEq for Portal {
 		(self.left == other.left && self.right == other.right) || (self.left == other.right && self.right == other.left)
 	}
 }
-
 
 // EOF

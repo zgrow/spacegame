@@ -14,6 +14,7 @@ pub mod json_map;
 use json_map::*;
 pub mod logical_map;
 use logical_map::*;
+//use bevy_turborand::*;
 
 type Qpoint = (f32, f32);
 
@@ -52,31 +53,37 @@ pub trait WorldBuilder {
 	fn build_world(&mut self);
 	fn get_model(&self) -> Model;
 	//fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)>;
-	fn get_item_spawn_list(&self) -> Vec<(String, Position)>;
+	fn get_essential_item_requests(&self) -> Vec<(String, Position)>;
+	fn get_additional_item_requests(&self) -> Vec<(String, String)>;
 }
 /// Loads a worldmodel from a pregenerated JSON file and sets it up for gameplay
 pub fn get_world_builder() -> Box<dyn WorldBuilder> {
 	Box::<JsonWorldBuilder>::default()
 }
 
-// *** JSONBUILDER
+// ###: JSONBUILDER
 #[derive(Default)]
 pub struct JsonWorldBuilder {
 	model: Model,
 	new_entys: Vec<(ItemType, Position)>,
 	enty_list: Vec<(String, Position)>,
+	addtl_items: Vec<(String, String)>
 }
 impl JsonWorldBuilder {
 	pub fn load_json_file(&mut self, file_path: &str) {
+		//debug!("* opening input file at {}", file_path);
 		let file = File::open(file_path).unwrap();
 		let reader = BufReader::new(file);
 		let input_data: JsonBucket = match serde_json::from_reader(reader) {
 			Ok(output) => output,
-			Err(_) => JsonBucket::default(),
+			//Err(_) => JsonBucket::default(),
+			//Ok(output) => {debug!("* output recvd: {:#?}", output); output},
+			Err(msg) => {warn!("! failed to read input data: {}", msg); JsonBucket::default()},
 		};
-		// Use the map lists to create the map stack and put it into the model
+		// 1: Use the map lists to create the map stack and put it into the model
 		let mut hallway_tiles: Vec<Vec<Position>> = Vec::new();
 		let mut logical_door_list: Vec<Position> = Vec::new();
+		let mut _furniture_requests: Vec<(String, String)> = Vec::new();
 		for (z_posn, input_map) in input_data.map_list.iter().enumerate() {
 			let mut new_map = GameMap::new(input_map.width, input_map.height);
 			let mut current_hallway = Vec::new();
@@ -105,7 +112,7 @@ impl JsonWorldBuilder {
 			self.model.levels.push(new_map);
 			hallway_tiles.push(current_hallway);
 		}
-		// 2: use the room list to create the topo graph of the layout
+		// 2: Use the room list to create the topo graph of the layout
 		// Iterate on all the rooms in the input list
 		for cur_room in input_data.room_list.iter() {
 			let room_index: usize;
@@ -134,6 +141,16 @@ impl JsonWorldBuilder {
 				}
 				self.model.layout.connect(room_index, dest_index);
 			}
+			// Add the room's contents to the list of items that will need spawnpoints generated
+			if !cur_room.contents.is_empty() {
+				debug!("* contents of room {}: {:#?}", cur_room.name, cur_room.contents);
+				for (item_name, qty) in cur_room.contents.iter() {
+					for _ in 0..*qty {
+						//furniture_requests.push((cur_room.name.clone(), item_name.clone()));
+						self.addtl_items.push((cur_room.name.clone(), item_name.clone()));
+					}
+				}
+			}
 		}
 		// 2.5: Use the logical door list to populate those tiles in the logical maps of each room
 		for posn in logical_door_list.iter() {
@@ -141,7 +158,7 @@ impl JsonWorldBuilder {
 			// Change the position in the room to Occupied
 			if let Some(room_name) = self.model.layout.get_room_name(*posn) {
 				let room_index = self.model.layout.rooms.iter().position(|x| x.name == room_name).unwrap();
-				self.model.layout.rooms[room_index].new_interior.insert(*posn, GraphCell::new(CellType::Closed));
+				self.model.layout.rooms[room_index].new_interior.insert(*posn, CellType::Closed);
 				// FIXME: NEED to add Margin tiles around the door
 			}
 			self.model.layout.add_door_to_map_at(*posn);
@@ -168,7 +185,12 @@ impl JsonWorldBuilder {
 			// Add the graph connection between the two rooms using the manual method
 			self.model.add_portal(left_side, right_side, true);
 		}
-		// DEBUG: a bunch of different output formats for mapgen feedback
+		// 4: Iterate on the rooms in the logical graph and generate a list of items that each room needs for decorations
+		//for (room_name, item_name, item_pattern) in furniture_requests.iter() {
+		//	let spawn_posn = self.model.find_spawn_area_in(room_name, item_pattern);
+		//	self.enty_list.push(item_name, spawn_posn);
+		//}
+		// ###: DEBUG: a bunch of different output formats for mapgen feedback
 		//for room in self.model.layout.rooms.iter() {
 		//	debug!("* new room: {}", room.name);
 		//	room.debug_print();
@@ -187,12 +209,15 @@ impl WorldBuilder for JsonWorldBuilder {
 	//fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
 	//	self.new_entys.clone()
 	//}
-	fn get_item_spawn_list(&self) -> Vec<(String, Position)> {
+	fn get_essential_item_requests(&self) -> Vec<(String, Position)> {
 		self.enty_list.clone()
+	}
+	fn get_additional_item_requests(&self) -> Vec<(String, String)> {
+		self.addtl_items.clone()
 	}
 }
 
-// *** MAPBUILDER
+// ###: MAPBUILDER
 pub trait MapBuilder {
 	fn build_map(&mut self);
 	fn get_map(&self) -> GameMap;
@@ -201,7 +226,7 @@ pub trait MapBuilder {
 pub fn get_map_builder(selection: i32) -> Box<dyn MapBuilder>{
 	match selection {
 		1  => Box::new(RexMapBuilder::new()),
-		2  => Box::new(JsonMapBuilder::new()),
+		//2  => Box::new(JsonMapBuilder::new()),
 		68 => Box::new(DevMapBasement::new()),
 		69 => Box::new(DevMapLobby::new()),
 		_  => Box::new(DevMapBasement::new())

@@ -1,7 +1,7 @@
 // main.rs
 // created: July 12 2023
 
-// *** EXTERNAL LIBS
+// ###: EXTERNAL LIBS
 use std::io;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
@@ -9,7 +9,7 @@ extern crate simplelog;
 
 use simplelog::*;
 
-// *** INTERNAL LIBS
+// ###: INTERNAL LIBS
 use spacegame::engine::{
 	AppResult,
 	GameEngine,
@@ -19,7 +19,7 @@ use spacegame::engine::{
 	tui::Event, // this line is required for disambiguiation vs Bevy
 };
 
-// *** MAIN METHOD
+// ###: MAIN METHOD
 fn main() -> AppResult<()> {
 	// HINT: Set the LevelFilter below to change how much logging you wish to see
 	// NOTE: Don't enable the Trace level filter for the logger unless you want a LOT of thread-level feedback

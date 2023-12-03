@@ -27,7 +27,7 @@ use crate::{
 	},
 };
 
-//  *** SYSTEMS
+//  ###: SYSTEMS
 /// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
 pub fn planq_update_system(mut commands: Commands,
 	                         mut ereader:  EventReader<GameEvent>,
@@ -364,7 +364,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 	planq.player_loc = player.1.ref_posn;
 }
 
-//  *** STRUCTURES
+//  ###: STRUCTURES
 /// BEVY: Defines the Planq settings/controls (interface bwn my GameEngine class & Bevy)
 #[derive(Resource, Clone, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Resource)]
@@ -762,7 +762,7 @@ impl DataSampleTimer {
 	}
 }
 
-//  *** EVENTS
+//  ###: EVENTS
 /// Describes a PLANQ-specific event, ie an event connected to its logic
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 pub struct PlanqEvent {
@@ -794,7 +794,7 @@ pub enum PlanqEventType {
 	AccessUnlink,
 }
 
-//  *** UTILITIES and COMPONENTS
+//  ###: UTILITIES and COMPONENTS
 /// Defines the PLANQ 'tag' component within Bevy
 #[derive(Component, Copy, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]

@@ -1,18 +1,18 @@
 // engine/event.rs
 // Provides the in-game events and related logics
 
-// *** EXTERNAL LIBS
+//  ###: EXTERNAL LIBS
 use bevy::prelude::*;
 use bevy::ecs::entity::*;
 use strum_macros::AsRefStr;
 use std::fmt::{Display, Formatter, Result};
 use std::borrow::Cow;
 
-// *** INTERNAL LIBS
+//  ###: INTERNAL LIBS
 use crate::components::Direction;
 use crate::engine::EngineMode;
 
-//  *** GAME EVENTS
+//  ###: GAME EVENTS
 /// Describes a general game event, can include a GameEventContext
 #[derive(Event, Clone, Copy, Debug, Default, Reflect)]
 pub struct GameEvent {
