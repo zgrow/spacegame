@@ -641,7 +641,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		ActionSet::new(),
 		Description::new().name("Pleyeur").desc("Still your old self."),
 		*spawnpoint,
-		Body::small(*spawnpoint, ScreenCell::new().glyph("@").fg(2).bg(0).clone()),
+		Body::small(*spawnpoint, ScreenCell::new().glyph("@").fg(2).bg(0)),
 		Viewshed::new(8),
 		Mobile::default(),
 		Obstructive::default(),
@@ -650,16 +650,16 @@ pub fn new_player_spawn(mut commands: Commands,
 	)).id();
 	model.add_contents(&vec![*spawnpoint], 0, player);
 	//debug!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
-	commands.spawn((
+	let planq = commands.spawn((
 		Planq::new(),
-		ActionSet::new(),
 		Description::new().name("PLANQ").desc("It's your PLANQ."),
 		Body::small(*spawnpoint, ScreenCell::new().glyph("¶").fg(3).bg(0)),
+		ActionSet::new(),
 		Portable::new(player),
 		Device::new(-1),
 		RngComponent::from(&mut global_rng),
-	));
-	//debug!("* new planq spawned into player inventory"); // DEBUG: announce creation of player's planq
+	)).id();
+	debug!("* new planq spawned into player inventory: {:?}", planq); // DEBUG: announce creation of player's planq
 	commands.spawn(DataSampleTimer::new().source("player_location".to_string()));
 	commands.spawn(DataSampleTimer::new().source("current_time".to_string()));
 	commands.spawn(DataSampleTimer::new().source("planq_battery".to_string()));

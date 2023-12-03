@@ -73,6 +73,7 @@ impl Model {
 		let index = self.levels[target.z as usize].to_index(target.x, target.y);
 		self.levels[target.z as usize].tiles[index].ttype
 	}
+	/// Adds the given Entity as an occupant at the specified positions, with the given priority
 	pub fn add_contents(&mut self, posns: &Vec<Position>, priority: i32, enty: Entity) {
 		//debug!("add_contents: {:?} for enty {:?} at priority {}", posns, enty, priority); // DEBUG: log the call to add_contents
 		for posn in posns {

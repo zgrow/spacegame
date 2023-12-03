@@ -156,9 +156,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('i') => { // INVENTORY the player's possessions and allow selection
 				let mut item_names = Vec::new();
 				// Get every Entity that has a Description, is Portable, and is currently being carried by someone
-				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &Description, &Portable, &ActionSet), With<IsCarried>>();
+				let mut backpack_query = eng.bevy.world.query::<(Entity, &Description, &Portable, &ActionSet)>();
 				for item in backpack_query.iter(&eng.bevy.world) {
-					//debug!("* found item {}", item.1.name.clone()); // DEBUG: report the item being worked on
+					debug!("* found item {}", item.1.name.clone()); // DEBUG: report the item being worked on
 					if item.2.carrier == player {
 						let mut menu_entries = Vec::new();
 						for action in item.3.actions.iter() {
@@ -170,7 +170,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					}
 				}
 				if item_names.is_empty() {
-					//debug!("* Nothing in inventory to display"); // DEBUG: announce feedback
+					debug!("* Nothing in inventory to display"); // DEBUG: announce feedback
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
 					msglog.tell_player("You are not carrying anything.".to_string());
 					return Ok(())
