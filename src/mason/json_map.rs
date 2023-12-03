@@ -112,7 +112,7 @@ pub struct JsonMap {
 impl From<JsonMap> for GameMap {
 	fn from(input: JsonMap) -> Self {
 		for jmap in input.tilemap {
-			debug!("ooo {:?}", jmap);
+			warn!("> From<JsonMap> for GameMap unimplemented! input: {:?}", jmap); // DEBUG: log this type conversion
 		}
 		GameMap::default()
 	}

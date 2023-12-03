@@ -143,7 +143,7 @@ impl JsonWorldBuilder {
 			}
 			// Add the room's contents to the list of items that will need spawnpoints generated
 			if !cur_room.contents.is_empty() {
-				debug!("* contents of room {}: {:#?}", cur_room.name, cur_room.contents);
+				//debug!("* contents of room {}: {:#?}", cur_room.name, cur_room.contents);
 				for (item_name, qty) in cur_room.contents.iter() {
 					for _ in 0..*qty {
 						//furniture_requests.push((cur_room.name.clone(), item_name.clone()));
@@ -190,12 +190,12 @@ impl JsonWorldBuilder {
 		//	let spawn_posn = self.model.find_spawn_area_in(room_name, item_pattern);
 		//	self.enty_list.push(item_name, spawn_posn);
 		//}
-		// ###: DEBUG: a bunch of different output formats for mapgen feedback
+		// DEBUG: a bunch of different output formats for mapgen feedback
 		//for room in self.model.layout.rooms.iter() {
 		//	debug!("* new room: {}", room.name);
 		//	room.debug_print();
 		//}
-		//debug!("* new room: {}", cur_room.name.clone()); // DEBUG: print the generated room's logical map
+		//debug!("* new room: {}", cur_room.name.clone());
 		//self.model.layout.rooms[room_index].debug_print();
 	}
 }

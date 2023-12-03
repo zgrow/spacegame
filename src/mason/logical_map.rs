@@ -165,7 +165,7 @@ impl SpawnTemplate {
 			};
 			output.push((name.clone(), next_point));
 		}
-		//debug!("* Generated a Position set for ref_posn {:?}", ref_posn); // DEBUG:
+		//debug!("* Generated a Position set for ref_posn {:?}", ref_posn); // DEBUG: log the generated Position set
 		output
 	}
 	/// Simple helper for putting constraint rules into a new SpawnTemplate
@@ -186,7 +186,7 @@ impl SpawnTemplate {
 		// so trying to get mutable refs into a tuple binding will always fail unless the vector was
 		// initialized with, eg, vec![&String] and NOT vec![String]
 		// For every occupied tile in the template,
-		//eprintln!("DEBUG: * recvd name_list: {:?}", name_list);
+		//eprintln!("* recvd name_list: {:?}", name_list); // DEBUG: log received name_list
 		for item in self.output.iter_mut() {
 			if let Some(new_name) = name_list.iter().find(|x| x.0 == item.0) { // If it matches a tile in the defn,
 				item.1 = new_name.1.clone(); // Assign it a real name
@@ -195,15 +195,15 @@ impl SpawnTemplate {
 	}
 }
 impl From<Vec<Vec<String>>> for SpawnTemplate {
-	fn from(input: Vec<Vec<String>>) -> SpawnTemplate {
-		//eprintln!("* From<Vec<Vec<String>> input: {:?}", input); // DEBUG:
+	fn from(_input: Vec<Vec<String>>) -> SpawnTemplate {
+		//eprintln!("* From<Vec<Vec<String>> input: {:?}", input); // DEBUG: log the received input
 		todo!("! SpawnTemplate::From<Vec<Vec<String>>> still unimplemented");
-		SpawnTemplate::new()
+		//SpawnTemplate::new()
 	}
 }
 impl From<Vec<String>> for SpawnTemplate {
 	fn from(input: Vec<String>) -> SpawnTemplate {
-		//eprintln!("* From<Vec<String>> input: {:?}", input); // DEBUG:
+		//eprintln!("* From<Vec<String>> input: {:?}", input); // DEBUG: log the received input
 		let mut new_output = Vec::new();
 		let mut new_shape = Vec::new();
 		for (height, line) in input.iter().enumerate() {
@@ -315,7 +315,7 @@ impl GraphRoom {
 	}
 	pub fn debug_print(&self) {
 		let z_level = self.ul_corner.z;
-		debug!("--- interior map for GraphRoom {}", self.name);
+		//debug!("--- interior map for GraphRoom {}", self.name);
 		for whye in self.ul_corner.y..=(self.dr_corner.y) {
 			let mut line_string: String = "".to_string();
 			for echs in self.ul_corner.x..=(self.dr_corner.x) {
@@ -338,7 +338,7 @@ impl GraphRoom {
 					}
 				}
 			}
-			debug!("{}", line_string); // DEBUG: prints the collision detection map of the room
+			//debug!("{}", line_string); // DEBUG: prints the collision detection map of the room
 		}
 	}
 	/// Locates an open space to spawn an item given its associated SpawnTemplate; if successful,
@@ -398,11 +398,11 @@ impl GraphRoom {
 				self.update_interior(&template, ref_point);
 				//return Some(template.into_positions(s_point)); // DEBUG: using longer method below for debugging info
 				let final_item_list = template.realize_coordinates(ref_point);
-				debug!("* --> Found valid template posn set: {:?}", final_item_list);
+				//debug!("* --> Found valid template posn set: {:?}", final_item_list); // DEBUG: log template success
 				return Some(final_item_list);
 			}
 			// At least one of the template's points failed, reset the template and the output list for another try
-			//debug!("* Could not find valid open space, trying new ref_point...");
+			//debug!("* Could not find valid open space, trying new ref_point..."); // DEBUG: log template failure
 			template.reset_success();
 		}
 		None // Should only occur here if all possible starts were tried with no success

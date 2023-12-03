@@ -16,7 +16,7 @@ pub struct RexMapBuilder {
 impl MapBuilder for RexMapBuilder {
 	fn build_map(&mut self) {
 		RexMapBuilder::load_test_map(self);
-		debug!("* build_map::new_entys: {}", self.new_entys.len()); // DEBUG: announce creation of rexpaint map
+		//debug!("* build_map::new_entys: {}", self.new_entys.len()); // DEBUG: announce creation of rexpaint map
 	}
 	fn get_map(&self) -> GameMap {
 		self.map.clone()
@@ -36,7 +36,7 @@ impl RexMapBuilder {
 	}
 	fn load_test_map(&mut self) {
 		(self.map, self.new_entys) = load_rex_map(&XpFile::from_resource("../resources/test_ship.xp").unwrap());
-		debug!("* load_test_map::new_entys: {}", self.new_entys.len()); // DEBUG: announce loading the test map
+		//debug!("* load_test_map::new_entys: {}", self.new_entys.len()); // DEBUG: announce loading the test map
 	}
 }
 

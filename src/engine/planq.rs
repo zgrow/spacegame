@@ -172,7 +172,7 @@ pub fn planq_update_system(mut commands: Commands,
 			match planq.boot_stage {
 				0 => {
 					if planq.proc_table.is_empty() {
-						debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
+						//debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 						msglog.boot_message(planq.boot_stage);
 						// kick off boot stage 1
 						planq.proc_table.push(commands.spawn(
@@ -186,7 +186,7 @@ pub fn planq_update_system(mut commands: Commands,
 				1 => {
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
-							debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
+							//debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 							msglog.boot_message(planq.boot_stage);
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
@@ -199,7 +199,7 @@ pub fn planq_update_system(mut commands: Commands,
 				2 => {
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
-							debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
+							//debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 							msglog.boot_message(planq.boot_stage);
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
@@ -212,7 +212,7 @@ pub fn planq_update_system(mut commands: Commands,
 				3 => {
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
-							debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
+							//debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 							msglog.boot_message(planq.boot_stage);
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
@@ -225,7 +225,7 @@ pub fn planq_update_system(mut commands: Commands,
 				4 => {
 					if let Ok(mut proc) = proc_ref {
 						if proc.1.timer.just_finished() {
-							debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
+							//debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 							msglog.boot_message(planq.boot_stage);
 							proc.1.outcome = PlanqEvent::new(PlanqEventType::NullEvent);
 							planq.idle_mode(&mut msglog);

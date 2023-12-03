@@ -12,7 +12,7 @@ use bevy::prelude::{
 	ReflectResource,
 	Resource,
 };
-use simplelog::*;
+//use simplelog::*;
 use bevy_turborand::*;
 
 // ###: INTERNAL LIBS
@@ -74,13 +74,13 @@ impl Model {
 		self.levels[target.z as usize].tiles[index].ttype
 	}
 	pub fn add_contents(&mut self, posns: &Vec<Position>, priority: i32, enty: Entity) {
-		//debug!("add_contents: {:?} for enty {:?} at priority {}", posns, enty, priority);
+		//debug!("add_contents: {:?} for enty {:?} at priority {}", posns, enty, priority); // DEBUG: log the call to add_contents
 		for posn in posns {
 			self.levels[posn.z as usize].add_occupant(priority, enty, *posn);
 		}
 	}
 	pub fn remove_contents(&mut self, posns: &Vec<Position>, enty: Entity) {
-		//debug!("remove_contents: {:?} for enty {:?}", posns, enty);
+		//debug!("remove_contents: {:?} for enty {:?}", posns, enty); // DEBUG: log the call to remove_contents
 		for posn in posns {
 			self.levels[posn.z as usize].remove_occupant(enty, *posn);
 		}
@@ -89,7 +89,7 @@ impl Model {
 		self.levels[target.z as usize].get_contents_at(target)
 	}
 	pub fn is_blocked_at(&self, target: Position) -> bool {
-		//debug!("* is_blocked_at({:?})", target);
+		//debug!("* is_blocked_at({:?})", target); // DEBUG: log the call to is_blocked_at
 		let index = self.levels[target.z as usize].to_index(target.x, target.y);
 		self.levels[target.z as usize].blocked_tiles[index]
 	}
@@ -98,7 +98,7 @@ impl Model {
 		let observer = observer_enty.unwrap_or(Entity::PLACEHOLDER);
 		for posn in targets.iter() {
 			if self.is_blocked_at(*posn) {
-				//debug!("* enty is_blocked_at {}", posn);
+				//debug!("* enty is_blocked_at {}", posn); // DEBUG: log where the entity's movement attempt was blocked
 				// Seems like a safe assumption that the most-visible entity at a given position will be the one blocking it
 				if let Some(observed) = self.levels[posn.z as usize].get_visible_entity_at(*posn) {
 					// Remember, this if-condition is evaluated serially: by definition, if the compiler evaluates the RHS,
@@ -112,7 +112,7 @@ impl Model {
 				}
 			}
 		}
-		//debug!(* "blockers found: {:?}", block_list);
+		//debug!(* "blockers found: {:?}", block_list); // DEBUG: log all of the blocking entities that were discovered
 		if !block_list.is_empty() {
 			Some(block_list)
 		} else {
@@ -135,8 +135,8 @@ impl Model {
 		// 4. return either the valid position set, or a None, as appropriate
 		// Don't bother with any of this if we didn't specify a valid target in the first place
 		if let Some(room_index) = self.layout.get_room_index(target_room) {
-			//debug!("* looking for spawn area in room {}", target_room); // DEBUG:
-			self.layout.rooms[room_index].debug_print(); // DEBUG:
+			//debug!("* looking for spawn area in room {}", target_room); // DEBUG: log the attempt to find a spawn area
+			self.layout.rooms[room_index].debug_print(); // DEBUG: display the current layout map of the room
 			// Make a template box from the input dims
 			let mut template = Vec::new();
 			for whye in 0..height {
@@ -151,7 +151,7 @@ impl Model {
 	}
 	/// Tries to find the specified room in the world model, and if successful, tries to obtain a spawnpoint within
 	pub fn find_spawnpoint_in(&mut self, target_room: &str, template: SpawnTemplate, rng: &mut GlobalRng) -> Option<Vec<(String, Position)>> {
-		//debug!("* find_spawnpoint_in {} for {:?}", target_room, template);
+		//debug!("* find_spawnpoint_in {} for {:?}", target_room, template); // DEBUG: log the call to find_spawnpoint_in
 		if let Some(room_index) = self.layout.get_room_index(target_room) {
 			//self.layout.rooms[room_index].debug_print(); // DEBUG: display the current layout map of the room
 			return self.layout.rooms[room_index].find_open_space(template, rng);
@@ -232,13 +232,13 @@ impl GameMap {
 	pub fn add_occupant(&mut self, priority: i32, new_enty: Entity, posn: Position) {
 		let index = self.to_index(posn.x, posn.y);
 		self.tiles[index].add_to_contents((priority, new_enty));
-		//debug!("added occupant {:?} to position {}", new_enty, posn);
+		//debug!("added occupant {:?} to position {}", new_enty, posn); // DEBUG: log the call to add_occupant
 	}
 	/// Removes an Entity from the contents list at the given Position
 	pub fn remove_occupant(&mut self, target: Entity, posn: Position) {
 		let index = self.to_index(posn.x, posn.y);
 		self.tiles[index].remove_from_contents(target);
-		//debug!("removed occupant {:?} from position {}", target, posn);
+		//debug!("removed occupant {:?} from position {}", target, posn); // DEBUG: log the call to remove_occupant
 	}
 	/// Sets a particular Position to blocked or not in the blocked_tiles map
 	pub fn set_blocked(&mut self, target: Position, state: bool) {
@@ -355,7 +355,7 @@ impl Tile {
 				break;
 			}
 			if self.contents[index].1 == target {
-				//debug!("Removing enty {:?}", target);
+				//debug!("Removing enty {:?}", target); // DEBUG: log the call to remove_from_contents
 				self.contents.remove(index);
 			}
 			index += 1;

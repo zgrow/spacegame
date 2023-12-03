@@ -166,7 +166,7 @@ impl GameEngine<'_> {
 						match action {
 							ActionType::NoAction => { }
 							ActionType::Examine => {
-								debug!("* tried to Examine"); // DEBUG: report a detected EXAMINE event
+								//debug!("* tried to Examine"); // DEBUG: report a detected EXAMINE event
 							}
 							_ => { }
 						}
@@ -186,7 +186,7 @@ impl GameEngine<'_> {
 			EngineMode::Startup => {
 				// the pre-/post-game context, when the game is not loaded but the main menu shows
 				// Setup is all done, proceed with the game
-				debug!("* Startup is complete"); // DEBUG: announce engine startup
+				//debug!("* Startup is complete"); // DEBUG: announce engine startup
 				self.set_mode(EngineMode::Running);
 			}
 			EngineMode::Running => {
@@ -560,20 +560,20 @@ impl GameEngine<'_> {
 
 		// Get the list of items that we know for sure need to be generated at specific positions
 		let mut item_spawns = self.mason.get_essential_item_requests(); // list of (name, posn)
-		eprintln!("* DEBUG: build_new_worldmap: essential: {:?}", item_spawns);
+		//eprintln!("* DEBUG: build_new_worldmap: essential: {:?}", item_spawns);
 		new_item_list.append(&mut item_spawns);
 		// Next, get the list of requested items, find spawnpoints for them, and add them to the list of spawns
 		let item_reqs = self.mason.get_additional_item_requests();
-		eprintln!("* DEBUG: build_new_worldmap: additional: {:?}", item_reqs); // DEBUG:
+		//eprintln!("* DEBUG: build_new_worldmap: additional: {:?}", item_reqs); // DEBUG:
 		for (room_name, item_name) in item_reqs.iter() {
-			eprintln!("* DEBUG: Attempting to spawn {} in {}", item_name, room_name); // DEBUG:
+			//eprintln!("* DEBUG: Attempting to spawn {} in {}", item_name, room_name); // DEBUG:
 			// get the item shape from artisan (returns a SpawnTemplate)
 			//eprintln!("** DEBUG: looking to get a shape for {}", item_name);
 			if let Some(item_shape) = self.artisan.get_random_shape(item_name, &mut rng) {
 				// try to get a spawnpoint from mason using the ItemTemplate (returns a Option<Vec<(name: String, ref_posn: Position)>>)
 				//eprintln!("*** DEBUG: looking to get a spawnpoint for {}", item_name);
 				if let Some(mut item_spawns) = model.find_spawnpoint_in(room_name, item_shape, &mut rng) {
-					eprintln!("**** DEBUG: found a place to spawn {}: {:?}", item_name, item_spawns);
+					//eprintln!("**** DEBUG: found a place to spawn {}: {:?}", item_name, item_spawns);
 					new_item_list.append(&mut item_spawns);
 				}
 			}
@@ -581,7 +581,7 @@ impl GameEngine<'_> {
 		// Spawn all of the items we need for the game
 		// This CANNOT be executed in the loop above or Rust will complain about a double borrow
 		// WARN: Need to have *all* positions decided on by this point
-		eprintln!("* DEBUG: Sending the following list for spawn:\n{:#?}", new_item_list); // DEBUG:
+		//eprintln!("* DEBUG: Sending the following list for spawn:\n{:#?}", new_item_list); // DEBUG:
 		for (i_name, i_posn) in new_item_list.iter() {
 			let item_list = self.artisan.create(i_name).at(*i_posn).build(&mut self.bevy.world);
 			for (i_enty, i_shape) in item_list.iter() {
@@ -632,16 +632,6 @@ impl GameEngine<'_> {
 		if let Some(mut camera) = self.bevy.world.get_resource_mut::<CameraView>() {
 			camera.set_dims(self.ui_grid.camera_main.width as i32, self.ui_grid.camera_main.height as i32);
 		}
-	}
-	/// Requests the creation of an item from the item builder
-	pub fn make_item(&mut self, new_item: ItemType, location: Position) {
-		//self.artisan.create_by_itemtype(new_type).at(location).build(&mut self.bevy.world);
-		self.artisan.create_by_itemtype(new_item).at(location).build(&mut self.bevy.world);
-	}
-	/// Requests to give a new Item to a specific Entity
-	pub fn give_item(&mut self, new_item: ItemType, target: Entity) {
-		//self.artisan.create_by_itemtype(new_type).give_to(target).build(&mut self.bevy.world);
-		self.artisan.create_by_itemtype(new_item).give_to(target).build(&mut self.bevy.world);
 	}
 	/// Executes a command on the PLANQ, generally from the CLI
 	pub fn exec(&mut self, cmd: PlanqCmd) -> bool {

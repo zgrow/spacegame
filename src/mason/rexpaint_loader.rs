@@ -87,7 +87,7 @@ pub fn load_rex_map(xp_file: &XpFile) -> (GameMap, Vec<(ItemType, Position)>) {
 	let mut map: GameMap = GameMap::new(new_width, new_height);
 	let mut enty_list = Vec::new();
 	for layer in &xp_file.layers {
-		debug!("- Loading map from rexfile"); //:DEBUG:
+		//debug!("- Loading map from rexfile"); //:DEBUG:
 		assert!(map.width == layer.width && map.height == layer.height, "REXfile dims mismatch");
 		assert!(map.to_index(map.width as i32, map.height as i32) == map.to_index(layer.width as i32, layer.height as i32));
 		for y in 0..layer.height {
@@ -104,7 +104,7 @@ pub fn load_rex_map(xp_file: &XpFile) -> (GameMap, Vec<(ItemType, Position)>) {
 						46 => map.tiles[index] = Tile::new_floor(),     // .    Floor
 						60 => map.tiles[index] = Tile::new_stairway(),  // <    (Upward)
 						61 => {                                         // =    Door
-							debug!("* found a DOOR: {}, {}", x, y); // DEBUG:
+							//debug!("* found a DOOR: {}, {}", x, y); // DEBUG:
 							enty_list.push((ItemType::Door, Position::new(x as i32, y as i32, 0)));
 							map.tiles[index] = Tile::new_floor()
 						},

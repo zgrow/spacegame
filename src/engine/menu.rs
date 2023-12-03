@@ -470,7 +470,7 @@ impl<'a, T> Menu<'a, T> {
 		self
 	}
 	fn render_drop_down(&self, x: u16, y: u16, group: &[MenuItem<T>], buf: &mut Buffer, _depth: usize) {
-		debug!("* Rendering drop down..."); // DEBUG: announce render_drop_down
+		//debug!("* Rendering drop down..."); // DEBUG: announce render_drop_down
 		let area = Rect::new(x, y, self.drop_width, group.len() as u16);
 		self.render_shadow(area, buf);
 		Clear.render(area, buf);

@@ -120,22 +120,22 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		}
 	}
 	pub fn create(&mut self, new_item: &str) -> &mut ItemBuilder {
-		//debug!("* ItemBuilder create() request: {}", new_item); // DEBUG: 
+		//debug!("* ItemBuilder create() request: {}", new_item); // DEBUG: log item builder request
 		if let Some(item_data) = self.item_dict.furniture.iter().find(|x| x.name == new_item) {
 			self.desc = Some(Description::new().name(&item_data.name).desc(&item_data.desc));
-			//debug!("* recvd item_data.body: {:?}", item_data.body.clone());
+			//debug!("* recvd item_data.body: {:?}", item_data.body.clone()); // DEBUG: log new Body component
 			self.body = Some(Body::new_from_str(item_data.body.clone()));
 			if !item_data.extra.is_empty() {
 				// Parse and add any additional components that are in the item's definition
-				//debug!("* recvd item_data.extra: {:?}", item_data.extra);
+				//debug!("* recvd item_data.extra: {:?}", item_data.extra); // DEBUG: log any extra components
 				for component in item_data.extra.iter() {
-					//debug!("* raw component value: {}", component);
+					//debug!("* raw component value: {}", component); // DEBUG: log raw component values
 					// HINT: This will in fact return the entire string if the string consists of only a single word
-					//let new_string: Vec<&str> = component.split(' ').collect();
+					//    let new_string: Vec<&str> = component.split(' ').collect();
 					let mut new_cmpnt = component.split(' ');
 					let part = new_cmpnt.next().unwrap();
 					let details: Vec<&str> = new_cmpnt.collect();
-					let error_msg = "! ERROR: Could not parse key:value for ";
+					let error_msg = "! ERR: Could not parse key:value for ";
 					match part {
 						"accessport"  => { self.access = Some(AccessPort::default()); } // tag component
 						"actionset"   => { self.actions = Some(ActionSet::default()); } // tag component
@@ -225,22 +225,25 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 							self.open = Some(new_open);
 						}
 						"portable"    => { self.portable = Some(Portable::empty()); } // the Entity field cannot be specified before runtime
-						_ => { error!("! ERROR: requested component {} was not recognized", component); }
+						_ => { error!("! ERR: requested component {} was not recognized", component); }
 					}
 				}
 			}
-		} else if let Some(set_data) = self.item_dict.sets.iter().find(|x| x.name == new_item) {
-			// There's no way to store the values for multiple items to be generated, so instead we'll make this
-			// the method that gets things set up for the spawn call later
-			debug!("* Setting up an item spawn batch request: {}", set_data.name); // DEBUG:
-			eprintln!("* Setting up an item spawn batch request: {}", set_data.name); // DEBUG:
-			for request in set_data.contents.iter() {
-				self.request_list.push(ItemRequest::new(request.0.clone(), request.1.clone()));
-			}
-		} else {
-			eprintln!("! ERROR: item request '{}' not found in dictionary!", new_item);
-			error!("! ERROR: item request '{}' not found in dictionary!", new_item); // FIXME: WHY AREN'T THESE WORKING
 		}
+		/*
+		 * else if let Some(set_data) = self.item_dict.sets.iter().find(|x| x.name == new_item) {
+		 * 	// There's no way to store the values for multiple items to be generated, so instead we'll make this
+		 * 	// the method that gets things set up for the spawn call later
+		 * 	debug!("* Setting up an item spawn batch request: {}", set_data.name); // DEBUG: 
+		 * 	eprintln!("* Setting up an item spawn batch request: {}", set_data.name); // DEBUG:
+		 * 	for request in set_data.contents.iter() {
+		 * 		self.request_list.push(ItemRequest::new(request.0.clone(), request.1.clone()));
+		 * 	}
+		 * } else {
+		 * 	eprintln!("! ERR: item request '{}' not found in dictionary!", new_item);
+		 * 	error!("! ERR: item request '{}' not found in dictionary!", new_item); // FIXME: WHY AREN'T THESE WORKING
+		 * }
+		 */
 		self
 	}
 	#[deprecated(note = "--> Switch to using ItemBuilder::create(str)")]
@@ -395,7 +398,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		}
 		// - Return the entire list of placements
 		//posns
-		todo!("Not done implementing this yet");
+		todo!("Not done implementing this yet"); // TODO: finish implementing the decorate() method in artisan
 	}
 	/// Retrieves the placement pattern for a specified Item from the ItemDict
 	pub fn old_get_pattern_for(&self, item_name: &str) -> Option<Vec<Vec<String>>> {
@@ -425,7 +428,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			//   shapes: Vec<Vec<String>> -> the set of placement templates
 			let mut new_template: SpawnTemplate = set_data.shapes[0].clone().into();
 			// replace the item IDs in the template with the correct item names
-			//debug!("* DET: Now calling assign_names with {:?}", set_data.contents);
+			//debug!("* DET: Now calling assign_names with {:?}", set_data.contents); // DEBUG: log newly assigned names
 			new_template.assign_names(set_data.contents.clone());
 			// RawItemSets do not currently support constraints
 			return Some(new_template);
@@ -435,25 +438,22 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 	}
 	/// Retrieves a random template from the set defined for a specified item
 	pub fn get_random_shape(&self, item_name: &str, rng: &mut GlobalRng) -> Option<SpawnTemplate> {
-		//debug!("* DEBUG: get_random_shape: {}", item_name);
+		//debug!("* get_random_shape: {}", item_name); // DEBUG: log get_random_shape invocation
 		// If this item name was found in the ItemDict,
 		if let Some(item_data) = self.item_dict.furniture.iter().find(|x| x.name == item_name) {
 			// Return a SpawnTemplate that is made from the 'furniture' list of RawItems in the ItemDict
 			// item_data should be a RawItem object, representing a single item, so it's okay to return wholesale
-			//debug!("* Obtained item_data: {:?}", item_data);
+			//debug!("* Obtained item_data: {:?}", item_data); // DEBUG: log obtained item_data
 			let mut new_template: SpawnTemplate = (*rng.sample(&item_data.shapes).unwrap()).clone().into();
 			new_template.assign_name(item_data.name.clone());
-			//return Some((*rng.sample(&item_data.shapes).unwrap()).clone().into());
 			return Some(new_template);
 		} else if let Some(set_data) = self.item_dict.sets.iter().find(|x| x.name == item_name) {
 			// As above, but for the 'sets' list of RawItemSets in the ItemDict
 			// Make a base template using the item set defn
 			let mut new_template: SpawnTemplate = (*rng.sample(&set_data.shapes).unwrap()).clone().into();
 			// Use the room's contents list from the item defn, to populate the names in the spawn template's output
-			//panic!("* RNG: get_random_shapes calling assign_names with {:?}", set_data.contents);
-			//debug!("* RNG: Now calling assign_names with {:?}", set_data.contents);
+			//debug!("* RNG: Now calling assign_names with {:?}", set_data.contents); // DEBUG: log obtained item_data
 			new_template.assign_names(set_data.contents.clone());
-			//return Some((*rng.sample(&set_data.shapes).unwrap()).clone().into());
 			return Some(new_template);
 		} else {
 			// Couldn't find the requested item, make sure someone knows
@@ -491,7 +491,7 @@ pub fn load_furniture_defns(items_filename: &str, sets_filename: &str) -> ItemDi
 	let item_reader = BufReader::new(item_file);
 	// If reading any of the lines failed, return a default dict
 	new_dict.furniture = match serde_json::from_reader(item_reader) {
-		//Ok(output) => {debug!("* recvd output: {:?}", output); output}, // DEBUG: disclose the successful output
+		//Ok(output) => {debug!("* recvd output: {:?}", output); output}, // DEBUG: log the successful output
 		Ok(output) => {output},
 		Err(e) => {error!("! could not create ItemDict.furniture: {}", e); Vec::new()},
 	};
@@ -499,7 +499,7 @@ pub fn load_furniture_defns(items_filename: &str, sets_filename: &str) -> ItemDi
 	let sets_file = File::open(sets_filename).unwrap();
 	let sets_reader = BufReader::new(sets_file);
 	new_dict.sets = match serde_json::from_reader(sets_reader) {
-		//Ok(output) => {debug!("* new sets: {:?}", output); output},
+		//Ok(output) => {debug!("* new sets: {:?}", output); output}, // DEBUG: log the successful output
 		Ok(output) => {output},
 		Err(e) => {error!("! could not create ItemDict.sets: {}", e); Vec::new()}
 	};

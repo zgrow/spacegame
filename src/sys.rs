@@ -332,7 +332,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				// If the actor is moving between z-levels, we have some extra logic to handle
 				if dir == Direction::UP || dir == Direction::DOWN { // Is the actor moving between z-levels?
 					// Prevent movement if an invalid z-level was calculated, or if they are not standing on stairs
-					debug!("* Attempting ladder traverse to target posn {}", new_location);
+					//debug!("* Attempting ladder traverse to target posn {}", new_location);
 					// CASE 1: The target location is beyond the Model's height
 					if new_location.z < 0 || new_location.z as usize >= model.levels.len() {
 						msglog.tell_player(format!("You're already on the {}-most deck.", dir));
@@ -366,7 +366,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 				let _locn_index = model.levels[new_location.z as usize].to_index(new_location.x, new_location.y);
 				// Get a picture of where the actor wants to move to so we can check it for collisions
 				let target_extent = actor_body.project_to(new_location);
-				debug!("* target_extent: {:?}", target_extent);
+				//debug!("* target_extent: {:?}", target_extent);
 				if let Some(mut blocked_tiles) = model.get_obstructions_at(target_extent, Some(actor_enty)) {
 					blocked_tiles.retain(|x| x.1 != Obstructor::Actor(actor_enty));
 					// We have a list of positions that are definitely blocked, but we don't know why
@@ -488,7 +488,7 @@ pub fn openable_system(mut commands:    Commands,
 		}
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
-		debug!("* actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
+		//debug!("* actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
 		//let actor = e_query.get_mut(econtext.subject).unwrap();
 		let (_enty, _body, a_desc, a_player, a_viewshed) = e_query.get_mut(econtext.subject).unwrap();
 		let is_player_action = a_player.is_some();
@@ -649,7 +649,7 @@ pub fn new_player_spawn(mut commands: Commands,
 		Memory::new(),
 	)).id();
 	model.add_contents(&vec![*spawnpoint], 0, player);
-	debug!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
+	//debug!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
 	commands.spawn((
 		Planq::new(),
 		ActionSet::new(),
@@ -708,7 +708,7 @@ pub fn test_npc_spawn(mut commands: Commands,
 		Obstructive::default(),
 		Container::default(),
 	));
-	debug!("* Spawned new npc at {}", spawnpoint); // DEBUG: announce npc creation
+	//debug!("* Spawned new npc at {}", spawnpoint); // DEBUG: announce npc creation
 }
 
 // ###: UTILITIES
