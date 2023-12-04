@@ -269,7 +269,7 @@ pub fn lockable_system(mut _commands:    Commands,
 	}
 }
 /// Handles updates to the 'meta' worldmaps, ie the blocked and opaque tilemaps
-pub fn map_indexing_system(mut model:         ResMut<Model>,
+pub fn map_indexing_system(mut model:         ResMut<WorldModel>,
 	                         blocker_query: Query<&Body, With<Obstructive>>,
 	                         opaque_query:  Query<(&Body, &Opaque)>,
 ) {
@@ -295,7 +295,7 @@ pub fn map_indexing_system(mut model:         ResMut<Model>,
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	                     mut msglog:      ResMut<MessageLog>,
 	                     mut p_posn_res:  ResMut<Position>,
-	                     mut model:       ResMut<Model>,
+	                     mut model:       ResMut<WorldModel>,
 	                     mut e_query:     Query<(Entity, &mut Description, &mut Body, Option<&mut Viewshed>, Option<&Player>)>
 ) {
 	if ereader.is_empty() { return; } // Don't even bother trying if there's no events to worry about
@@ -570,7 +570,7 @@ pub fn operable_system(mut ereader: EventReader<GameEvent>,
 	}
 }
 /// Handles entities that can see physical light
-pub fn visibility_system(mut model:  ResMut<Model>,
+pub fn visibility_system(mut model:  ResMut<WorldModel>,
 	                       mut seers:  Query<(&mut Viewshed, &Body, Option<&Player>, Option<&mut Memory>), Changed<Viewshed>>,
 	                       //observable: Query<(Entity, &Body)>,
 ) {
@@ -616,7 +616,7 @@ pub fn visibility_system(mut model:  ResMut<Model>,
 /// Adds a new player entity to a new game world
 pub fn new_player_spawn(mut commands: Commands,
 	                      spawnpoint:   Res<Position>,
-	                      mut model:    ResMut<Model>,
+	                      mut model:    ResMut<WorldModel>,
 	                      mut p_query:  Query<(Entity, &Player)>,
 	                      mut msglog:   ResMut<MessageLog>,
 	                      mut global_rng: ResMut<GlobalRng>,

@@ -1,191 +1,14 @@
 // messagelog.rs
 // Provides some logical handles to facilitate game logging and display via ratatui
 
+//  ###: EXTERNAL LIBRARIES
 use bevy::prelude::*;
 use ratatui::text::{Line, Span};
 use ratatui::style::{Style, Color, Modifier};
 
-/// Describes a single entry in the MessageLog; the `text` field supports inline styling, which will be parsed
-/// and converted to the appropriate types when ready to be rendered
-/// A single Message is roughly equivalent to a ratatui::Line: it can contain multiple spans of styled text,
-/// but will not exceed more than one CR/LF
-#[derive(Resource, Clone, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Resource)]
-pub struct Message {
-	pub timestamp: i32,
-	pub priority: i32,
-	pub channel: String,
-	pub text: String,
-}
-impl Message {
-	pub fn new(time: i32, level: i32, chan: String, msg: String) -> Message {
-		Message {
-			timestamp: time,
-			priority: level,
-			channel: chan,
-			text: msg,
-		}
-	}
-}
-impl From<Message> for Line<'_> {
-	fn from(input: Message) -> Self {
-		// SYNTAX
-		// enclose the text modifications inside double brackets; fg/bg take color names only
-		// "This is some [[fg:red,bg:white,mod:+italic]]red text[[end]]."
-		// (end)
-		// We can ignore the channel and priority fields because they're for organizational purposes anyway
-		// later it might be useful to add some kind of a channel prefix to the message, if so desired
-		// -  TODO: Format the timestamp into a suitable prefix
-		// -  TODO: Format the priority into a suitable prefix
-		// -  TODO: Format the channel into a suitable prefix
-		// Parse the text out into raw spans, separated by the inlined control chars
-		let mut blocks: Vec<String> = Vec::new(); // The set of substrings that begin with '[['
-		let mut line: Vec<Span> = Vec::new();
-		// Split the input line into sections that start with control chars
-		for chunk in input.text.split("[[") {
-			blocks.push(chunk.to_string());
-		}
-		// For each block of text, ie 'fg:red]]EXIT', 'end]]'
-		for block in blocks.iter() {
-			let mut style = Style::default();
-			if block.is_empty() { continue; } // The leading delimiters cause the split operation to insert empty strings
-			let spans = block.split("]]").map(String::from).collect::<Vec<String>>(); // Split each block into two, before/after the control chars
-			if spans.len() < 2 { line.push(Span::raw(spans[0].clone())); continue; }
-			let trim_chars: &[_] = &['[', ']']; // the split() is supposed to do this, but let's just make sure
-			let style_line: Vec<&str> = spans[0].trim_matches(trim_chars).split(',').collect(); // Split the control chars into ind. mods
-			// For each individual modification, figure out what type it is and apply it to the Style
-			// TODO: make use of the color/modification conversion tools in camera.rs (maybe export them to lib.rs?)
-			for token in style_line.iter() {
-				let keyval: Vec<&str> = token.split(':').collect();
-				match keyval[0] {
-					"fg" => {
-						match keyval[1] {
-							"black"      => { style = style.fg(Color::Black); }
-							"red"        => { style = style.fg(Color::Red); }
-							"green"      => { style = style.fg(Color::Green); }
-							"yellow"     => { style = style.fg(Color::Yellow); }
-							"blue"       => { style = style.fg(Color::Blue); }
-							"pink"
-							| "magenta"
-							| "purple"   => { style = style.fg(Color::Magenta); }
-							"cyan"       => { style = style.fg(Color::Cyan); }
-							"white"      => { style = style.fg(Color::Gray); }
-							"ltblack"
-							| "grey"
-							| "gray"     => { style = style.fg(Color::DarkGray); }
-							"ltred"      => { style = style.fg(Color::LightRed); }
-							"ltgreen"    => { style = style.fg(Color::LightGreen); }
-							"ltyellow"   => { style = style.fg(Color::LightYellow); }
-							"ltblue"     => { style = style.fg(Color::LightBlue); }
-							"ltpink"
-							| "ltmagenta"
-							| "ltpurple" => { style = style.fg(Color::LightMagenta); }
-							"ltcyan"     => { style = style.fg(Color::LightCyan); }
-							"ltwhite"    => { style = style.fg(Color::White); }
-							"default"
-							| "reset"
-							| "end"      => { style = style.fg(Color::Reset); }
-							_ => { }
-						}
-					}
-					"bg" => {
-						match keyval[1] {
-							"black"      => { style = style.bg(Color::Black); }
-							"red"        => { style = style.bg(Color::Red); }
-							"green"      => { style = style.bg(Color::Green); }
-							"yellow"     => { style = style.bg(Color::Yellow); }
-							"blue"       => { style = style.bg(Color::Blue); }
-							"pink"
-							| "magenta"
-							| "purple"   => { style = style.bg(Color::Magenta); }
-							"cyan"       => { style = style.bg(Color::Cyan); }
-							"white"      => { style = style.bg(Color::Gray); }
-							"ltblack"
-							| "grey"
-							| "gray"     => { style = style.bg(Color::DarkGray); }
-							"ltred"      => { style = style.bg(Color::LightRed); }
-							"ltgreen"    => { style = style.bg(Color::LightGreen); }
-							"ltyellow"   => { style = style.bg(Color::LightYellow); }
-							"ltblue"     => { style = style.bg(Color::LightBlue); }
-							"ltpink"
-							| "ltmagenta"
-							| "ltpurple" => { style = style.bg(Color::LightMagenta); }
-							"ltcyan"     => { style = style.bg(Color::LightCyan); }
-							"ltwhite"    => { style = style.bg(Color::White); }
-							"default"
-							| "reset"
-							| "end"      => { style = style.bg(Color::Reset); }
-							_ => { }
-						}
-					}
-					"mod" => {
-						// need to do some special splitting and parsing here
-						let mut pos_mods = Modifier::empty();
-						let mut neg_mods = Modifier::empty();
-						let mods: Vec<&str> = keyval[1].split('/').collect();
-						for element in mods.iter() {
-							let mut token = element.to_string();
-							let polarity = token.remove(0); // get the first char off the element
-							let bit_mod = match &*token { // Arranged in order of descending support; blink/flash and strikeout esp. are rare
-								"bright"
-								| "bold"    => { Modifier::BOLD }
-								"dark"
-								| "dim"     => { Modifier::DIM }
-								"reverse"   => { Modifier::REVERSED }
-								"underline" => { Modifier::UNDERLINED }
-								"italic"    => { Modifier::ITALIC }
-								"hidden"    => { Modifier::HIDDEN }
-								"strikeout" => { Modifier::CROSSED_OUT }
-								"blink"     => { Modifier::SLOW_BLINK }
-								"flash"     => { Modifier::RAPID_BLINK }
-								_ => { Modifier::empty() }
-							};
-							if polarity == '+' {
-								pos_mods |= bit_mod;
-							} else if polarity == '-' {
-								neg_mods |= bit_mod;
-							} else {
-								error!("* ERR: color parse failure, unsupported mod: {}{}", polarity, element);
-							}
-							// Apply the bitfield modifiers, if any
-						}
-						if pos_mods != Modifier::empty() {
-							style = style.add_modifier(pos_mods);
-						}
-						if neg_mods != Modifier::empty() { style = style.remove_modifier(neg_mods); }
-					}
-					"default" | "reset" | "end" => {
-						style = Style::reset();
-					}
-					_ => { }
-				}
-			}
-			let new_span = Span::styled(spans[1].clone(), style);
-			line.push(new_span);
-		}
-		Line::from(line)
-	}
-}
-#[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
-//#[reflect(Resource)]
-pub struct MessageChannel {
-	pub name: String,
-	pub contents: Vec<Message>,
-}
-impl MessageChannel {
-	pub fn new(new_name: &String) -> MessageChannel {
-		MessageChannel {
-			name: new_name.to_string(),
-			contents: Vec::new(),
-		}
-	}
-	pub fn add(&mut self, new_msg: Message) {
-		self.contents.push(new_msg);
-	}
-	pub fn pop(&mut self) -> Option<Message> {
-		self.contents.pop()
-	}
-}
+//  ###: COMPLEX TYPES
+//   ##: MessageLog
+/// The master container for all of the in-game messaging
 #[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
 pub struct MessageLog {
@@ -346,6 +169,190 @@ impl<'a> Default for &'a MessageLog {
 			logs: Vec::new(),
 		};
 		&VALUE
+	}
+}
+//   ##: MessageChannel
+/// Holds a series of Messages, which all share the same channel name
+#[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
+//#[reflect(Resource)]
+pub struct MessageChannel {
+	pub name: String,
+	pub contents: Vec<Message>,
+}
+impl MessageChannel {
+	pub fn new(new_name: &String) -> MessageChannel {
+		MessageChannel {
+			name: new_name.to_string(),
+			contents: Vec::new(),
+		}
+	}
+	pub fn add(&mut self, new_msg: Message) {
+		self.contents.push(new_msg);
+	}
+	pub fn pop(&mut self) -> Option<Message> {
+		self.contents.pop()
+	}
+}
+//   ##: Message
+/// Describes a single entry in the MessageLog; the `text` field supports inline styling, which will be parsed
+/// and converted to the appropriate types when ready to be rendered
+/// A single Message is roughly equivalent to a ratatui::Line: it can contain multiple spans of styled text,
+/// but will not exceed more than one CR/LF
+#[derive(Resource, Clone, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Resource)]
+pub struct Message {
+	pub timestamp: i32,
+	pub priority: i32,
+	pub channel: String,
+	pub text: String,
+}
+impl Message {
+	pub fn new(time: i32, level: i32, chan: String, msg: String) -> Message {
+		Message {
+			timestamp: time,
+			priority: level,
+			channel: chan,
+			text: msg,
+		}
+	}
+}
+impl From<Message> for Line<'_> {
+	fn from(input: Message) -> Self {
+		// SYNTAX
+		// enclose the text modifications inside double brackets; fg/bg take color names only
+		// "This is some [[fg:red,bg:white,mod:+italic]]red text[[end]]."
+		// (end)
+		// We can ignore the channel and priority fields because they're for organizational purposes anyway
+		// later it might be useful to add some kind of a channel prefix to the message, if so desired
+		// -  TODO: Format the timestamp into a suitable prefix
+		// -  TODO: Format the priority into a suitable prefix
+		// -  TODO: Format the channel into a suitable prefix
+		// Parse the text out into raw spans, separated by the inlined control chars
+		let mut blocks: Vec<String> = Vec::new(); // The set of substrings that begin with '[['
+		let mut line: Vec<Span> = Vec::new();
+		// Split the input line into sections that start with control chars
+		for chunk in input.text.split("[[") {
+			blocks.push(chunk.to_string());
+		}
+		// For each block of text, ie 'fg:red]]EXIT', 'end]]'
+		for block in blocks.iter() {
+			let mut style = Style::default();
+			if block.is_empty() { continue; } // The leading delimiters cause the split operation to insert empty strings
+			let spans = block.split("]]").map(String::from).collect::<Vec<String>>(); // Split each block into two, before/after the control chars
+			if spans.len() < 2 { line.push(Span::raw(spans[0].clone())); continue; }
+			let trim_chars: &[_] = &['[', ']']; // the split() is supposed to do this, but let's just make sure
+			let style_line: Vec<&str> = spans[0].trim_matches(trim_chars).split(',').collect(); // Split the control chars into ind. mods
+			// For each individual modification, figure out what type it is and apply it to the Style
+			// TODO: make use of the color/modification conversion tools in camera.rs (maybe export them to lib.rs?)
+			for token in style_line.iter() {
+				let keyval: Vec<&str> = token.split(':').collect();
+				match keyval[0] {
+					"fg" => {
+						match keyval[1] {
+							"black"      => { style = style.fg(Color::Black); }
+							"red"        => { style = style.fg(Color::Red); }
+							"green"      => { style = style.fg(Color::Green); }
+							"yellow"     => { style = style.fg(Color::Yellow); }
+							"blue"       => { style = style.fg(Color::Blue); }
+							"pink"
+							| "magenta"
+							| "purple"   => { style = style.fg(Color::Magenta); }
+							"cyan"       => { style = style.fg(Color::Cyan); }
+							"white"      => { style = style.fg(Color::Gray); }
+							"ltblack"
+							| "grey"
+							| "gray"     => { style = style.fg(Color::DarkGray); }
+							"ltred"      => { style = style.fg(Color::LightRed); }
+							"ltgreen"    => { style = style.fg(Color::LightGreen); }
+							"ltyellow"   => { style = style.fg(Color::LightYellow); }
+							"ltblue"     => { style = style.fg(Color::LightBlue); }
+							"ltpink"
+							| "ltmagenta"
+							| "ltpurple" => { style = style.fg(Color::LightMagenta); }
+							"ltcyan"     => { style = style.fg(Color::LightCyan); }
+							"ltwhite"    => { style = style.fg(Color::White); }
+							"default"
+							| "reset"
+							| "end"      => { style = style.fg(Color::Reset); }
+							_ => { }
+						}
+					}
+					"bg" => {
+						match keyval[1] {
+							"black"      => { style = style.bg(Color::Black); }
+							"red"        => { style = style.bg(Color::Red); }
+							"green"      => { style = style.bg(Color::Green); }
+							"yellow"     => { style = style.bg(Color::Yellow); }
+							"blue"       => { style = style.bg(Color::Blue); }
+							"pink"
+							| "magenta"
+							| "purple"   => { style = style.bg(Color::Magenta); }
+							"cyan"       => { style = style.bg(Color::Cyan); }
+							"white"      => { style = style.bg(Color::Gray); }
+							"ltblack"
+							| "grey"
+							| "gray"     => { style = style.bg(Color::DarkGray); }
+							"ltred"      => { style = style.bg(Color::LightRed); }
+							"ltgreen"    => { style = style.bg(Color::LightGreen); }
+							"ltyellow"   => { style = style.bg(Color::LightYellow); }
+							"ltblue"     => { style = style.bg(Color::LightBlue); }
+							"ltpink"
+							| "ltmagenta"
+							| "ltpurple" => { style = style.bg(Color::LightMagenta); }
+							"ltcyan"     => { style = style.bg(Color::LightCyan); }
+							"ltwhite"    => { style = style.bg(Color::White); }
+							"default"
+							| "reset"
+							| "end"      => { style = style.bg(Color::Reset); }
+							_ => { }
+						}
+					}
+					"mod" => {
+						// need to do some special splitting and parsing here
+						let mut pos_mods = Modifier::empty();
+						let mut neg_mods = Modifier::empty();
+						let mods: Vec<&str> = keyval[1].split('/').collect();
+						for element in mods.iter() {
+							let mut token = element.to_string();
+							let polarity = token.remove(0); // get the first char off the element
+							let bit_mod = match &*token { // Arranged in order of descending support; blink/flash and strikeout esp. are rare
+								"bright"
+								| "bold"    => { Modifier::BOLD }
+								"dark"
+								| "dim"     => { Modifier::DIM }
+								"reverse"   => { Modifier::REVERSED }
+								"underline" => { Modifier::UNDERLINED }
+								"italic"    => { Modifier::ITALIC }
+								"hidden"    => { Modifier::HIDDEN }
+								"strikeout" => { Modifier::CROSSED_OUT }
+								"blink"     => { Modifier::SLOW_BLINK }
+								"flash"     => { Modifier::RAPID_BLINK }
+								_ => { Modifier::empty() }
+							};
+							if polarity == '+' {
+								pos_mods |= bit_mod;
+							} else if polarity == '-' {
+								neg_mods |= bit_mod;
+							} else {
+								error!("* ERR: color parse failure, unsupported mod: {}{}", polarity, element);
+							}
+							// Apply the bitfield modifiers, if any
+						}
+						if pos_mods != Modifier::empty() {
+							style = style.add_modifier(pos_mods);
+						}
+						if neg_mods != Modifier::empty() { style = style.remove_modifier(neg_mods); }
+					}
+					"default" | "reset" | "end" => {
+						style = Style::reset();
+					}
+					_ => { }
+				}
+			}
+			let new_span = Span::styled(spans[1].clone(), style);
+			line.push(new_span);
+		}
+		Line::from(line)
 	}
 }
 

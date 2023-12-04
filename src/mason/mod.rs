@@ -1,9 +1,13 @@
 // mason/mod.rs
 // Provides the heavy lifting for building maps without cluttering up main()
 
+//  ###: EXTERNAL LIBRARIES:
 use simplelog::*;
 use std::fs::File;
 use std::io::BufReader;
+//use bevy_turborand::*;
+
+//  ###: INTERNAL LIBRARIES
 use crate::artisan::ItemType;
 use crate::components::Position;
 use crate::worldmap::*;
@@ -14,44 +18,12 @@ pub mod json_map;
 use json_map::*;
 pub mod logical_map;
 use logical_map::*;
-//use bevy_turborand::*;
 
-type Qpoint = (f32, f32);
-
-/// Returns a vector of Positions that describe a direct line/path between the two inputs
-pub fn get_line(first: &Position, second: &Position) -> Vec<Position> {
-	let alpha: Qpoint = (first.x as f32, first.y as f32);
-	let beta: Qpoint = (second.x as f32, second.y as f32);
-	let mut points = Vec::new();
-	let enn = diagonal_distance(&alpha, &beta);
-	let end = enn as i32;
-	for step in 0..end {
-		let tee = if enn == 0.0 { 0.0 } else { step as f32 / enn };
-		let qpoint = round_point(&lerp_point(&alpha, &beta, tee));
-		let posn = Position::new(qpoint.0 as i32, qpoint.1 as i32, first.z);
-		//points.push(round_point(lerp_point(&alpha, &beta, tee)));
-		points.push(posn);
-	}
-	points
-}
-pub fn diagonal_distance(alpha: &Qpoint, beta: &Qpoint) -> f32 {
-	let dx = beta.0 - alpha.0;
-	let dy = beta.1 - alpha.1;
-	f32::max(dx.abs(), dy.abs())
-}
-pub fn round_point(input: &Qpoint) -> Qpoint {
-	(input.0.round(), input.1.round())
-}
-pub fn lerp_point(alpha: &Qpoint, beta: &Qpoint, tee: f32) -> Qpoint {
-	(lerp(alpha.0, beta.0, tee), lerp(alpha.1, beta.1, tee))
-}
-pub fn lerp(start: f32, end: f32, tee: f32) -> f32 {
-	start * (1.0 - tee) + tee * end
-}
-
+//  ###: TRAITS
+//   ##: WorldBuilder
 pub trait WorldBuilder {
 	fn build_world(&mut self);
-	fn get_model(&self) -> Model;
+	fn get_model(&self) -> WorldModel;
 	//fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)>;
 	fn get_essential_item_requests(&self) -> Vec<(String, Position)>;
 	fn get_additional_item_requests(&self) -> Vec<(String, String)>;
@@ -61,10 +33,11 @@ pub fn get_world_builder() -> Box<dyn WorldBuilder> {
 	Box::<JsonWorldBuilder>::default()
 }
 
-// ###: JSONBUILDER
+//  ###: COMPLEX TYPES
+//   ##: JsonWorldBuilder
 #[derive(Default)]
 pub struct JsonWorldBuilder {
-	model: Model,
+	model: WorldModel,
 	new_entys: Vec<(ItemType, Position)>,
 	enty_list: Vec<(String, Position)>,
 	addtl_items: Vec<(String, String)>
@@ -85,7 +58,7 @@ impl JsonWorldBuilder {
 		let mut logical_door_list: Vec<Position> = Vec::new();
 		let mut _furniture_requests: Vec<(String, String)> = Vec::new();
 		for (z_posn, input_map) in input_data.map_list.iter().enumerate() {
-			let mut new_map = GameMap::new(input_map.width, input_map.height);
+			let mut new_map = WorldMap::new(input_map.width, input_map.height);
 			let mut current_hallway = Vec::new();
 			for (y_posn, line) in input_map.tilemap.iter().enumerate() {
 				for (x_posn, tile) in line.chars().enumerate() {
@@ -203,7 +176,7 @@ impl WorldBuilder for JsonWorldBuilder {
 	fn build_world(&mut self) {
 		JsonWorldBuilder::load_json_file(self, "resources/test_ship_v3.json");
 	}
-	fn get_model(&self) -> Model {
+	fn get_model(&self) -> WorldModel {
 		self.model.clone()
 	}
 	//fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
@@ -217,10 +190,47 @@ impl WorldBuilder for JsonWorldBuilder {
 	}
 }
 
-// ###: MAPBUILDER
+//  ###: SIMPLE TYPES AND HELPERS
+//   ##: Floating-point (for fractional values) vector math functions
+/// Returns a vector of Positions that describe a direct line/path between the two inputs
+fn get_line(first: &Position, second: &Position) -> Vec<Position> {
+	let alpha: Qpoint = (first.x as f32, first.y as f32);
+	let beta: Qpoint = (second.x as f32, second.y as f32);
+	let mut points = Vec::new();
+	let enn = diagonal_distance(&alpha, &beta);
+	let end = enn as i32;
+	for step in 0..end {
+		let tee = if enn == 0.0 { 0.0 } else { step as f32 / enn };
+		let qpoint = round_point(&lerp_point(&alpha, &beta, tee));
+		let posn = Position::new(qpoint.0 as i32, qpoint.1 as i32, first.z);
+		//points.push(round_point(lerp_point(&alpha, &beta, tee)));
+		points.push(posn);
+	}
+	points
+}
+pub fn diagonal_distance(alpha: &Qpoint, beta: &Qpoint) -> f32 {
+	let dx = beta.0 - alpha.0;
+	let dy = beta.1 - alpha.1;
+	f32::max(dx.abs(), dy.abs())
+}
+pub fn round_point(input: &Qpoint) -> Qpoint {
+	(input.0.round(), input.1.round())
+}
+pub fn lerp_point(alpha: &Qpoint, beta: &Qpoint, tee: f32) -> Qpoint {
+	(lerp(alpha.0, beta.0, tee), lerp(alpha.1, beta.1, tee))
+}
+pub fn lerp(start: f32, end: f32, tee: f32) -> f32 {
+	start * (1.0 - tee) + tee * end
+}
+//   ##: Helper/alias type for better clarity in the above methods
+type Qpoint = (f32, f32);
+
+//  ###: DEPRECATED
+//   ##: MAPBUILDER
+#[deprecated]
 pub trait MapBuilder {
 	fn build_map(&mut self);
-	fn get_map(&self) -> GameMap;
+	fn get_map(&self) -> WorldMap;
 	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)>;
 }
 pub fn get_map_builder(selection: i32) -> Box<dyn MapBuilder>{
@@ -234,7 +244,7 @@ pub fn get_map_builder(selection: i32) -> Box<dyn MapBuilder>{
 }
 /// Creates the top level of the dev testing map
 pub struct DevMapLobby {
-	map: GameMap,
+	map: WorldMap,
 	new_entys: Vec<(ItemType, Position)>,
 }
 impl MapBuilder for DevMapLobby {
@@ -243,7 +253,7 @@ impl MapBuilder for DevMapLobby {
 		// make a blank map of size 30x30 tiles
 		let new_width = 30;
 		let new_height = 30;
-		self.map = GameMap::new(new_width, new_height);
+		self.map = WorldMap::new(new_width, new_height);
 		// set the index and its maximums
 		let mut index;
 		// Put up some walls and floors
@@ -286,7 +296,7 @@ impl MapBuilder for DevMapLobby {
 		index = self.map.to_index(7, 7);
 		self.map.tiles[index] = Tile::new_stairway();
 	}
-	fn get_map(&self) -> GameMap {
+	fn get_map(&self) -> WorldMap {
 		self.map.clone()
 	}
 	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
@@ -296,7 +306,7 @@ impl MapBuilder for DevMapLobby {
 impl DevMapLobby {
 	pub fn new() -> DevMapLobby {
 		DevMapLobby {
-			map: GameMap::new(1, 1),
+			map: WorldMap::new(1, 1),
 			new_entys: Vec::new(),
 		}
 	}
@@ -308,7 +318,7 @@ impl Default for DevMapLobby {
 }
 /// Creates the bottom level of the dev testing map
 pub struct DevMapBasement {
-	map: GameMap,
+	map: WorldMap,
 	new_entys: Vec<(ItemType, Position)>,
 }
 impl MapBuilder for DevMapBasement {
@@ -316,7 +326,7 @@ impl MapBuilder for DevMapBasement {
 		// do the thing
 		let new_width = 30;
 		let new_height = 30;
-		self.map = GameMap::new(new_width, new_height);
+		self.map = WorldMap::new(new_width, new_height);
 		let mut index;
 		let x_max = new_width - 1;
 		let y_max = new_height - 1;
@@ -336,7 +346,7 @@ impl MapBuilder for DevMapBasement {
 		index = self.map.to_index(5, 5);
 		self.map.tiles[index] = Tile::new_stairway();
 	}
-	fn get_map(&self) -> GameMap {
+	fn get_map(&self) -> WorldMap {
 		self.map.clone()
 	}
 	fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
@@ -346,7 +356,7 @@ impl MapBuilder for DevMapBasement {
 impl DevMapBasement {
 	pub fn new() -> DevMapBasement {
 		DevMapBasement {
-			map: GameMap::new(1, 1),
+			map: WorldMap::new(1, 1),
 			new_entys: Vec::new(),
 		}
 	}
@@ -356,7 +366,5 @@ impl Default for DevMapBasement {
 		DevMapBasement::new()
 	}
 }
-
-
 
 // EOF

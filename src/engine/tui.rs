@@ -2,7 +2,7 @@
 // July 12 2023
 // File was cribbed/copied from orhun/rust-tui-template output
 
-// ###: EXTERNAL LIBS
+// ###: EXTERNAL LIBRARIES
 use std::io;
 use std::sync::mpsc;
 use std::thread;
@@ -23,89 +23,21 @@ use crossterm::terminal::{
 use ratatui::backend::Backend;
 use ratatui::Terminal;
 
-// ###: INTERNAL LIBS
+// ###: INTERNAL LIBRARIES
 use crate::engine::{AppResult, GameEngine};
 
-// ###: METHODS
-/// Defines the set of interface events in the TUI
-#[derive(Clone, Copy, Debug)]
-pub enum Event {
-	/// One tick of the game engine
-	Tick,
-	/// A key press
-	Key(KeyEvent),
-	/// A mouse click or scroll
-	Mouse(MouseEvent),
-	/// Terminal has been resized
-	Resize(u16, u16)
-}
-
-/// Handles the TUI events
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct EventHandler {
-	/// Event sender channel.
-	sender: mpsc::Sender<Event>,
-	/// Event receiver channel.
-	receiver: mpsc::Receiver<Event>,
-	/// Event handler thread.
-	handler: thread::JoinHandle<()>,
-}
-impl EventHandler {
-	/// Constructs a new instance of [`EventHandler`].
-	pub fn new(tick_rate: u64) -> Self {
-		let tick_rate = Duration::from_millis(tick_rate);
-		let (sender, receiver) = mpsc::channel();
-		let handler = {
-			let sender = sender.clone();
-			thread::spawn(move || {
-				let mut last_tick = Instant::now();
-				loop {
-					let timeout = tick_rate
-						.checked_sub(last_tick.elapsed())
-						.unwrap_or(tick_rate);
-					if event::poll(timeout).expect("no events available") {
-						match event::read().expect("unable to read event") {
-							CrosstermEvent::Key(e) => sender.send(Event::Key(e)),
-							CrosstermEvent::Mouse(e) => sender.send(Event::Mouse(e)),
-							CrosstermEvent::Resize(w, h) => sender.send(Event::Resize(w, h)),
-							_ => unimplemented!(),
-						}
-						.expect("failed to send terminal event")
-					}
-					if last_tick.elapsed() >= tick_rate {
-						sender.send(Event::Tick).expect("failed to send tick event");
-						last_tick = Instant::now();
-					}
-				}
-			})
-		};
-		Self {
-			sender,
-			receiver,
-			handler,
-		}
-	}
-	/// Receive the next event from the handler thread.
-	///
-	/// This function will always block the current thread if
-	/// there is no data available and it's possible for more data to be sent.
-	pub fn next(&self) -> AppResult<Event> {
-		Ok(self.receiver.recv()?)
-	}
-}
-
+//  ###: Tui
 /// Provides the representation of the TUI, sets up the terminal and interface, handles drawing events
 #[derive(Debug)]
 pub struct Tui<B: Backend> {
 	/// Interface to the Terminal.
 	terminal: Terminal<B>,
 	/// Terminal event handler.
-	pub events: EventHandler,
+	pub events: TuiEventHandler,
 }
 impl<B: Backend> Tui<B> {
 	/// Constructs a new instance of [`Tui`].
-	pub fn new(terminal: Terminal<B>, events: EventHandler) -> Self {
+	pub fn new(terminal: Terminal<B>, events: TuiEventHandler) -> Self {
 		Self { terminal, events }
 	}
 	/// Initializes the terminal interface.
@@ -135,6 +67,74 @@ impl<B: Backend> Tui<B> {
 		self.terminal.show_cursor()?;
 		Ok(())
 	}
+}
+//  ###: TuiEventHandler
+/// Handles the TUI events
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct TuiEventHandler {
+	/// Event sender channel.
+	sender: mpsc::Sender<TuiEvent>,
+	/// Event receiver channel.
+	receiver: mpsc::Receiver<TuiEvent>,
+	/// Event handler thread.
+	handler: thread::JoinHandle<()>,
+}
+impl TuiEventHandler {
+	/// Constructs a new instance of [`EventHandler`].
+	pub fn new(tick_rate: u64) -> Self {
+		let tick_rate = Duration::from_millis(tick_rate);
+		let (sender, receiver) = mpsc::channel();
+		let handler = {
+			let sender = sender.clone();
+			thread::spawn(move || {
+				let mut last_tick = Instant::now();
+				loop {
+					let timeout = tick_rate
+						.checked_sub(last_tick.elapsed())
+						.unwrap_or(tick_rate);
+					if event::poll(timeout).expect("no events available") {
+						match event::read().expect("unable to read event") {
+							CrosstermEvent::Key(e) => sender.send(TuiEvent::Key(e)),
+							CrosstermEvent::Mouse(e) => sender.send(TuiEvent::Mouse(e)),
+							CrosstermEvent::Resize(w, h) => sender.send(TuiEvent::Resize(w, h)),
+							_ => unimplemented!(),
+						}
+						.expect("failed to send terminal event")
+					}
+					if last_tick.elapsed() >= tick_rate {
+						sender.send(TuiEvent::Tick).expect("failed to send tick event");
+						last_tick = Instant::now();
+					}
+				}
+			})
+		};
+		Self {
+			sender,
+			receiver,
+			handler,
+		}
+	}
+	/// Receive the next event from the handler thread.
+	///
+	/// This function will always block the current thread if
+	/// there is no data available and it's possible for more data to be sent.
+	pub fn next(&self) -> AppResult<TuiEvent> {
+		Ok(self.receiver.recv()?)
+	}
+}
+//  ###: TuiEvent
+/// Defines the set of interface events in the TUI
+#[derive(Clone, Copy, Debug)]
+pub enum TuiEvent {
+	/// One tick of the game engine
+	Tick,
+	/// A key press
+	Key(KeyEvent),
+	/// A mouse click or scroll
+	Mouse(MouseEvent),
+	/// Terminal has been resized
+	Resize(u16, u16)
 }
 
 // EOF

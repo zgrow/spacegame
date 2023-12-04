@@ -80,6 +80,9 @@ use crate::mason::logical_map::SpawnTemplate;
 
 pub mod furniture;
 
+//  ###: COMPLEX TYPES
+//   ##: THE ITEM BUILDER
+//    #: ItemBuilder
 /// Provides a facility for creating items during gameplay
 #[derive(Resource, Clone, Debug, Default, Reflect)]
 #[reflect(Resource)]
@@ -365,7 +368,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		*/
 	}
 	/// Generates the list of decorative items that the worldgen will need to spawn
-	pub fn decorate(&mut self, worldmap: &Model) -> Vec<Position> {
+	pub fn decorate(&mut self, worldmap: &WorldModel) -> Vec<Position> {
 		// Each placement entry MUST provide:
 		// - A defn for the item's Description component
 		// - A defn for the item's Body component
@@ -462,7 +465,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		None
 	}
 }
-
+//   ##: ItemRequest
 #[derive(Resource, Clone, Debug, Default, Reflect)]
 pub struct ItemRequest {
 	pub placement: String,
@@ -480,61 +483,7 @@ impl ItemRequest {
 		}
 	}
 }
-
-/// Loads the various furniture generation definitions from the external storage
-pub fn load_furniture_defns(items_filename: &str, sets_filename: &str) -> ItemDict {
-	// Make an empty ItemDict
-	let mut new_dict = ItemDict::default();
-	// Get a handle on the file to be loaded
-	let item_file = File::open(items_filename).unwrap();
-	// Open a reader object for the file handle
-	let item_reader = BufReader::new(item_file);
-	// If reading any of the lines failed, return a default dict
-	new_dict.furniture = match serde_json::from_reader(item_reader) {
-		//Ok(output) => {debug!("* recvd output: {:?}", output); output}, // DEBUG: log the successful output
-		Ok(output) => {output},
-		Err(e) => {error!("! could not create ItemDict.furniture: {}", e); Vec::new()},
-	};
-	// Construct the furniture set dictionary in the same way
-	let sets_file = File::open(sets_filename).unwrap();
-	let sets_reader = BufReader::new(sets_file);
-	new_dict.sets = match serde_json::from_reader(sets_reader) {
-		//Ok(output) => {debug!("* new sets: {:?}", output); output}, // DEBUG: log the successful output
-		Ok(output) => {output},
-		Err(e) => {error!("! could not create ItemDict.sets: {}", e); Vec::new()}
-	};
-	// Now return the dict from this function (or put it where it needs to go)
-	new_dict
-}
-
-/// Container struct for managing the dictionaries of furniture and furniture sets
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct ItemDict {
-	pub furniture: Vec<RawItem>,
-	pub sets: Vec<RawItemSet>,
-}
-
-/// Contains the item's definition as it was imported from external storage, to be converted to an internal type
-/// It's generally less work to store the data as a big pile of strings and then do the conversion later
-/// Even more later on I may decide to collapse this into one step but for now this is easier
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct RawItem {
-	pub name: String,
-	pub desc: String,
-	pub body: Vec<String>,
-	pub shapes: Vec<Vec<String>>,
-	pub extra: Vec<String>,
-	pub constraints: Option<Vec<(String, String)>>
-}
-
-/// Contains a definition for a set of items, such as a set of lockers, to facilitate spawning
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct RawItemSet {
-	pub name: String,
-	pub contents: Vec<(String, String)>, // list of ('id', 'item_name'), indicates what to put where
-	pub shapes: Vec<Vec<String>>, // Works same as the RawItem.shapes
-}
-
+//    #: ItemData
 /// Passing this data structure to an ItemBuilder will take care of the entire item creation request
 /// The desc and body components are required for all Items; set any other components individually
 /// after creating the item with new()
@@ -571,8 +520,64 @@ impl ItemData {
 		}
 	}
 }
+//   ##: THE ITEM DICTIONARY
+//    #: ItemDict
+/// Container struct for managing the dictionaries of furniture and furniture sets
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct ItemDict {
+	pub furniture: Vec<RawItem>,
+	pub sets: Vec<RawItemSet>,
+}
+//    #: RawItem
+/// Contains the item's definition as it was imported from external storage, to be converted to an internal type
+/// It's generally less work to store the data as a big pile of strings and then do the conversion later
+/// Even more later on I may decide to collapse this into one step but for now this is easier
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct RawItem {
+	pub name: String,
+	pub desc: String,
+	pub body: Vec<String>,
+	pub shapes: Vec<Vec<String>>,
+	pub extra: Vec<String>,
+	pub constraints: Option<Vec<(String, String)>>
+}
+//    #: RawItemSet
+/// Contains a definition for a set of items, such as a set of lockers, to facilitate spawning
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct RawItemSet {
+	pub name: String,
+	pub contents: Vec<(String, String)>, // list of ('id', 'item_name'), indicates what to put where
+	pub shapes: Vec<Vec<String>>, // Works same as the RawItem.shapes
+}
 
-// OLD METHOD: predefined item types and bundles
+//  ###: SIMPLE TYPES AND HELPERS
+/// Loads the various furniture generation definitions from the external storage
+pub fn load_furniture_defns(items_filename: &str, sets_filename: &str) -> ItemDict {
+	// Make an empty ItemDict
+	let mut new_dict = ItemDict::default();
+	// Get a handle on the file to be loaded
+	let item_file = File::open(items_filename).unwrap();
+	// Open a reader object for the file handle
+	let item_reader = BufReader::new(item_file);
+	// If reading any of the lines failed, return a default dict
+	new_dict.furniture = match serde_json::from_reader(item_reader) {
+		//Ok(output) => {debug!("* recvd output: {:?}", output); output}, // DEBUG: log the successful output
+		Ok(output) => {output},
+		Err(e) => {error!("! could not create ItemDict.furniture: {}", e); Vec::new()},
+	};
+	// Construct the furniture set dictionary in the same way
+	let sets_file = File::open(sets_filename).unwrap();
+	let sets_reader = BufReader::new(sets_file);
+	new_dict.sets = match serde_json::from_reader(sets_reader) {
+		//Ok(output) => {debug!("* new sets: {:?}", output); output}, // DEBUG: log the successful output
+		Ok(output) => {output},
+		Err(e) => {error!("! could not create ItemDict.sets: {}", e); Vec::new()}
+	};
+	// Now return the dict from this function (or put it where it needs to go)
+	new_dict
+}
+
+//  ###: OLD METHOD: predefined item types and bundles
 /// Defines the set of item types, which allow requests to be made for specific types of items at runtime
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum ItemType {

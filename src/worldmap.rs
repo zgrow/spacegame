@@ -12,7 +12,7 @@ use bevy::prelude::{
 	ReflectResource,
 	Resource,
 };
-//use simplelog::*;
+use simplelog::*;
 use bevy_turborand::*;
 
 // ###: INTERNAL LIBS
@@ -24,31 +24,32 @@ pub const MAPWIDTH: i32 = 80;
 pub const MAPHEIGHT: i32 = 60;
 pub const MAPSIZE: i32 = MAPWIDTH * MAPHEIGHT;
 
-// ###: METHODS
+// ###: COMPLEX TYPES
 /// Reference method that allows calculation from an arbitrary width
 pub fn xy_to_index(x: usize, y: usize, w: usize) -> usize {
 	(y * w) + x
 }
 
 // ###: STRUCTS
-//  ##: THE WORLD MODEL
+//  ##: WorldModel
 /// Represents the entire stack of Maps that comprise a 3D space
 #[derive(Resource, Clone, Debug, Default, Reflect)]
 #[reflect(Resource)]
-pub struct Model {
-	pub levels: Vec<GameMap>,
+pub struct WorldModel {
+	pub levels: Vec<WorldMap>,
 	pub layout: ShipGraph,
 	// WARN: DO NOT CONVERT THIS TO A HASHMAP OR BTREEMAP
 	// Bevy's implementation of hashing and reflection makes this specific kind of Hashmap usage
 	// *ineligible* for correct save/load via bevy_save; in short, the HashMap *itself* cannot be hashed,
 	// so bevy_save shits itself and reports an "ineligible for hashing" error without any other useful info
+	// All of these declarations are the bones of those who came before:
 	//pub portals: BTreeMap<Position, Position>,
 	//pub portals: HashMap<Position, Position>,
 	//pub portals: HashMap<(i32, i32, i32), (i32, i32, i32)> // Cross-level linkages
 	//portals: Vec<(Position, Position)>,
 	portals: Vec<Portal>,
 }
-impl Model {
+impl WorldModel {
 	/// Sets up a linkage between two x,y,z positions, even on the same level
 	/// If 'bidir' is true, then the portal will be made two-way
 	// NOTE: may need more fxns for remove_portal, &c
@@ -75,13 +76,13 @@ impl Model {
 	}
 	/// Adds the given Entity as an occupant at the specified positions, with the given priority
 	pub fn add_contents(&mut self, posns: &Vec<Position>, priority: i32, enty: Entity) {
-		//debug!("add_contents: {:?} for enty {:?} at priority {}", posns, enty, priority); // DEBUG: log the call to add_contents
+		trace!("add_contents: {:?} for enty {:?} at priority {}", posns, enty, priority); // DEBUG: log the call to add_contents
 		for posn in posns {
 			self.levels[posn.z as usize].add_occupant(priority, enty, *posn);
 		}
 	}
 	pub fn remove_contents(&mut self, posns: &Vec<Position>, enty: Entity) {
-		//debug!("remove_contents: {:?} for enty {:?}", posns, enty); // DEBUG: log the call to remove_contents
+		trace!("remove_contents: {:?} for enty {:?}", posns, enty); // DEBUG: log the call to remove_contents
 		for posn in posns {
 			self.levels[posn.z as usize].remove_occupant(enty, *posn);
 		}
@@ -90,7 +91,7 @@ impl Model {
 		self.levels[target.z as usize].get_contents_at(target)
 	}
 	pub fn is_blocked_at(&self, target: Position) -> bool {
-		//debug!("* is_blocked_at({:?})", target); // DEBUG: log the call to is_blocked_at
+		trace!("* is_blocked_at({:?})", target); // DEBUG: log the call to is_blocked_at
 		let index = self.levels[target.z as usize].to_index(target.x, target.y);
 		self.levels[target.z as usize].blocked_tiles[index]
 	}
@@ -99,7 +100,7 @@ impl Model {
 		let observer = observer_enty.unwrap_or(Entity::PLACEHOLDER);
 		for posn in targets.iter() {
 			if self.is_blocked_at(*posn) {
-				//debug!("* enty is_blocked_at {}", posn); // DEBUG: log where the entity's movement attempt was blocked
+				trace!("* enty is_blocked_at {}", posn); // DEBUG: log where the entity's movement attempt was blocked
 				// Seems like a safe assumption that the most-visible entity at a given position will be the one blocking it
 				if let Some(observed) = self.levels[posn.z as usize].get_visible_entity_at(*posn) {
 					// Remember, this if-condition is evaluated serially: by definition, if the compiler evaluates the RHS,
@@ -113,46 +114,16 @@ impl Model {
 				}
 			}
 		}
-		//debug!(* "blockers found: {:?}", block_list); // DEBUG: log all of the blocking entities that were discovered
+		trace!("* blockers found: {:?}", block_list); // DEBUG: log all of the blocking entities that were discovered
 		if !block_list.is_empty() {
 			Some(block_list)
 		} else {
 			None
 		}
 	}
-	#[deprecated(note = "* replacing with find_spawnpoint_in()")]
-	pub fn find_spawn_area_in(&self, target_room: &str, width: u32, height: u32) -> Option<Vec<Position>> {
-		// METHOD
-		// Get a reference to the specified Room
-		// (figure out how to represent the map of allowed tiles)
-		// Create a template 'box' of the specified dimensions using a Vec<Position>
-		// Flip a coin: if 'heads', start with a 90deg initial rotation
-		// Try to fit the template box into the map of allowed tiles:
-		// 1. check the map dims against the template dims; rotate/reject as needed
-		// 2. try the template on the map as close to the centerpath as possible
-		//    - If it doesn't fit, look between the centerpath and the wall to see if any of the other rows/cols
-		//      have a different width; if not, go straight to a rotation
-		// 3. try rotating the template 90deg and see if it will fit along any of the rows/cols
-		// 4. return either the valid position set, or a None, as appropriate
-		// Don't bother with any of this if we didn't specify a valid target in the first place
-		if let Some(room_index) = self.layout.get_room_index(target_room) {
-			//debug!("* looking for spawn area in room {}", target_room); // DEBUG: log the attempt to find a spawn area
-			self.layout.rooms[room_index].debug_print(); // DEBUG: display the current layout map of the room
-			// Make a template box from the input dims
-			let mut template = Vec::new();
-			for whye in 0..height {
-				for echs in 0..width {
-					template.push(((echs as f32, whye as f32), CellType::Open));
-				}
-			}
-			// Pass the template to the room itself to see if it can find a large-enough open space
-			//return self.layout.rooms[room_index].find_open_space(ItemTemplate { shape:template });
-		}
-		None
-	}
 	/// Tries to find the specified room in the world model, and if successful, tries to obtain a spawnpoint within
 	pub fn find_spawnpoint_in(&mut self, target_room: &str, template: SpawnTemplate, rng: &mut GlobalRng) -> Option<Vec<(String, Position)>> {
-		//debug!("* find_spawnpoint_in {} for {:?}", target_room, template); // DEBUG: log the call to find_spawnpoint_in
+		trace!("* find_spawnpoint_in {} for {:?}", target_room, template); // DEBUG: log the call to find_spawnpoint_in
 		if let Some(room_index) = self.layout.get_room_index(target_room) {
 			//self.layout.rooms[room_index].debug_print(); // DEBUG: display the current layout map of the room
 			return self.layout.rooms[room_index].find_open_space(template, rng);
@@ -169,11 +140,11 @@ impl Model {
 		self.levels[target.z as usize].set_opaque(target, state);
 	}
 }
-
+//   ##: WorldMap
 /// Represents a single layer of physical space in the game world
 #[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
-pub struct GameMap {
+pub struct WorldMap {
 	pub tiles: Vec<Tile>,
 	pub width: usize,
 	pub height: usize,
@@ -182,11 +153,11 @@ pub struct GameMap {
 	pub blocked_tiles: Vec<bool>,
 	pub opaque_tiles: Vec<bool>,
 }
-impl GameMap {
+impl WorldMap {
 	/// Generates a map from the default settings
-	pub fn new(new_width: usize, new_height: usize) -> GameMap {
+	pub fn new(new_width: usize, new_height: usize) -> WorldMap {
 		let map_size = new_width * new_height;
-		GameMap {
+		WorldMap {
 			tiles: vec![Tile::default(); map_size],
 			width: new_width,
 			height: new_height,
@@ -260,7 +231,7 @@ impl GameMap {
 	//}
 }
 // bracket-lib uses the Algorithm2D and BaseMap traits for FOV and pathfinding
-impl Algorithm2D for GameMap {
+impl Algorithm2D for WorldMap {
 	fn dimensions(&self) -> Point {
 		Point::new(self.width, self.height)
 	}
@@ -270,7 +241,7 @@ impl Algorithm2D for GameMap {
 	}
 	*/
 }
-impl BaseMap for GameMap {
+impl BaseMap for WorldMap {
 	fn is_opaque(&self, index: usize) -> bool {
 		self.opaque_tiles[index]
 	}
@@ -282,7 +253,7 @@ impl BaseMap for GameMap {
 		// "Return the distance you would like to use for path-finding"
 	//}
 }
-
+//    #: Tile
 /// Represents a single position within the game world
 #[derive(Resource, Clone, Debug, PartialEq, Reflect)]
 #[reflect(Resource)]
@@ -293,11 +264,6 @@ pub struct Tile {
 	pub fg: u8, // Corresponds to indexed colors, ie the ANSI 0-15 basic set
 	pub bg: u8, // Same as fg
 	pub mods: u16, // Corresponds to ratatui's Modifier type; use Modifier::bits()/to_bits() for conversion
-}
-impl Default for Tile {
-	fn default() -> Self {
-		Tile::new_floor()
-	}
 }
 impl Tile {
 	pub fn tiletype(mut self, new_type: TileType) -> Self {
@@ -407,38 +373,12 @@ impl Tile {
 		}
 	}
 }
-
-//  ##: PHYSICAL GAMEWORLD TYPES
-/// Decides whether the Tile is open terrain, a wall, et cetera
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Resource)]
-pub enum TileType {
-	#[default]
-	Vacuum,
-	Floor,
-	Wall,
-	Stairway,
-}
-impl Display for TileType {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let output = match self {
-			TileType::Vacuum => { "vacuum" }
-			TileType::Floor => { "floor" }
-			TileType::Wall => { "wall" }
-			TileType::Stairway => { "stairway" }
-		};
-		write!(f, "{}", output)
+impl Default for Tile {
+	fn default() -> Self {
+		Tile::new_floor()
 	}
 }
-
-/// Represents a 'thing' that is blocking movement by an Entity into a particular Tile;
-/// could be an Entity or just a particular TileType
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
-pub enum Obstructor {
-	Actor(Entity),
-	Object(TileType),
-}
-
+//    #: Portal
 /// Provides movement between non-contiguous points in the Map, ie for stairs between z-levels, or teleporters, &c
 /// NOTE: If the Portal is NOT bidirectional, then it will only allow transition from self.left to self.right;
 /// ie in the directions established when building the Portal via from() and to()
@@ -489,4 +429,35 @@ impl PartialEq for Portal {
 	}
 }
 
+//  ###: SIMPLE TYPES AND HELPERS
+//   ##: TileType
+/// Decides whether the Tile is open terrain, a wall, et cetera
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Resource)]
+pub enum TileType {
+	#[default]
+	Vacuum,
+	Floor,
+	Wall,
+	Stairway,
+}
+impl Display for TileType {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let output = match self {
+			TileType::Vacuum => { "vacuum" }
+			TileType::Floor => { "floor" }
+			TileType::Wall => { "wall" }
+			TileType::Stairway => { "stairway" }
+		};
+		write!(f, "{}", output)
+	}
+}
+//   ##: Obstructor
+/// Represents a 'thing' that is blocking movement by an Entity into a particular Tile;
+/// could be an Entity or just a particular TileType
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+pub enum Obstructor {
+	Actor(Entity),
+	Object(TileType),
+}
 // EOF

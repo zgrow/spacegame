@@ -3,6 +3,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
+//  ###: EXTERNAL LIBRARIES
 use std::collections::VecDeque;
 use bevy::{
 	prelude::*,
@@ -17,6 +18,7 @@ use ratatui::widgets::Block;
 use strum_macros::EnumIter;
 use tui_textarea::TextArea;
 
+//  ###: INTERNAL LIBRARIES
 use crate::{
 	components::*,
 	engine::{
@@ -27,7 +29,10 @@ use crate::{
 	},
 };
 
-//  ###: SYSTEMS
+//  ###: COMPLEX TYPES
+
+
+//  ###: BEVY SYSTEMS
 /// Allows us to run PLANQ updates and methods in their own thread, just like a real computer~
 pub fn planq_update_system(mut commands: Commands,
 	                         mut ereader:  EventReader<GameEvent>,
@@ -364,7 +369,6 @@ pub fn planq_monitor_system(time:        Res<Time>,
 	planq.player_loc = player.1.ref_posn;
 }
 
-//  ###: STRUCTURES
 /// BEVY: Defines the Planq settings/controls (interface bwn my GameEngine class & Bevy)
 #[derive(Resource, Clone, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Resource)]

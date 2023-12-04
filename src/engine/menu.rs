@@ -1,6 +1,7 @@
 // engine/menu.rs
 // Rebuilt from previous method from pattern found at shuoli84/tui-menu
 
+//  ###: EXTERNAL LIBRARIES
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::cmp::Ordering;
@@ -16,82 +17,12 @@ use ratatui::{
 		Widget
 	},
 };
+
+//  ###: INTERNAL LIBRARIES
 use crate::engine::*;
 
-/// Describes the various types of menus (actually MenuStates, see the GameEngine) we might wish to use
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum MenuType {
-	#[default]
-	None,
-	Main,
-	Entity,
-	Action,
-	Context,
-}
-/// Describes the set of Events that the Menu widget may produce
-#[derive(Clone, Copy, Debug)]
-pub enum MenuEvent<T> {
-	/// The selected menu item, with its attached data
-	Selected(T),
-}
-/// Helper bucket that is used to carry potential action context info through the menu system for later dispatch
-pub struct GameEventPartial {
-	pub action: ActionType,
-	pub subject: Entity,
-	pub object: Entity,
-}
-impl GameEventPartial {
-	pub fn new(new_action: Option<ActionType>, new_subject: Option<Entity>, new_object: Option<Entity>) -> GameEventPartial {
-		GameEventPartial {
-			action: match new_action {
-				None => ActionType::NoAction,
-				Some(action) => action,
-			},
-			subject: match new_subject {
-				None => Entity::PLACEHOLDER,
-				Some(enty) => enty,
-			},
-			object: match new_object {
-				None => Entity::PLACEHOLDER,
-				Some(enty) => enty,
-			},
-		}
-	}
-	/// Returns true if it has a populated ActionType and the non-placeholder entity references to fulfill it;
-	/// does NOT guarantee that the entities refer to valid objects!
-	pub fn is_complete(&self) -> bool {
-		match self.action {
-			ActionType::MoveTo(_)
-			| ActionType::Inventory
-			| ActionType::KillItem => {
-				self.subject != Entity::PLACEHOLDER
-			},
-			ActionType::Examine
-			| ActionType::MoveItem
-			| ActionType::DropItem
-			| ActionType::UseItem
-			| ActionType::OpenItem
-			| ActionType::CloseItem
-			| ActionType::LockItem
-			| ActionType::UnlockItem
-			=> {
-				self.subject != Entity::PLACEHOLDER && self.object != Entity::PLACEHOLDER
-			},
-			ActionType::NoAction => {
-				false
-			}
-		}
-	}
-}
-impl Default for GameEventPartial {
-	fn default() -> GameEventPartial {
-		GameEventPartial {
-			action: ActionType::NoAction,
-			subject: Entity::PLACEHOLDER,
-			object: Entity::PLACEHOLDER,
-		}
-	}
-}
+//  ###: COMPLEX TYPES
+//   ##: MenuState
 /// Holds the menu's current state and the events it generated
 pub struct MenuState<T> {
 	menu_tree: MenuItem<T>,
@@ -284,6 +215,7 @@ impl<T: Clone> MenuState<T> {
 		self.menu_tree.highlighted()
 	}
 }
+//   ##: MenuItem
 /// Describes a single entry in a Menu
 pub struct MenuItem<T> {
 	name: Cow<'static, str>,
@@ -422,7 +354,8 @@ impl<T> PartialOrd for MenuItem<T> {
 		Some(self.name.cmp(&other.name))
 	}
 }
-/// Describes the container for several MenuItems
+//   ##: Menu
+/// Describes the ratatui widget container for a Menu
 pub struct Menu<'a, T> {
 	block: Option<Block<'a>>,
 	default_style: Style,
@@ -535,6 +468,85 @@ impl<T> StatefulWidget for Menu<'_, T> {
 		self.render_shadow(area, buf);
 		self.render_drop_down(area.x, area.y, &state.menu_tree.children, buf, 1);
 	}
+}
+
+//  ###: SIMPLE TYPES AND HELPERS
+//   ##: MenuHelperGameEvent
+/// Helper bucket that is used to carry potential action context info through the menu system for later dispatch
+pub struct MenuHelperGameEvent {
+	pub action: ActionType,
+	pub subject: Entity,
+	pub object: Entity,
+}
+impl MenuHelperGameEvent {
+	pub fn new(new_action: Option<ActionType>, new_subject: Option<Entity>, new_object: Option<Entity>) -> MenuHelperGameEvent {
+		MenuHelperGameEvent {
+			action: match new_action {
+				None => ActionType::NoAction,
+				Some(action) => action,
+			},
+			subject: match new_subject {
+				None => Entity::PLACEHOLDER,
+				Some(enty) => enty,
+			},
+			object: match new_object {
+				None => Entity::PLACEHOLDER,
+				Some(enty) => enty,
+			},
+		}
+	}
+	/// Returns true if it has a populated ActionType and the non-placeholder entity references to fulfill it;
+	/// does NOT guarantee that the entities refer to valid objects!
+	pub fn is_complete(&self) -> bool {
+		match self.action {
+			ActionType::MoveTo(_)
+			| ActionType::Inventory
+			| ActionType::KillItem => {
+				self.subject != Entity::PLACEHOLDER
+			},
+			ActionType::Examine
+			| ActionType::MoveItem
+			| ActionType::DropItem
+			| ActionType::UseItem
+			| ActionType::OpenItem
+			| ActionType::CloseItem
+			| ActionType::LockItem
+			| ActionType::UnlockItem
+			=> {
+				self.subject != Entity::PLACEHOLDER && self.object != Entity::PLACEHOLDER
+			},
+			ActionType::NoAction => {
+				false
+			}
+		}
+	}
+}
+impl Default for MenuHelperGameEvent {
+	fn default() -> MenuHelperGameEvent {
+		MenuHelperGameEvent {
+			action: ActionType::NoAction,
+			subject: Entity::PLACEHOLDER,
+			object: Entity::PLACEHOLDER,
+		}
+	}
+}
+//   ##: MenuType
+/// Describes the various types of menus (actually MenuStates, see the GameEngine) we might wish to use
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum MenuType {
+	#[default]
+	None,
+	Main,
+	Entity,
+	Action,
+	Context,
+}
+//   ##: MenuEvent
+/// Describes the set of Events that the Menu widget may produce
+#[derive(Clone, Copy, Debug)]
+pub enum MenuEvent<T> {
+	/// The selected menu item, with its attached data
+	Selected(T),
 }
 
 // EOF

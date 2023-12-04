@@ -60,7 +60,8 @@ use crate::{
 	sys::*
 };
 
-// ###: GameEngine
+// ###: COMPLEX TYPES
+//  ##: GameEngine
 pub struct GameEngine<'a> {
 	pub running:        bool, // If true, the game loop is running
 	pub standby:        bool, // If true, the game loop is on standby (ie paused)
@@ -481,7 +482,7 @@ impl GameEngine<'_> {
 		.register_type::<TimerMode>()
 		.register_type::<Vec<bool>>()
 		.register_type::<Vec<Entity>>()
-		.register_type::<Vec<GameMap>>()
+		.register_type::<Vec<WorldMap>>()
 		.register_type::<Vec<Message>>()
 		.register_type::<Vec<MessageChannel>>()
 		.register_type::<Vec<Portal>>()
@@ -508,13 +509,13 @@ impl GameEngine<'_> {
 		.register_saveable::<Key>()
 		.register_saveable::<LMR>()
 		.register_saveable::<Lockable>()
-		.register_saveable::<GameMap>()
+		.register_saveable::<WorldMap>()
 		.register_saveable::<Memory>()
 		.register_saveable::<Message>()
 		.register_saveable::<MessageChannel>()
 		.register_saveable::<MessageLog>()
 		.register_saveable::<Mobile>()
-		.register_saveable::<Model>()
+		.register_saveable::<WorldModel>()
 		.register_saveable::<Networkable>()
 		.register_saveable::<Obstructive>()
 		.register_saveable::<Opaque>()
@@ -658,25 +659,7 @@ impl GameEngine<'_> {
 		false
 	}
 }
-
-// ###: TYPES, HELPERS, and SINGLETONS
-/// Application result type, provides some nice handling if the game crashes
-pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
-
-/// Defines the set of modes that the GameEngine may run in during the course of the program
-#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-#[reflect(Resource)]
-pub enum EngineMode {
-	#[default]
-	Offline,
-	Standby,    // ie when showing the startup menu, victory/game over screens, &c
-	Startup,
-	Running,
-	Paused,
-	GoodEnd,
-	BadEnd,     // TODO: set up variants for both this and GoodEnd? maybe just a GameOver mode?
-}
-
+//   ##: UIGrid
 /// Provides a bunch of named fields (rather than a tuple) of grid components
 /// # Fields
 /// * `camera_main`     Contains the player's view of the meatspace game world
@@ -806,5 +789,23 @@ impl Default for UIGrid {
 	}
 }
 
+//  ###: SIMPLE TYPES AND HELPERS
+//   ##: EngineMode
+/// Defines the set of modes that the GameEngine may run in during the course of the program
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Resource)]
+pub enum EngineMode {
+	#[default]
+	Offline,
+	Standby,    // ie when showing the startup menu, victory/game over screens, &c
+	Startup,
+	Running,
+	Paused,
+	GoodEnd,
+	BadEnd,     // TODO: set up variants for both this and GoodEnd? maybe just a GameOver mode?
+}
+//   ##: AppResult
+/// Application result type, provides some nice handling if the game crashes
+pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 
 // EOF

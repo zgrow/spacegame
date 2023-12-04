@@ -1,12 +1,14 @@
 // engine/handler.rs
 // Provides the keyboard parser
 
+//  ###: EXTERNAL LIBRARIES
 use bevy::ecs::event::Events;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 // crossterm::KeyEvent: https://docs.rs/crossterm/latest/crossterm/event/struct.KeyEvent.html
 // bevy::KeyboardInput: https://docs.rs/bevy/latest/bevy/input/keyboard/struct.KeyboardInput.html
 use tui_textarea::{Key, Input};
 
+//  ###: INTERNAL LIBRARIES
 use crate::components::*;
 use crate::components::Direction;
 use crate::engine::*;
@@ -485,14 +487,18 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	}
 	Ok(())
 }
-/// Creates a new submenu given a Vec of the entries to put in it; note that only strings, Actions, and Entities are supported
-pub fn make_new_submenu<T: std::fmt::Display>(entries: Vec<T>) -> Vec<MenuItem<T>> {
-	let mut submenu = Vec::new();
-	for item in entries {
-		submenu.push(MenuItem::item(item.to_string(), item, None));
+/// Translates an input string from the player into a PLANQ command and context
+pub fn planq_parser(input: String) -> PlanqCmd {
+	let input_vec: Vec<&str> = input.trim_matches(|c| c == '>' || c == '¶').trim_start().split(' ').collect();
+	//debug!("> {:?}", input_vec); // DEBUG: log the parser's input vector
+	match input_vec[0] {
+		"help" => { PlanqCmd::Help }
+		"shutdown" => { PlanqCmd::Shutdown }
+		"reboot" => { PlanqCmd::Reboot }
+		"connect" => { PlanqCmd::Connect(input_vec[1].to_string()) }
+		"disconnect" => { PlanqCmd::Disconnect }
+		input => { PlanqCmd::Error(format!("Unknown command: {}", input)) } // No matching command was found!
 	}
-	submenu.sort_by(|a, b| a.partial_cmp(b).unwrap());
-	submenu
 }
 /// Converts my Event keycodes into tui_textarea::Input::Keys
 pub fn keycode_to_input_key(key_code: KeyCode) -> Key {
@@ -526,18 +532,14 @@ pub fn keycode_to_input_key(key_code: KeyCode) -> Key {
 		KeyCode::Null        => { Key::Null }
 	}
 }
-/// Translates an input string from the player into a PLANQ command and context
-pub fn planq_parser(input: String) -> PlanqCmd {
-	let input_vec: Vec<&str> = input.trim_matches(|c| c == '>' || c == '¶').trim_start().split(' ').collect();
-	//debug!("> {:?}", input_vec); // DEBUG: log the parser's input vector
-	match input_vec[0] {
-		"help" => { PlanqCmd::Help }
-		"shutdown" => { PlanqCmd::Shutdown }
-		"reboot" => { PlanqCmd::Reboot }
-		"connect" => { PlanqCmd::Connect(input_vec[1].to_string()) }
-		"disconnect" => { PlanqCmd::Disconnect }
-		input => { PlanqCmd::Error(format!("Unknown command: {}", input)) } // No matching command was found!
+/// Creates a new submenu given a Vec of the entries to put in it; note that only strings, Actions, and Entities are supported
+pub fn make_new_submenu<T: std::fmt::Display>(entries: Vec<T>) -> Vec<MenuItem<T>> {
+	let mut submenu = Vec::new();
+	for item in entries {
+		submenu.push(MenuItem::item(item.to_string(), item, None));
 	}
+	submenu.sort_by(|a, b| a.partial_cmp(b).unwrap());
+	submenu
 }
 
 // EOF

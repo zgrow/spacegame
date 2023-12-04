@@ -1,6 +1,17 @@
 // logical_map.rs
 // November 6 2023
+/*   - ON THE LOGICAL SHIP TOPOLOGY
+ * These linked-list directed graph routines were transcribed from:
+ * https://smallcultfollowing.com/babysteps/blog/2015/04/06/modeling-graphs-in-rust-using-vector-indices/
+ * on October 12, 2023
+ * Each Room (aka node) carries an index to its first _outgoing_ Door (aka edge), if present
+ * This first Door can optionally contain the indices of all the other Doors available to this Room
+ * Each Door contains an index to its destination Room, and the list of its companion Doors
+ * This way, a 1:1 relation is enforced between Rooms (nodes) and Doors (edges), modelling a linked list
+ * But actual rooms and doors in-game can have an x:y relation, or even an implicit, which models the game world
+ */
 
+//  ###: EXTERNAL LIBRARIES
 use simplelog::*;
 use bevy::utils::hashbrown::HashMap;
 use bevy::prelude::{
@@ -10,20 +21,114 @@ use bevy::prelude::{
 };
 use bevy_turborand::GlobalRng;
 use bevy_turborand::DelegatedRng;
+
+//  ###: INTERNAL LIBRARIES
 use crate::mason::*;
 
-//   - LOGICAL SHIP TOPOLOGY
-// These linked-list directed graph routines were transcribed from:
-// https://smallcultfollowing.com/babysteps/blog/2015/04/06/modeling-graphs-in-rust-using-vector-indices/
-// on October 12, 2023
-// Each Room (aka node) carries an index to its first _outgoing_ Door (aka edge), if present
-// This first Door can optionally contain the indices of all the other Doors available to this Room
-// Each Door contains an index to its destination Room, and the list of its companion Doors
-// This way, a 1:1 relation is enforced between Rooms (nodes) and Doors (edges), modelling a linked list
-// But actual rooms and doors in-game can have an x:y relation, or even an implicit, which models the game world
-/// Simple enum wrappers to provide some type guarantees for these classes
-pub type RoomIndex = usize; // An index to a GraphRoom
-pub type DoorIndex = usize; // An index to a GraphDoor
+//  ###: COMPLEX TYPES
+//   ##: SpawnTemplate
+/// Describes how to place an item in a room
+#[derive(Clone, Debug, Default)]
+pub struct SpawnTemplate {
+	pub shape: Vec<(Qpoint, CellType, bool)>, // Represents the whole template including margins and blocked spaces
+	output: Vec<(String, String, (usize, usize))>, // (id, name, (x, y)) - Represents only the occupied spaces
+	constraints: Option<Vec<(String, String)>>
+}
+impl SpawnTemplate {
+	pub fn new() -> SpawnTemplate {
+		SpawnTemplate::default()
+	}
+	pub fn is_successful(&self) -> bool {
+		// I'm disabling the lint here because I want it to be *explicit* that the filter is ONLY doing a comparison
+		// This is because I already tried to write this as a filter_map and the compiler lost its damn mind
+		#![allow(clippy::bool_comparison)]
+		let trues: Vec<bool> = self.shape.iter().filter(|x| x.2 == true).map(|x| x.2).collect();
+		trues.len() == self.shape.len()
+	}
+	pub fn reset_success(&mut self) {
+		// Rust claims that this doesn't work because the state variable is never read from? WTF????????
+		//for (_, _, mut state) in self.shape.iter_mut() {
+		//	state = false;
+		//}
+		for slot in self.shape.iter_mut() {
+			slot.2 = false;
+		}
+	}
+	/// Generates a set of real-world Positions from a given reference Position using the template's shape
+	pub fn realize_coordinates(&self, ref_posn: &Position) -> Vec<(String, Position)> {
+		let mut output = Vec::new();
+		for (_id, name, posn) in &self.output {
+			let next_point: Position = Position {
+				x: ref_posn.x + posn.0 as i32,
+				y: ref_posn.y + posn.1 as i32,
+				z: ref_posn.z
+			};
+			output.push((name.clone(), next_point));
+		}
+		//debug!("* Generated a Position set for ref_posn {:?}", ref_posn); // DEBUG: log the generated Position set
+		output
+	}
+	/// Simple helper for putting constraint rules into a new SpawnTemplate
+	pub fn add_constraints(&mut self, new_rules: Vec<(String, String)>) {
+		self.constraints = Some(new_rules.clone());
+	}
+	/// Replaces the IDs in a SpawnTemplate with a single string; usually meant for single-item templates, but note that
+	/// this will work just the same on a template with multiple entity positions!
+	pub fn assign_name(&mut self, name: String) {
+		for item in self.output.iter_mut() {
+			item.1 = name.clone();
+		}
+	}
+	/// Replaces the IDs in a SpawnTemplate with the item names in a RawItemSet's contents list
+	pub fn assign_names(&mut self, name_list: Vec<(String, String)>) {
+		// name_list's values are (id, name) as per defn from furniture_groups_v1.json
+		// NOTE: you can't get mutable refs out of a Rust vector unless it was created that way
+		// so trying to get mutable refs into a tuple binding will always fail unless the vector was
+		// initialized with, eg, vec![&String] and NOT vec![String]
+		// For every occupied tile in the template,
+		//eprintln!("* recvd name_list: {:?}", name_list); // DEBUG: log received name_list
+		for item in self.output.iter_mut() {
+			if let Some(new_name) = name_list.iter().find(|x| x.0 == item.0) { // If it matches a tile in the defn,
+				item.1 = new_name.1.clone(); // Assign it a real name
+			}
+		}
+	}
+}
+impl From<Vec<Vec<String>>> for SpawnTemplate {
+	fn from(_input: Vec<Vec<String>>) -> SpawnTemplate {
+		//eprintln!("* From<Vec<Vec<String>> input: {:?}", input); // DEBUG: log the received input
+		todo!("! SpawnTemplate::From<Vec<Vec<String>>> still unimplemented");
+		//SpawnTemplate::new()
+	}
+}
+impl From<Vec<String>> for SpawnTemplate {
+	fn from(input: Vec<String>) -> SpawnTemplate {
+		//eprintln!("* From<Vec<String>> input: {:?}", input); // DEBUG: log the received input
+		let mut new_output = Vec::new();
+		let mut new_shape = Vec::new();
+		for (height, line) in input.iter().enumerate() {
+			for (width, chara) in line.chars().enumerate() {
+				let new_type = match chara {
+					'.' => { /* free space, just skip the position */ continue; },
+					'+' => { CellType::Margin },
+					'#' => { CellType::Wall },
+					'A'..='Z' => { // This position will be occupied, add it to the spawn list
+						new_output.push((chara.to_string(), "spawn_template_default_name".to_string(), (width, height)));
+						CellType::Closed
+					}
+					 _  => { error!("* Unrecognized celltype character: {}", chara); CellType::Wall }
+				};
+				new_shape.push(((width as f32, height as f32), new_type, false));
+			}
+		}
+		SpawnTemplate {
+			shape: new_shape.clone(),
+			output: new_output.clone(),
+			constraints: None
+		}
+	}
+}
+//   ##: ShipGraph
 /// Describes the entire logical map of the gameworld for map generation purposes
 #[derive(Resource, Clone, Debug, Default, Reflect)]
 #[reflect(Resource)]
@@ -126,109 +231,7 @@ impl ShipGraph {
 		self.rooms.iter().map(|x| x.name.clone()).collect()
 	}
 }
-
-/// Describes how to place an item in a room
-#[derive(Clone, Debug, Default)]
-pub struct SpawnTemplate {
-	pub shape: Vec<(Qpoint, CellType, bool)>, // Represents the whole template including margins and blocked spaces
-	output: Vec<(String, String, (usize, usize))>, // (id, name, (x, y)) - Represents only the occupied spaces
-	constraints: Option<Vec<(String, String)>>
-}
-impl SpawnTemplate {
-	pub fn new() -> SpawnTemplate {
-		SpawnTemplate::default()
-	}
-	pub fn is_successful(&self) -> bool {
-		// I'm disabling the lint here because I want it to be *explicit* that the filter is ONLY doing a comparison
-		// This is because I already tried to write this as a filter_map and the compiler lost its damn mind
-		#![allow(clippy::bool_comparison)]
-		let trues: Vec<bool> = self.shape.iter().filter(|x| x.2 == true).map(|x| x.2).collect();
-		trues.len() == self.shape.len()
-	}
-	pub fn reset_success(&mut self) {
-		// Rust claims that this doesn't work because the state variable is never read from? WTF????????
-		//for (_, _, mut state) in self.shape.iter_mut() {
-		//	state = false;
-		//}
-		for slot in self.shape.iter_mut() {
-			slot.2 = false;
-		}
-	}
-	/// Generates a set of real-world Positions from a given reference Position using the template's shape
-	pub fn realize_coordinates(&self, ref_posn: &Position) -> Vec<(String, Position)> {
-		let mut output = Vec::new();
-		for (_id, name, posn) in &self.output {
-			let next_point: Position = Position {
-				x: ref_posn.x + posn.0 as i32,
-				y: ref_posn.y + posn.1 as i32,
-				z: ref_posn.z
-			};
-			output.push((name.clone(), next_point));
-		}
-		//debug!("* Generated a Position set for ref_posn {:?}", ref_posn); // DEBUG: log the generated Position set
-		output
-	}
-	/// Simple helper for putting constraint rules into a new SpawnTemplate
-	pub fn add_constraints(&mut self, new_rules: Vec<(String, String)>) {
-		self.constraints = Some(new_rules.clone());
-	}
-	/// Replaces the IDs in a SpawnTemplate with a single string; usually meant for single-item templates, but note that
-	/// this will work just the same on a template with multiple entity positions!
-	pub fn assign_name(&mut self, name: String) {
-		for item in self.output.iter_mut() {
-			item.1 = name.clone();
-		}
-	}
-	/// Replaces the IDs in a SpawnTemplate with the item names in a RawItemSet's contents list
-	pub fn assign_names(&mut self, name_list: Vec<(String, String)>) {
-		// name_list's values are (id, name) as per defn from furniture_groups_v1.json
-		// NOTE: you can't get mutable refs out of a Rust vector unless it was created that way
-		// so trying to get mutable refs into a tuple binding will always fail unless the vector was
-		// initialized with, eg, vec![&String] and NOT vec![String]
-		// For every occupied tile in the template,
-		//eprintln!("* recvd name_list: {:?}", name_list); // DEBUG: log received name_list
-		for item in self.output.iter_mut() {
-			if let Some(new_name) = name_list.iter().find(|x| x.0 == item.0) { // If it matches a tile in the defn,
-				item.1 = new_name.1.clone(); // Assign it a real name
-			}
-		}
-	}
-}
-impl From<Vec<Vec<String>>> for SpawnTemplate {
-	fn from(_input: Vec<Vec<String>>) -> SpawnTemplate {
-		//eprintln!("* From<Vec<Vec<String>> input: {:?}", input); // DEBUG: log the received input
-		todo!("! SpawnTemplate::From<Vec<Vec<String>>> still unimplemented");
-		//SpawnTemplate::new()
-	}
-}
-impl From<Vec<String>> for SpawnTemplate {
-	fn from(input: Vec<String>) -> SpawnTemplate {
-		//eprintln!("* From<Vec<String>> input: {:?}", input); // DEBUG: log the received input
-		let mut new_output = Vec::new();
-		let mut new_shape = Vec::new();
-		for (height, line) in input.iter().enumerate() {
-			for (width, chara) in line.chars().enumerate() {
-				let new_type = match chara {
-					'.' => { /* free space, just skip the position */ continue; },
-					'+' => { CellType::Margin },
-					'#' => { CellType::Wall },
-					'A'..='Z' => { // This position will be occupied, add it to the spawn list
-						new_output.push((chara.to_string(), "spawn_template_default_name".to_string(), (width, height)));
-						CellType::Closed
-					}
-					 _  => { error!("* Unrecognized celltype character: {}", chara); CellType::Wall }
-				};
-				new_shape.push(((width as f32, height as f32), new_type, false));
-			}
-		}
-		SpawnTemplate {
-			shape: new_shape.clone(),
-			output: new_output.clone(),
-			constraints: None
-		}
-	}
-}
-
+//   ##: GraphRoom
 /// Describes a node in the topology graph, a single Room which is composed of a set of Positions
 // A GraphRoom's interior positions will always be unique to itself: the same tile cannot be defined twice
 // Some GraphRooms may share certain tiles, like walls, but the interiors will *always* be disjoint
@@ -419,6 +422,7 @@ impl GraphRoom {
 		self.debug_print();
 	}
 }
+//   ##: GraphDoor
 /// Describes an edge in the topology graph, a connection between two GraphRooms
 #[derive(Resource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
@@ -440,6 +444,7 @@ impl Default for GraphDoor {
 		}
 	}
 }
+//   ##: GraphCell
 /// Describes a single position in the topology graph, ie the smallest unit of space in the map
 #[derive(Resource, Clone, Copy, Debug, Default, Reflect)]
 pub struct GraphCell {
@@ -452,16 +457,7 @@ impl GraphCell {
 		}
 	}
 }
-/// Describes the different types of GraphCells in the map, which determine layout constraints
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
-pub enum CellType {
-	#[default]
-	Open, // A Cell that can but does not have an occupant
-	Closed, // A Cell that is occupied by something like an entity
-	Wall, // A Cell that is blocked by something terrain-ish, like a Wall
-	Margin, // A Cell that must remain Open, ie cannot have an occupant
-}
-
+//   ##: Successors
 /// Simple iterator-ish object class for the ShipGraph
 #[derive(Resource, Clone, Debug, Reflect)]
 pub struct Successors<'a> {
@@ -482,5 +478,20 @@ impl<'a> Iterator for Successors<'a> {
 	}
 }
 
+//  ###: SIMPLE TYPES AND HELPERS
+//   ##: CellType
+/// Describes the different types of GraphCells in the map, which determine layout constraints
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+pub enum CellType {
+	#[default]
+	Open, // A Cell that can but does not have an occupant
+	Closed, // A Cell that is occupied by something like an entity
+	Wall, // A Cell that is blocked by something terrain-ish, like a Wall
+	Margin, // A Cell that must remain Open, ie cannot have an occupant
+}
+//   ##: RoomIndex, DoorIndex
+/// Simple enum wrappers to provide some type guarantees for these classes
+pub type RoomIndex = usize; // An index to a GraphRoom
+pub type DoorIndex = usize; // An index to a GraphDoor
 
 // EOF

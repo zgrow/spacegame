@@ -1,15 +1,19 @@
 // viewport.rs
 // Defines the Viewport object, which provides a roguelike-style grid-based Widget to ratatui
 
+//  ###: EXTERNAL LIBRARIES
 use ratatui::{
 	buffer::Buffer,
 	widgets::{Block, Widget},
 	layout::{Alignment, Rect},
 	style::{Color::Indexed, Style},
 };
+
+//  ###: INTERNAL LIBRARIES
 use crate::worldmap::xy_to_index;
 use crate::camera::CameraView;
 
+//  ###: Viewport
 pub struct Viewport<'a> {
 	source: &'a CameraView,
 	// these are the tui-rs attributes

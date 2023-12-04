@@ -1,13 +1,18 @@
 // rexpaint_loader.rs - converts REXPaint files into game resources
+
+//  ###: EXTERNAL LIBRARIES
 use std::collections::HashMap;
 use bracket_rex::prelude::*;
-use crate::worldmap::*;
 use ratatui::text::{Span, Text};
 use codepage_437::CP437_WINGDINGS;
-use crate::components::Position;
-use crate::artisan::ItemType;
 use simplelog::*;
 
+//  ###: INTERNAL LIBRARIES
+use crate::worldmap::*;
+use crate::components::Position;
+use crate::artisan::ItemType;
+
+//  ###: TYPES
 pub struct XpFileParser {
 	pub dict_rexval_to_string: HashMap<u32, String>,
 	pub dict_rexval_to_tile: HashMap<u32, Tile>,
@@ -72,8 +77,10 @@ impl Default for XpFileParser {
 		XpFileParser::new()
 	}
 }
+
+//  ###: HELPERS
 /// Produces a Map object, complete with tilemap, from the specified REXPaint resource
-pub fn load_rex_map(xp_file: &XpFile) -> (GameMap, Vec<(ItemType, Position)>) {
+pub fn load_rex_map(xp_file: &XpFile) -> (WorldMap, Vec<(ItemType, Position)>) {
 	let mut new_width: usize = 1;
 	let mut new_height: usize = 1;
 	let mut layer_count = 0;
@@ -84,7 +91,7 @@ pub fn load_rex_map(xp_file: &XpFile) -> (GameMap, Vec<(ItemType, Position)>) {
 	}
 	// WARN: We assume only ONE layer exists in the file!
 	assert!(layer_count == 1, "More than one layer detected in REXfile");
-	let mut map: GameMap = GameMap::new(new_width, new_height);
+	let mut map: WorldMap = WorldMap::new(new_width, new_height);
 	let mut enty_list = Vec::new();
 	for layer in &xp_file.layers {
 		//debug!("- Loading map from rexfile"); //:DEBUG:

@@ -1,7 +1,10 @@
 // mason/json_map.rs
 // Provides the logic for importing my custom spaceship map layouts from JSON format
 
+//  ###: EXTERNAL LIBRARIES
 use serde::{Deserialize, Serialize};
+
+//  ###: INTERNAL LIBRARIES
 use crate::mason::*;
 
 /* The format of the input json as of October 10, 2023:
@@ -40,22 +43,15 @@ use crate::mason::*;
  *      Rooms
  */
 
-/// A JSON-formatted representation of a door or other room-connecting passageway
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct JsonPortal {
-	pub name: String,
-	pub points: Vec<Vec<usize>>,
-	//pub twoway: bool
+//   ##: JsonBucket
+/// Data structure that maps to the JSON as laid out in the map generator for fast deserialization
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct JsonBucket {
+	pub map_list: Vec<JsonMap>,
+	pub room_list: Vec<JsonRoom>,
+	pub ladder_list: Vec<JsonPortal>,
 }
-impl Default for JsonPortal {
-	fn default() -> JsonPortal {
-		JsonPortal {
-			name: "".to_string(),
-			points: Vec::new(),
-		}
-	}
-}
-
+//   ##: JsonRoom
 /// A JSON-formatted representation of a room
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct JsonRoom {
@@ -103,26 +99,37 @@ impl JsonRoom {
 		self.corner[2]
 	}
 }
+//   ##: JsonPortal
+/// A JSON-formatted representation of a door or other room-connecting passageway
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct JsonPortal {
+	pub name: String,
+	pub points: Vec<Vec<usize>>,
+	//pub twoway: bool
+}
+impl Default for JsonPortal {
+	fn default() -> JsonPortal {
+		JsonPortal {
+			name: "".to_string(),
+			points: Vec::new(),
+		}
+	}
+}
+//   ##: JsonMap
+/// A JSON-formatted representation of a 'raw' tilemap
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonMap {
 	pub tilemap: Vec<String>,
 	pub width: usize,
 	pub height: usize,
 }
-impl From<JsonMap> for GameMap {
+impl From<JsonMap> for WorldMap {
 	fn from(input: JsonMap) -> Self {
 		for jmap in input.tilemap {
 			warn!("> From<JsonMap> for GameMap unimplemented! input: {:?}", jmap); // DEBUG: log this type conversion
 		}
-		GameMap::default()
+		WorldMap::default()
 	}
-}
-/// Data structure that maps to the JSON as laid out in the map generator for fast deserialization
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct JsonBucket {
-	pub map_list: Vec<JsonMap>,
-	pub room_list: Vec<JsonRoom>,
-	pub ladder_list: Vec<JsonPortal>,
 }
 
 // EOF

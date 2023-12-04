@@ -1,6 +1,6 @@
 // components.rs
 // July 12 2023
-// * COMPONENTS REFERENCE LIST
+// ###: COMPONENTS REFERENCE LIST
 /* components.rs
  *   AccessPort - "accessport"
  *   ActionSet - "actionset"
@@ -71,11 +71,9 @@
  *     outcome: PlanqEvent
  */
 
-// * EXTERNAL LIBS
+// ###: EXTERNAL LIBS
 use std::fmt;
 use std::hash::Hash;
-use bevy::ecs::entity::*;
-use bevy::utils::hashbrown::{HashMap, HashSet};
 use bevy::prelude::{
 	Component,
 	FromWorld,
@@ -85,18 +83,23 @@ use bevy::prelude::{
 	Resource,
 	World,
 };
+use bevy::ecs::entity::*;
+use bevy::utils::hashbrown::{HashMap, HashSet};
 use bracket_pathfinding::prelude::*;
 use ratatui::layout::Rect;
-use strum_macros::AsRefStr;
-use crate::engine::event::ActionType;
-use crate::camera::ScreenCell;
 use serde::{Deserialize, Serialize};
+use strum_macros::AsRefStr;
 //use simplelog::*;
 
-// Full-length derive macros
+// ###: INTERNAL LIBS
+use crate::engine::event::ActionType;
+use crate::camera::ScreenCell;
+
+// Full-length derive macro examples
 //#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 //#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 
+//   ##: ActionSet
 /// Allows an entity to identify the set of ActionTypes that it supports.
 /// The presence of an ActionType in actions indicates it is compatible;
 /// finding the intersection between two ActionSets results in the set of actions
@@ -122,6 +125,7 @@ impl Default for ActionSet {
 		}
 	}
 }
+//   ##: Description
 /// Holds the narrative description of an object. If this component is used as an input for text formatting, it will produce
 /// the name of the entity that owns it. See also the name() and desc() methods
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect, Serialize, Deserialize)]
@@ -172,7 +176,7 @@ impl fmt::Display for Description {
 		write!(f, "{}", self.name)
 	}
 }
-
+//   ##: Body
 /// Defines the shape/form of an Entity's physical body within the gameworld, defined on absolute game Positions
 /// Allows Entities to track all of their physical shape, not just their canonical Position
 /// NOTE: if an Entity's 'extended' Body is supposed to use different glyphs, then the Renderable.glyph
@@ -298,6 +302,7 @@ impl Body {
 		self
 	}
 }
+//    #: Glyph
 /// Represents a single ScreenCell as a part of an Entity; the Body component can use more than one of these
 /// to construct a multitile entity
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
@@ -340,6 +345,7 @@ impl From<Glyph> for ScreenCell {
 		value.cell
 	}
 }
+//   ##: Viewshed
 /// Provides an object abstraction for the sensory range of a given entity
 //  INFO: This Viewshed type is NOT eligible for bevy_save because bracket_lib::Point doesn't impl Reflect/FromReflect
 #[derive(Component, Clone, Debug)]
@@ -359,6 +365,7 @@ impl Viewshed {
 		}
 	}
 }
+//    ##: Memory
 /// Provides a memory of seen entities and other things to an entity with sentience
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
@@ -381,6 +388,7 @@ impl Memory {
 		}
 	}
 }
+//   ##: Portable
 /// Describes an entity that can be picked up and carried around
 //#[derive(Component, Clone, Copy, Debug, Default)]
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
@@ -405,6 +413,7 @@ impl FromWorld for Portable {
 		}
 	}
 }
+//   ##: Opaque
 /// Describes an entity that blocks line of sight; comes with an internal state for temp use
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
@@ -418,6 +427,7 @@ impl Opaque {
 		}
 	}
 }
+//   ##: Openable
 /// Describes an entity with an operable barrier of some kind: a container's lid, or a door, &c
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[reflect(Component)]
@@ -437,6 +447,7 @@ impl Openable {
 		}
 	}
 }
+//   ##: Lockable
 /// Describes an Entity that can be locked and unlocked, such as a door or a locker
 // FIXME: how does this prevent something from being unlocked from the 'wrong' side?
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
@@ -462,10 +473,12 @@ impl Lockable {
 		self.key_id
 	}
 }
+//   ##: Key
 /// Describes an entity that can lock or unlock a Lockable object
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Key { pub key_id: i32 }
+//   ##: Device
 /// Describes an entity with behavior that can be applied/used/manipulated by another entity
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
@@ -523,6 +536,7 @@ impl Device {
 		self.pw_switch
 	}
 }
+//    #: DeviceState
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub enum DeviceState {
@@ -533,41 +547,50 @@ pub enum DeviceState {
 	Error(u32) // Takes an error code as a specifier
 }
 
-//  *** TAG COMPONENTS
+//  ###: TAG COMPONENTS
+//   ##: Player
 /// Identifies the Entity that represents the player character
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Player { }
+//   ##: LMR
 /// Identifies the LMR in the ECS
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct LMR { }
+//   ##: IsCarried
 /// Describes an Entity that is currently located within a Container
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct IsCarried { }
+//   ##: Container
 /// Describes an entity which may contain entities tagged with the Portable Component
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Container { } // TODO: this almost definitely needs a capacity field attached to it
+//   ##: AccessPort
 /// Describes an entity with a PLANQ-compatible maintenance system
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct AccessPort { }
+//   ##: Networkable
 /// Describes an entity that can connect to and communicate with the shipnet
 #[derive(Component, Copy, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct Networkable { }
+//   ##: Mobile
 /// Describes an Entity that can move around under its own power
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Mobile { }
+//   ##: Obstructive
 /// Describes an entity that obstructs movement by other entities
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub struct Obstructive { }
 
-//  *** PRIMITIVES AND COMPUTED VALUES (ie no save/load)
+//  ###: PRIMITIVES AND COMPUTED VALUES (ie no save/load)
+//   ##: Color
 /// A small type that lets us specify friendly names for colors instead of using ints everywhere
 /// Because none of these carry any data, they can be cast to numeric types directly
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
@@ -591,12 +614,14 @@ pub enum Color {
 	LtCyan,   // 14
 	LtWhite   // 15
 }
+//   ##: Creature
 /// A convenient type that makes it clear whether we mean the Player entity or some other
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Creature {
 	Player,     // The player(s)
 	Zilch,      // Any non-player entity or character
 }
+//   ##: Direction
 /// The compass rose - note this is not a component...
 /// These are mapped to cardinals just for ease of comprehension
 #[derive(AsRefStr, Component, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
@@ -633,6 +658,7 @@ impl fmt::Display for Direction {
 		write!(f, "{}", text)
 	}
 }
+//   ##: Position
 /// Represents a point on a 2D grid as an XY pair, plus a Z-coordinate to indicate what floor the entity is on
 #[derive(Component, Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Reflect)]
 #[reflect(Component, Resource)]
@@ -767,7 +793,7 @@ impl std::ops::Add<PosnOffset> for Glyph {
 		}
 	}
 }
-// ***
+//    #: PosnOffset
 /// Provides some ergonomics around Rust's type handling so that there's less "x as usize" casting everywhere;
 /// used for small adjustments on a grid map in the SAME z-level; if a z-level transition is required look elsewhere
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

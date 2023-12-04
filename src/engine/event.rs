@@ -12,7 +12,8 @@ use std::borrow::Cow;
 use crate::components::Direction;
 use crate::engine::EngineMode;
 
-//  ###: GAME EVENTS
+//  ###: COMPLEX TYPES
+//   ##: GameEvent
 /// Describes a general game event, can include a GameEventContext
 #[derive(Event, Clone, Copy, Debug, Default, Reflect)]
 pub struct GameEvent {
@@ -82,12 +83,7 @@ impl Display for GameEvent {
 		write!(f, "{}", self.etype)
 	}
 }
-/// Allows comparison of two variant enums without regard to their type, ie
-///   `ModeSwitch(Paused) == ModeSwitch(Running)`
-/// should return TRUE where Rust would return FALSE
-pub fn same_enum_variant<T>(a: &T, b: &T) -> bool {
-	std::mem::discriminant(a) == std::mem::discriminant(b)
-}
+//   ##: GameEventType
 /// Provides the descriptors for GameEvents
 /// Unless otherwise noted, any relevant event info will be included as a GameEventContext
 #[derive(AsRefStr, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
@@ -114,6 +110,7 @@ impl Display for GameEventType {
 		write!(f, "{}", prim)
 	}
 }
+//   ##: ActionType
 /// Describes the set of actions that may be performed by any of the entities in the game
 #[derive(AsRefStr, Component, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
 pub enum ActionType {
@@ -167,6 +164,7 @@ impl From<ActionType> for Cow<'_, str> {
 		pack
 	}
 }
+//   ##: GameEventContext
 /// Friendly bucket for holding contextual information about game actions
 /// Note that this expresses a 1:1 relation: this preserves the atomic nature of the event
 /// If an event occurs with multiple objects, then that event should be broken into multiple
@@ -205,6 +203,14 @@ impl MapEntities for GameEventContext { // Maintain Entity references wrt bevy_s
 		self.subject = entity_mapper.get_or_reserve(self.subject);
 		self.object = entity_mapper.get_or_reserve(self.object);
 	}
+}
+
+//  ###: SIMPLE TYPES AND HELPERS
+/// Allows comparison of two variant enums without regard to their type, ie
+///   `ModeSwitch(Paused) == ModeSwitch(Running)`
+/// should return TRUE where Rust would return FALSE
+pub fn same_enum_variant<T>(a: &T, b: &T) -> bool {
+	std::mem::discriminant(a) == std::mem::discriminant(b)
 }
 
 // EOF
