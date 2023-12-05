@@ -51,6 +51,10 @@ pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
 	                        mut planq:        ResMut<PlanqData>,
 	                        a_query:          Query<(Entity, &Description), With<AccessPort>>,
 ) {
+	// For every event in the Game's event queue,
+	//   Assign the planq's jack connection to the target entity,
+	//   Send a feedback message to the player to inform them of the change,
+	//   Send an appropriate PLANQ event to the queue
 	for event in ereader.iter() {
 		match event.etype {
 			GameEventType::PlanqConnect(Entity::PLACEHOLDER) => {
@@ -74,6 +78,13 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 	                           components:    &Components,
 	                           mut a_query:   Query<(Entity, &mut ActionSet), Changed<ActionSet>>,
 ) {
+	// For every actor whose ActionSet has changed, (implying that ActionSet.outdated changed values)
+	//   If that really is what changed (to avoid triggering recursively on subsequent system cycles):
+	//     Get a stringified list of the Components that form the Entity,
+	//     Clean up the strings,
+	//     Match the strings to commands that will add the correct ActionTypes to the ActionSet Component
+	//     Update the actor's ActionSet component
+	//     Set the ActionSet.outdated flag to false to avoid double-updates
 	for mut actor in a_query.iter_mut() {
 		if actor.1.outdated {
 			let mut new_set = HashSet::new();
@@ -116,6 +127,11 @@ pub fn examination_system(mut ereader:  EventReader<GameEvent>,
 	                        mut msglog:   ResMut<MessageLog>,
 	                        e_query:      Query<(Entity, &Description)>,
 ) {
+	// Bail out if there's no events in the queue
+	// For every event in the queue,
+	//   Get the target of the EXAMINE action,
+	//   Get the target's description,
+	//   Show the description to the player
 	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
 		if event.etype != PlayerAction(ActionType::Examine) { continue; }
@@ -141,7 +157,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 	// Don't even bother trying if there's no events to worry about
 	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
-		// Skip any events with the wrong type
+		// Skip any events with the wrong type by filtering on the event's type's action's type
 		let atype: ActionType;
 		match event.etype {
 			PlayerAction(action) | ActorAction(action) => {
@@ -167,7 +183,6 @@ pub fn item_collection_system(mut cmd:      Commands,
 		let mut message: String = "".to_string();
 		match atype {
 			ActionType::MoveItem => { // Move an Item into an Entity's possession
-				//debug!("* Moving item..."); // DEBUG: announce item movement
 				// NOTE: the insert(Portable) call below will overwrite any previous instance of that component
 				cmd.entity(o_enty)
 				.insert(Portable{carrier: subject.0}) // put the container's ID to the target's Portable component
@@ -211,6 +226,7 @@ pub fn lockable_system(mut _commands:    Commands,
 	                     mut e_query:      Query<(Entity, &Body, &Description, Option<&Player>)>,
 	                     key_query:        Query<(Entity, &Portable, &Description, &Key), With<IsCarried>>,
 ) {
+	// Bail out if there's no events or the wrong type
 	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
 		let mut atype = ActionType::NoAction;
@@ -227,6 +243,8 @@ pub fn lockable_system(mut _commands:    Commands,
 		let player_action = actor.3.is_some();
 		let mut target = lock_query.get_mut(econtext.object).unwrap();
 		let mut message: String = "".to_string();
+		// If they have the right key then they can unlock it
+		// Lock attempts always succeed
 		match atype {
 			ActionType::LockItem => {
 				target.3.is_locked = true;
@@ -289,7 +307,6 @@ pub fn map_indexing_system(mut model:         ResMut<WorldModel>,
 			model.set_opaque_state(posn.posn, guy.1.opaque);
 		}
 	}
-	
 }
 /// Handles updates for entities that can move around
 pub fn movement_system(mut ereader:     EventReader<GameEvent>,
@@ -476,6 +493,7 @@ pub fn openable_system(mut commands:    Commands,
 	                     mut door_query:  Query<(Entity, &mut Body, &Description, &mut Openable, Option<&mut Opaque>, Option<&Obstructive>)>,
 	                     mut e_query:     Query<(Entity, &Body, &Description, Option<&Player>, Option<&mut Viewshed>), Without<Openable>>,
 ) {
+	// Bail out if no events or wrong type
 	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
 		let mut atype = ActionType::NoAction;
@@ -488,8 +506,7 @@ pub fn openable_system(mut commands:    Commands,
 		}
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().unwrap();
-		//debug!("* actor opening door {0:?}", econtext.object); // DEBUG: announce opening door
-		//let actor = e_query.get_mut(econtext.subject).unwrap();
+		// If they can see it, add it to the list of doors they can choose
 		let (_enty, _body, a_desc, a_player, a_viewshed) = e_query.get_mut(econtext.subject).unwrap();
 		let is_player_action = a_player.is_some();
 		let mut message: String = "".to_string();
@@ -500,13 +517,13 @@ pub fn openable_system(mut commands:    Commands,
 				for (d_enty, mut d_body, d_desc, mut d_open, d_opaque, _obstruct) in door_query.iter_mut() {
 					if d_enty == econtext.object {
 						d_open.is_open = true;
-						let ref_posn = d_body.ref_posn;
-						d_body.set_glyph_at(ref_posn, &d_open.open_glyph);
+						let ref_posn = d_body.ref_posn; // Get the map posn of the openable
+						d_body.set_glyph_at(ref_posn, &d_open.open_glyph); // Change the openable's glyph to the open state
 						door_name = d_desc.name.clone();
 						if let Some(mut opaque) = d_opaque {
 							opaque.opaque = false;
 						}
-						commands.entity(d_enty).remove::<Obstructive>();
+						commands.entity(d_enty).remove::<Obstructive>(); // Things that are open are not obstructive
 					}
 				}
 				if is_player_action {
@@ -514,8 +531,7 @@ pub fn openable_system(mut commands:    Commands,
 				} else {
 					message = format!("The {} opens a {}.", a_desc.name.clone(), door_name);
 				}
-				//if a_viewshed.is_some() { a_viewshed.unwrap().dirty = true; }
-				if let Some(mut view) = a_viewshed { view.dirty = true; }
+				if let Some(mut view) = a_viewshed { view.dirty = true; } // Force a view update ASAP
 			}
 			ActionType::CloseItem => {
 				//debug!("Trying to close a door"); // DEBUG: announce closing door
@@ -524,12 +540,12 @@ pub fn openable_system(mut commands:    Commands,
 					if d_enty == econtext.object {
 						d_open.is_open = false;
 						let ref_posn = d_body.ref_posn;
-						d_body.set_glyph_at(ref_posn, &d_open.closed_glyph);
+						d_body.set_glyph_at(ref_posn, &d_open.closed_glyph); // Set the openable's glyph to the closed state
 						door_name = d_desc.name.clone();
 						if let Some(mut opaque) = d_opaque {
-							opaque.opaque = true;
+							opaque.opaque = true; // Closed things cannot be seen through
 						}
-						commands.entity(d_enty).insert(Obstructive {});
+						commands.entity(d_enty).insert(Obstructive {}); // Closed things cannot be moved through
 					}
 				}
 				if is_player_action {
@@ -537,7 +553,6 @@ pub fn openable_system(mut commands:    Commands,
 				} else {
 					message = format!("The {} closes a {}.", a_desc.name.clone(), door_name);
 				}
-				//if a_viewshed.is_some() { a_viewshed.unwrap().dirty = true; }
 				if let Some(mut view) = a_viewshed { view.dirty = true; }
 			}
 			_ => { }
@@ -575,7 +590,6 @@ pub fn visibility_system(mut model:  ResMut<WorldModel>,
 	                       //observable: Query<(Entity, &Body)>,
 ) {
 	for (mut s_viewshed, s_body, player, s_memory) in &mut seers {
-		//debug!("* [vis_sys] s_posn: {s_posn:?}"); // DEBUG: print the position of the entity being examined
 		if s_viewshed.dirty {
 			assert!(s_body.ref_posn.z != -1, "! ERROR: Encountered negative z-level index!");
 			let map = &mut model.levels[s_body.ref_posn.z as usize];

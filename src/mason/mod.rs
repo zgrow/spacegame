@@ -24,7 +24,6 @@ use logical_map::*;
 pub trait WorldBuilder {
 	fn build_world(&mut self);
 	fn get_model(&self) -> WorldModel;
-	//fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)>;
 	fn get_essential_item_requests(&self) -> Vec<(String, Position)>;
 	fn get_additional_item_requests(&self) -> Vec<(String, String)>;
 }
@@ -49,7 +48,6 @@ impl JsonWorldBuilder {
 		let reader = BufReader::new(file);
 		let input_data: JsonBucket = match serde_json::from_reader(reader) {
 			Ok(output) => output,
-			//Err(_) => JsonBucket::default(),
 			//Ok(output) => {debug!("* output recvd: {:#?}", output); output},
 			Err(msg) => {warn!("! failed to read input data: {}", msg); JsonBucket::default()},
 		};
@@ -119,7 +117,6 @@ impl JsonWorldBuilder {
 				//debug!("* contents of room {}: {:#?}", cur_room.name, cur_room.contents);
 				for (item_name, qty) in cur_room.contents.iter() {
 					for _ in 0..*qty {
-						//furniture_requests.push((cur_room.name.clone(), item_name.clone()));
 						self.addtl_items.push((cur_room.name.clone(), item_name.clone()));
 					}
 				}
@@ -145,24 +142,12 @@ impl JsonWorldBuilder {
 			let right_side = Position::new(portal.points[1][0] as i32, portal.points[1][1] as i32, portal.points[1][2] as i32);
 			let r_index = self.model.levels[right_side.z as usize].to_index(right_side.x, right_side.y);
 			self.model.levels[right_side.z as usize].tiles[r_index] = Tile::new_stairway();
-			// Set the stairway positions in the logical room maps as occupied
-			// FIXME: NEED to add Margin tiles around the stairs
-			//let l_room_name = self.model.layout.get_room_name(left_side).unwrap();
-			//let l_room_index = self.model.layout.rooms.iter().position(|x| x.name == l_room_name).unwrap();
-			//self.model.layout.rooms[l_room_index].new_interior.insert(left_side, GraphCell::new(CellType::Closed));
-			//let r_room_name = self.model.layout.get_room_name(right_side).unwrap();
-			//let r_room_index = self.model.layout.rooms.iter().position(|x| x.name == r_room_name).unwrap();
-			//self.model.layout.rooms[r_room_index].new_interior.insert(right_side, GraphCell::new(CellType::Closed));
+			// FIXME: Set the stairway positions in the logical room maps as occupied
 			self.model.layout.add_stairs_to_map_at(left_side);
 			self.model.layout.add_stairs_to_map_at(right_side);
 			// Add the graph connection between the two rooms using the manual method
 			self.model.add_portal(left_side, right_side, true);
 		}
-		// 4: Iterate on the rooms in the logical graph and generate a list of items that each room needs for decorations
-		//for (room_name, item_name, item_pattern) in furniture_requests.iter() {
-		//	let spawn_posn = self.model.find_spawn_area_in(room_name, item_pattern);
-		//	self.enty_list.push(item_name, spawn_posn);
-		//}
 		// DEBUG: a bunch of different output formats for mapgen feedback
 		//for room in self.model.layout.rooms.iter() {
 		//	debug!("* new room: {}", room.name);
@@ -179,9 +164,6 @@ impl WorldBuilder for JsonWorldBuilder {
 	fn get_model(&self) -> WorldModel {
 		self.model.clone()
 	}
-	//fn get_item_spawn_list(&self) -> Vec<(ItemType, Position)> {
-	//	self.new_entys.clone()
-	//}
 	fn get_essential_item_requests(&self) -> Vec<(String, Position)> {
 		self.enty_list.clone()
 	}
@@ -203,7 +185,6 @@ fn get_line(first: &Position, second: &Position) -> Vec<Position> {
 		let tee = if enn == 0.0 { 0.0 } else { step as f32 / enn };
 		let qpoint = round_point(&lerp_point(&alpha, &beta, tee));
 		let posn = Position::new(qpoint.0 as i32, qpoint.1 as i32, first.z);
-		//points.push(round_point(lerp_point(&alpha, &beta, tee)));
 		points.push(posn);
 	}
 	points

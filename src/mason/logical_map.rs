@@ -1,6 +1,6 @@
 // logical_map.rs
 // November 6 2023
-/*   - ON THE LOGICAL SHIP TOPOLOGY
+/*  ###: ON THE LOGICAL SHIP TOPOLOGY
  * These linked-list directed graph routines were transcribed from:
  * https://smallcultfollowing.com/babysteps/blog/2015/04/06/modeling-graphs-in-rust-using-vector-indices/
  * on October 12, 2023
@@ -38,6 +38,7 @@ impl SpawnTemplate {
 	pub fn new() -> SpawnTemplate {
 		SpawnTemplate::default()
 	}
+	/// Returns true IFF all success values for all positions are successful
 	pub fn is_successful(&self) -> bool {
 		// I'm disabling the lint here because I want it to be *explicit* that the filter is ONLY doing a comparison
 		// This is because I already tried to write this as a filter_map and the compiler lost its damn mind
@@ -45,8 +46,9 @@ impl SpawnTemplate {
 		let trues: Vec<bool> = self.shape.iter().filter(|x| x.2 == true).map(|x| x.2).collect();
 		trues.len() == self.shape.len()
 	}
+	/// Resets the success values in the template so it can be rechecked
 	pub fn reset_success(&mut self) {
-		// Rust claims that this doesn't work because the state variable is never read from? WTF????????
+		// FIXME: Rust claims that this doesn't work because the state variable is never read from? WTF????????
 		//for (_, _, mut state) in self.shape.iter_mut() {
 		//	state = false;
 		//}
@@ -106,6 +108,7 @@ impl From<Vec<String>> for SpawnTemplate {
 		//eprintln!("* From<Vec<String>> input: {:?}", input); // DEBUG: log the received input
 		let mut new_output = Vec::new();
 		let mut new_shape = Vec::new();
+		// Iterate on every char in each string and create new SpawnTemplate shapes and outputs
 		for (height, line) in input.iter().enumerate() {
 			for (width, chara) in line.chars().enumerate() {
 				let new_type = match chara {
@@ -262,6 +265,7 @@ impl Default for GraphRoom {
 }
 impl From<JsonRoom> for GraphRoom {
 	fn from(new_room: JsonRoom) -> Self {
+		// FIXME: uhhhhhhhhhhhh both of these are enabled? probably should make sure that NEW works???
 		// *** OLD
 		let mut point_list: Vec<Position> = Vec::new();
 		for whye in new_room.corner[1]..new_room.corner[1] + new_room.height {

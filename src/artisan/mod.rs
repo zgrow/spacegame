@@ -96,6 +96,7 @@ pub struct ItemBuilder {
 	access:   Option<AccessPort>,
 	contain:  Option<Container>,
 	device:   Option<Device>,
+	is_carried: Option<IsCarried>,
 	key:      Option<Key>,
 	lock:     Option<Lockable>,
 	mobile:   Option<Mobile>,
@@ -122,6 +123,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			..ItemBuilder::default()
 		}
 	}
+	/// Starting incantation in the chain to create new items
 	pub fn create(&mut self, new_item: &str) -> &mut ItemBuilder {
 		//debug!("* ItemBuilder create() request: {}", new_item); // DEBUG: log item builder request
 		if let Some(item_data) = self.item_dict.furniture.iter().find(|x| x.name == new_item) {
@@ -317,6 +319,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 	pub fn give_to(&mut self, target: Entity) -> &mut ItemBuilder {
 		if self.request_list.is_empty() {
 			self.portable = Some(Portable::new(target));
+			self.is_carried = Some(IsCarried::default());
 		} else {
 			for item in self.request_list.iter_mut() {
 				item.recipient = Some(target);
@@ -338,34 +341,19 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			new_item.insert(body.clone()); self.body = None;
 		}
 		if let Some(actions)  = &self.actions { new_item.insert(actions.clone()); self.actions = None; }
+		if let Some(backdrop) = self.backdrop { new_item.insert(backdrop); self.backdrop = None; }
+		if let Some(contain)  = &self.contain { new_item.insert(*contain); self.contain = None; }
+		if let Some(device)   = self.device { new_item.insert(device); self.device = None; }
+		if let Some(is_carried) = self.is_carried { new_item.insert(is_carried); self.is_carried = None; }
+		if let Some(key)      = self.key { new_item.insert(key); self.key = None; }
+		if let Some(lock)     = self.lock { new_item.insert(lock); self.lock = None; }
+		if let Some(mobile)   = self.mobile { new_item.insert(mobile); self.mobile = None; }
 		if let Some(obstruct) = self.obstruct { new_item.insert(obstruct); self.obstruct = None; }
 		if let Some(opaque)   = self.opaque { new_item.insert(opaque); self.opaque = None; }
 		if let Some(open)     = &self.open { new_item.insert(open.clone()); self.open = None; }
-		if let Some(portable) = self.portable { new_item.insert(portable); self.portable = None; }
-		if let Some(device)   = self.device { new_item.insert(device); self.device = None; }
-		if let Some(mobile)   = self.mobile { new_item.insert(mobile); self.mobile = None; }
-		if let Some(contain)  = &self.contain { new_item.insert(*contain); self.contain = None; }
-		if let Some(lock)     = self.lock { new_item.insert(lock); self.lock = None; }
-		if let Some(key)      = self.key { new_item.insert(key); self.key = None; }
 		if let Some(planq)    = self.planq { new_item.insert(planq); self.planq = None; }
-		if let Some(backdrop) = self.backdrop { new_item.insert(backdrop); self.backdrop = None; }
+		if let Some(portable) = self.portable { new_item.insert(portable); self.portable = None; }
 		vec![(new_item, item_shape)]
-		/*
-		// NEW: runs in a loop to construct one or more items
-		//let mut spawn_list: Vec<(EntityMut<'b>, Vec<Position>)> = Vec::new();
-		let mut spawn_list = Vec::new();
-		for item in self.request_list.iter() { // FIXME: this should be a pop() operation to make sure the list is cleared out
-			if let Some(place) = item.destination {
-				let mut new_item = self.create(&item.name).at(place).build(world);
-				spawn_list.append(&mut new_item);
-			}
-			//if let Some(person) = item.recipient {
-			//	let mut new_item = self.create(&item.name).give_to(person).build(world);
-			//	spawn_list.append(&mut new_item);
-			//}
-		}
-		spawn_list
-		*/
 	}
 	/// Generates the list of decorative items that the worldgen will need to spawn
 	pub fn decorate(&mut self, worldmap: &WorldModel) -> Vec<Position> {
@@ -402,42 +390,6 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		// - Return the entire list of placements
 		//posns
 		todo!("Not done implementing this yet"); // TODO: finish implementing the decorate() method in artisan
-	}
-	/// Retrieves the placement pattern for a specified Item from the ItemDict
-	pub fn old_get_pattern_for(&self, item_name: &str) -> Option<Vec<Vec<String>>> {
-		if let Some(item_data) = self.item_dict.furniture.iter().find(|x| x.name == item_name) {
-			return Some(item_data.shapes.clone());
-		}
-		None
-	}
-	/// Retrieves the *first* placement pattern for a specified item
-	pub fn get_template_for(&self, item_name: &str) -> Option<SpawnTemplate> {
-		// Try to get the item name as a single piece first
-		if let Some(item_data) = self.item_dict.furniture.iter().find(|x| x.name == item_name) {
-			//eprintln!("* item_data: {:?}", item_data.shapes[0]);
-			if let Some(extra_rules) = &item_data.constraints {
-				let mut new_template: SpawnTemplate = item_data.shapes[0].clone().into();
-				new_template.add_constraints(extra_rules.clone());
-				return Some(new_template);
-			}
-			return Some(item_data.shapes[0].clone().into());
-		// Otherwise it must be an item set, so try that dict instead
-		} else if let Some(set_data) = self.item_dict.sets.iter().find(|x| x.name == item_name) {
-			//eprintln!("* set_data: {:?}", set_data.shapes[0]);
-			// set_data is the info from the ItemDict, and we're here to *make* the SpawnTemplate
-			// set_data:
-			//   name: String -> the name of the item set
-			//   contents: Vec<(String, String)> -> id, item_name
-			//   shapes: Vec<Vec<String>> -> the set of placement templates
-			let mut new_template: SpawnTemplate = set_data.shapes[0].clone().into();
-			// replace the item IDs in the template with the correct item names
-			//debug!("* DET: Now calling assign_names with {:?}", set_data.contents); // DEBUG: log newly assigned names
-			new_template.assign_names(set_data.contents.clone());
-			// RawItemSets do not currently support constraints
-			return Some(new_template);
-		}
-		error!("! Could not find '{}' in ItemDict", item_name);
-		None
 	}
 	/// Retrieves a random template from the set defined for a specified item
 	pub fn get_random_shape(&self, item_name: &str, rng: &mut GlobalRng) -> Option<SpawnTemplate> {

@@ -190,7 +190,7 @@ pub struct Body { // aka Exterior, Veneer, Mass, Body, Visage, Shape, Bulk, Whol
 	pub extent: Vec<Glyph>,
 }
 impl Body {
-	//  - Builder
+	//    #: Builder
 	pub fn new() -> Body {
 		Body::default()
 	}
@@ -234,7 +234,7 @@ impl Body {
 			extent: posns.iter().zip(glyphs.iter()).map(|x| x.into()).collect(),
 		}
 	}
-	//  - Get/Set
+	//    #: Get/Set
 	/// Returns true if any of this Body's parts are occupying the given Position
 	pub fn contains(&self, target: &Position) -> bool {
 		for piece in self.extent.iter() {
@@ -260,7 +260,6 @@ impl Body {
 	}
 	/// Moves this Body's parts to the new Position without losing cohesion
 	pub fn move_to(&mut self, target: Position) {
-		//let posn_diff = self.ref_posn - target;
 		let posn_diff = target - self.ref_posn;
 		for glyph in self.extent.iter_mut() {
 			glyph.posn += posn_diff;
@@ -297,6 +296,7 @@ impl Body {
 		}
 	}
 	/// (possible deprecation!) Sets a Body's extent to the given list of Glyphs
+	#[deprecated]
 	pub fn glyphs(mut self, new_glyphs: Vec<Glyph>) -> Self {
 		self.extent = new_glyphs;
 		self
@@ -826,6 +826,16 @@ impl std::ops::AddAssign<PosnOffset> for Position {
 		*self = *self + rhs;
 	}
 }
+impl std::ops::Sub<Position> for Position {
+	type Output = PosnOffset;
+	fn sub(self, rhs: Position) -> PosnOffset {
+		PosnOffset {
+			x_diff: self.x - rhs.x,
+			y_diff: self.y - rhs.y,
+			z_diff: self.z - rhs.z,
+		}
+	}
+}
 /* NOTE: Defn for "Position - PosnOffset = Position" is disabled due to uncertainty; subtraction on a PosnOffset
  *       that contains negative values will almost definitely produce unexpected behavior...
  *	impl std::ops::Sub<PosnOffset> for Position {
@@ -848,15 +858,5 @@ impl std::ops::AddAssign<PosnOffset> for Position {
  * vector sums are useful when trying to calculate the amount of force applied to a body,
  * but that isn't useful right now since I have no physics to worry about
 */
-impl std::ops::Sub<Position> for Position {
-	type Output = PosnOffset;
-	fn sub(self, rhs: Position) -> PosnOffset {
-		PosnOffset {
-			x_diff: self.x - rhs.x,
-			y_diff: self.y - rhs.y,
-			z_diff: self.z - rhs.z,
-		}
-	}
-}
 
 // EOF

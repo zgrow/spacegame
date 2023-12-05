@@ -60,6 +60,7 @@ impl WorldModel {
 		self.portals.push(Portal::new().from(left).to(right).twoway(bidir));
 		self.portals.sort(); // Helps prevent duplication and speeds up retrieval
 	}
+	/// Retrieve the destination of a given Portal, if any
 	pub fn get_exit(&mut self, entry: Position) -> Option<Position> {
 		// if the position belongs to a portal in the list, return its destination
 		// otherwise, return a None
@@ -70,6 +71,7 @@ impl WorldModel {
 			portal
 		}
 	}
+	/// Retrieve the tiletype of the given Position
 	pub fn get_tiletype_at(&self, target: Position) -> TileType {
 		let index = self.levels[target.z as usize].to_index(target.x, target.y);
 		self.levels[target.z as usize].tiles[index].ttype
@@ -81,20 +83,24 @@ impl WorldModel {
 			self.levels[posn.z as usize].add_occupant(priority, enty, *posn);
 		}
 	}
+	/// Removes the given Entity from the occupancy list of the specified Tiles
 	pub fn remove_contents(&mut self, posns: &Vec<Position>, enty: Entity) {
 		trace!("remove_contents: {:?} for enty {:?}", posns, enty); // DEBUG: log the call to remove_contents
 		for posn in posns {
 			self.levels[posn.z as usize].remove_occupant(enty, *posn);
 		}
 	}
+	/// Retrieves a list of all the occupants at the given Position
 	pub fn get_contents_at(&self, target: Position) -> Vec<Entity> {
 		self.levels[target.z as usize].get_contents_at(target)
 	}
+	/// Returns True if the Position contains an Entity with Obstructive, or if the Tiletype is a blocking type
 	pub fn is_blocked_at(&self, target: Position) -> bool {
 		trace!("* is_blocked_at({:?})", target); // DEBUG: log the call to is_blocked_at
 		let index = self.levels[target.z as usize].to_index(target.x, target.y);
 		self.levels[target.z as usize].blocked_tiles[index]
 	}
+	/// Returns a list of all Obstructive Entities at the given Position, optionally with LOS from a given observer
 	pub fn get_obstructions_at(&self, targets: Vec<Position>, observer_enty: Option<Entity>) -> Option<Vec<(Position, Obstructor)>> {
 		let mut block_list = Vec::new();
 		let observer = observer_enty.unwrap_or(Entity::PLACEHOLDER);
@@ -103,12 +109,13 @@ impl WorldModel {
 				trace!("* enty is_blocked_at {}", posn); // DEBUG: log where the entity's movement attempt was blocked
 				// Seems like a safe assumption that the most-visible entity at a given position will be the one blocking it
 				if let Some(observed) = self.levels[posn.z as usize].get_visible_entity_at(*posn) {
+					// If any entities were observed at that location, add them to the output list
 					// Remember, this if-condition is evaluated serially: by definition, if the compiler evaluates the RHS,
 					// then the LHS was already observed to be false
 					if observer == Entity::PLACEHOLDER || observer != observed {
 						block_list.insert(0, (*posn, Obstructor::Actor(observed)));
 					}
-				} else {
+				} else { // just add the blocking object as a Tiletype
 					let ttype = self.get_tiletype_at(*posn);
 					block_list.insert(0, (*posn, Obstructor::Object(ttype)));
 				}
@@ -130,12 +137,15 @@ impl WorldModel {
 		}
 		None
 	}
+	/// Returns a list of Room names in the topology of the ship
 	pub fn get_room_name_list(&self) -> Vec<String> {
 		self.layout.get_room_list()
 	}
+	/// Sets the state of a specific Position on the blocking map
 	pub fn set_blocked_state(&mut self, target: Position, state: bool) {
 		self.levels[target.z as usize].set_blocked(target, state);
 	}
+	/// Sets the state of a specific Position on the opaque map
 	pub fn set_opaque_state(&mut self, target: Position, state: bool) {
 		self.levels[target.z as usize].set_opaque(target, state);
 	}
@@ -222,13 +232,6 @@ impl WorldMap {
 		let index = self.to_index(target.x, target.y);
 		self.opaque_tiles[index] = state;
 	}
-	// ###:*
-	// Returns the Entity of whatever is occupying the target Position, if any. If there are multiple,
-	// this method will only return the first one it finds; no guarantees of consistency are made at this time
-	//pub fn get_occupant_at(&self, target: Position) -> Option<Entity> {
-	//	let index = self.to_index(target.x, target.y);
-	//	for item in self.tiles[index].
-	//}
 }
 // bracket-lib uses the Algorithm2D and BaseMap traits for FOV and pathfinding
 impl Algorithm2D for WorldMap {
