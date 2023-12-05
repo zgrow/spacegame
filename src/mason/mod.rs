@@ -42,6 +42,7 @@ pub struct JsonWorldBuilder {
 	addtl_items: Vec<(String, String)>
 }
 impl JsonWorldBuilder {
+	/// Extracts, parses, and stores the furniture files in local data storage
 	pub fn load_json_file(&mut self, file_path: &str) {
 		//debug!("* opening input file at {}", file_path);
 		let file = File::open(file_path).unwrap();

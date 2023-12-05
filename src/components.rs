@@ -131,9 +131,9 @@ impl Default for ActionSet {
 #[derive(Component, Clone, Debug, PartialEq, Eq, Reflect, Serialize, Deserialize)]
 #[reflect(Component)]
 pub struct Description {
-	pub name: String,
-	pub desc: String,
-	pub locn: String,
+	pub name: String, // The 'friendly' name of the Entity
+	pub desc: String, // The long-form description of the Entity
+	pub locn: String, // The name of the room that this Entity occupies
 }
 impl Description {
 	/// Creates a new Description with the given name and description
