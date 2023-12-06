@@ -43,7 +43,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	if eng.mode == EngineMode::Running {
 		let mut new_game_event = GameEvent::new(GameEventType::NullEvent, Some(player), None);
 		let mut new_planq_event = PlanqEvent::new(PlanqEventType::NullEvent);
-		let planq = &mut eng.bevy.world.get_resource_mut::<PlanqData>().unwrap();
+		// FIXME: once the show_cli_input flag is moved to the GameEngine, this get_resource_mut and unwrap() call can be moved
+		// into the conditional block below
+		let planq = &mut eng.bevy.world.get_resource_mut::<PlanqData>().expect("The PlanqData resource should have been loaded into Bevy");
 		//  ##: PLANQ CLI INPUT MODE
 		if planq.show_cli_input {
 			match key_event.code {
@@ -66,8 +68,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 						msglog.replace(echo_text.clone(), "planq".to_string(), 0, 0);
 					} else {
 					*/
-					{
-						let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap(); // See above ^^^
+					if let Some(mut msglog) = eng.bevy.world.get_resource_mut::<MessageLog>() { // See above ^^^
 						msglog.tell_planq(echo_text.clone());
 					}
 					eng.exec(planq_parser(input_text));
@@ -173,9 +174,10 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 				if item_names.is_empty() {
 					debug!("* Nothing in inventory to display"); // DEBUG: announce feedback
-					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("You are not carrying anything.".to_string());
-					return Ok(())
+					if let Some(mut msglog) = eng.bevy.world.get_resource_mut::<MessageLog>() {
+						msglog.tell_player("You are not carrying anything.".to_string());
+					}
+					return Ok(());
 				} else {
 					//debug!("* Attempting to show_chooser()"); // DEBUG: announce attempt to show the context menu
 					eng.menu_context = MenuState::new(item_names);
@@ -196,8 +198,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					}
 				}
 				if item_names.is_empty() {
-					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("You have nothing to drop.".to_string());
+					if let Some(mut msglog) = eng.bevy.world.get_resource_mut::<MessageLog>() {
+						msglog.tell_player("You have nothing to drop.".to_string());
+					}
 					return Ok(())
 				} else {
 					eng.menu_context = MenuState::new(item_names);
@@ -207,7 +210,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('g') => { // GET an item from the ground
 				let mut item_names = Vec::new();
 				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Body, &Portable)>();
-				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
+				let p_posn = if let Some(value) = eng.bevy.world.get_resource::<Position>() {
+					value
+				} else {
+					return Ok(())
+				};
 				for target in item_query.iter(&eng.bevy.world) {
 					//debug!("* found item {}", target.1.name.clone()); // DEBUG: announce found targets for GET
 					if target.2.contains(p_posn) {
@@ -220,8 +227,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 				if item_names.is_empty() {
 					//debug!("* Nothing to pick up at player's position"); // DEBUG: announce feedback
-					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("There's nothing here to pick up.".to_string());
+					if let Some(mut msglog) = eng.bevy.world.get_resource_mut::<MessageLog>() {
+						msglog.tell_player("There's nothing here to pick up.".to_string());
+					}
 					return Ok(())
 				} else {
 					//debug!("* Attempting to set the entity menu"); // DEBUG: announce entity menu use
@@ -232,7 +240,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('o') => { // OPEN an Openable item
 				let mut item_names = Vec::new();
 				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Body, &Openable)>();
-				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
+				let p_posn = if let Some(value) = eng.bevy.world.get_resource::<Position>() {
+					value
+				} else {
+					return Ok(())
+				};
 				for target in item_query.iter(&eng.bevy.world) {
 					//debug!("* found item {}", target.1.name.clone()); // DEBUG: report found OPENABLE items
 					if target.2.is_adjacent_to(p_posn) && !target.3.is_open {
@@ -258,7 +270,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('c') => { // CLOSE an Openable nearby
 				let mut item_names = Vec::new();
 				let mut item_query = eng.bevy.world.query::<(Entity, &Description, &Body, &Openable)>();
-				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
+				let p_posn = if let Some(value) = eng.bevy.world.get_resource::<Position>() {
+					value
+				} else {
+					return Ok(())
+				};
 				for target in item_query.iter(&eng.bevy.world) {
 					//debug!("* found item {}", target.1.name.clone()); // DEBUG: report found closed OPENABLE items
 					if target.2.is_adjacent_to(p_posn) && target.3.is_open {
@@ -284,7 +300,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('x') => { // EXAMINE a nearby Entity
 				let mut enty_names = Vec::new();
 				let mut enty_query = eng.bevy.world.query::<(Entity, &Description, &Body)>();
-				let p_posn = eng.bevy.world.get_resource::<Position>().unwrap();
+				let p_posn = if let Some(value) = eng.bevy.world.get_resource::<Position>() {
+					value
+				} else {
+					return Ok(())
+				};
 				for target in enty_query.iter(&eng.bevy.world) {
 					//debug!("* Found target {}", target.1.name.clone()); // DEBUG: announce EXAMINE target
 					if target.2.in_range_of(p_posn, 2) {
@@ -310,20 +330,25 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				// Get a list of all Operable items in the player's vicinity
 				let mut device_names = Vec::new();
 				let mut device_query = eng.bevy.world.query::<(Entity, Option<&Body>, &Description, Option<&Portable>, &Device)>();
-				let p_posn = *eng.bevy.world.get_resource::<Position>().unwrap();
+				let p_posn = if let Some(value) = eng.bevy.world.get_resource::<Position>() {
+					value
+				} else {
+					return Ok(())
+				};
 				//eng.item_chooser.list.clear();
 				// Drop them into one of the choosers
 				for device in device_query.iter(&eng.bevy.world) {
-					if device.3.is_some() { // Is the player carrying it?
-						if device.3.unwrap().carrier == player {
+					if let Some(d_portable) = device.3 {
+						if d_portable.carrier == player {
 							device_names.push(MenuItem::item(
 								device.2.name.clone(),
 								GameEvent::new(PlayerAction(UseItem), Some(player), Some(device.0)),
 								None,
 							));
 						}
-					} else if device.1.is_some() { // Is the player near it?
-						if p_posn.in_range_of(&device.1.unwrap().ref_posn, 1) {
+					//} else if device.1.is_some() { // Is the player near it?
+					} else if let Some(d_body) = device.1 {
+						if p_posn.in_range_of(&d_body.ref_posn, 1) {
 							device_names.push(MenuItem::item(
 								device.2.name.clone(),
 								GameEvent::new(PlayerAction(UseItem), Some(player), Some(device.0)),
@@ -344,7 +369,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('L') => { // LOCK a Lockable item
 				let mut lock_names = Vec::new();
 				let mut lock_query = eng.bevy.world.query::<(Entity, Option<&Body>, &Description, &Lockable)>();
-				let p_posn = *eng.bevy.world.get_resource::<Position>().unwrap();
+				let p_posn = if let Some(value) = eng.bevy.world.get_resource::<Position>() {
+					value
+				} else {
+					return Ok(())
+				};
 				for lock in lock_query.iter(&eng.bevy.world) {
 					if let Some(l_posn) = lock.1 {
 						if l_posn.in_range_of(&p_posn, 1)
@@ -369,7 +398,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('U') => { // UNLOCK a Lockable item
 				let mut lock_names = Vec::new();
 				let mut lock_query = eng.bevy.world.query::<(Entity, Option<&Body>, &Description, &Lockable)>();
-				let p_posn = *eng.bevy.world.get_resource::<Position>().unwrap();
+				let p_posn = if let Some(value) = eng.bevy.world.get_resource::<Position>() {
+					value
+				} else {
+					return Ok(())
+				};
 				for lock in lock_query.iter(&eng.bevy.world) {
 					if let Some(l_posn) = lock.1 {
 						if !lock.3.is_locked
@@ -394,7 +427,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('C') => { // CONNECT the PLANQ to a nearby AccessPort
 				let mut access_ports = Vec::new();
 				let mut port_query = eng.bevy.world.query_filtered::<(Entity, &Body, &Description), With<AccessPort>>();
-				let p_posn = *eng.bevy.world.get_resource::<Position>().unwrap();
+				let p_posn = if let Some(value) = eng.bevy.world.get_resource::<Position>() {
+					value
+				} else {
+					return Ok(())
+				};
 				for port in port_query.iter(&eng.bevy.world) {
 					if port.1.is_adjacent_to(&p_posn) {
 						access_ports.push(MenuItem::item(
@@ -448,12 +485,14 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 		// If an event was generated, send it off for processing
 		if new_game_event.etype != GameEventType::NullEvent {
 			// Get a linkage to the game event distribution system
-			let game_events: &mut Events<GameEvent> = &mut eng.bevy.world.get_resource_mut::<Events<GameEvent>>().unwrap();
-			game_events.send(new_game_event);
+			if let Some(mut game_events) = eng.bevy.world.get_resource_mut::<Events<GameEvent>>() {
+				game_events.send(new_game_event);
+			}
 		}
 		if new_planq_event.etype != PlanqEventType::NullEvent {
-			let planq_events: &mut Events<PlanqEvent> = &mut eng.bevy.world.get_resource_mut::<Events<PlanqEvent>>().unwrap();
-			planq_events.send(new_planq_event);
+			if let Some(mut planq_events) = eng.bevy.world.get_resource_mut::<Events<PlanqEvent>>() {
+				planq_events.send(new_planq_event);
+			}
 		}
 	} else { // ###: ALL OTHER SITUATIONS: Paused, Standby, etc
 		match key_event.code {

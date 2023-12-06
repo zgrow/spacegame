@@ -204,8 +204,9 @@ impl Body {
 		let mut cells = Vec::new();
 		for line in input.iter() {
 			let mut body_parts = line.split(' ');
-			let posn: Position = body_parts.next().unwrap().into();
-			posns.push(posn);
+			if let Some(posn) = body_parts.next() {
+				posns.push(posn.into());
+			}
 			cells.push(ScreenCell::new_from_str(body_parts.collect()));
 		}
 		Body::large(posns, cells)
@@ -226,7 +227,9 @@ impl Body {
 			if posns.len() <= glyphs.len() {
 				break;
 			}
-			glyphs.push(glyphs.last().unwrap().clone());
+			if let Some(last_glyph) = glyphs.last() {
+				glyphs.push(last_glyph.clone());
+			}
 		}
 		// Assign the first Position in the list as the reference position, and then make the full extent of the new Body
 		Body {
@@ -718,6 +721,13 @@ impl Position {
 	/// intended for use in index-based loops to allow simple iteration
 	pub fn difference(&self, rhs: &Position) -> (i32, i32, i32) {
 		((rhs.x - self.x), (rhs.y - self.y), (rhs.z - self.z))
+	}
+	/// Returns true if the Position doesn't have any negative parts
+	pub fn is_valid(&self) -> bool {
+		if self.x < 0 { return false; }
+		if self.y < 0 { return false; }
+		if self.z < 0 { return false; }
+		true
 	}
 }
 impl From<&str> for Position {

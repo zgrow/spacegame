@@ -138,7 +138,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 					// HINT: This will in fact return the entire string if the string consists of only a single word
 					//    let new_string: Vec<&str> = component.split(' ').collect();
 					let mut new_cmpnt = component.split(' ');
-					let part = new_cmpnt.next().unwrap();
+					let part = new_cmpnt.next().unwrap_or_else(|| ""); // This is a closure that returns an empty string
 					let details: Vec<&str> = new_cmpnt.collect();
 					let error_msg = "! ERR: Could not parse key:value for ";
 					match part {
@@ -399,13 +399,13 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			// Return a SpawnTemplate that is made from the 'furniture' list of RawItems in the ItemDict
 			// item_data should be a RawItem object, representing a single item, so it's okay to return wholesale
 			//debug!("* Obtained item_data: {:?}", item_data); // DEBUG: log obtained item_data
-			let mut new_template: SpawnTemplate = (*rng.sample(&item_data.shapes).unwrap()).clone().into();
+			let mut new_template: SpawnTemplate = (*rng.sample(&item_data.shapes)?).clone().into();
 			new_template.assign_name(item_data.name.clone());
 			return Some(new_template);
 		} else if let Some(set_data) = self.item_dict.sets.iter().find(|x| x.name == item_name) {
 			// As above, but for the 'sets' list of RawItemSets in the ItemDict
 			// Make a base template using the item set defn
-			let mut new_template: SpawnTemplate = (*rng.sample(&set_data.shapes).unwrap()).clone().into();
+			let mut new_template: SpawnTemplate = (*rng.sample(&set_data.shapes)?).clone().into();
 			// Use the room's contents list from the item defn, to populate the names in the spawn template's output
 			//debug!("* RNG: Now calling assign_names with {:?}", set_data.contents); // DEBUG: log obtained item_data
 			new_template.assign_names(set_data.contents.clone());
@@ -508,23 +508,30 @@ pub fn load_furniture_defns(items_filename: &str, sets_filename: &str) -> ItemDi
 	// Make an empty ItemDict
 	let mut new_dict = ItemDict::default();
 	// Get a handle on the file to be loaded
-	let item_file = File::open(items_filename).unwrap();
-	// Open a reader object for the file handle
-	let item_reader = BufReader::new(item_file);
-	// If reading any of the lines failed, return a default dict
-	new_dict.furniture = match serde_json::from_reader(item_reader) {
-		//Ok(output) => {debug!("* recvd output: {:?}", output); output}, // DEBUG: log the successful output
-		Ok(output) => {output},
-		Err(e) => {error!("! could not create ItemDict.furniture: {}", e); Vec::new()},
-	};
+	// Construct the furniture item dictionary
+	if let Ok(item_file) = File::open(items_filename) {
+		// Open a reader object for the file handle
+		let item_reader = BufReader::new(item_file);
+		// If reading any of the lines failed, return a default dict
+		new_dict.furniture = match serde_json::from_reader(item_reader) {
+			//Ok(output) => {debug!("* recvd output: {:?}", output); output}, // DEBUG: log the successful output
+			Ok(output) => {output},
+			Err(e) => {error!("! could not create ItemDict.furniture: {}", e); Vec::new()},
+		};
+	} else {
+		error!("! could not access the furniture items file at {}", items_filename);
+	}
 	// Construct the furniture set dictionary in the same way
-	let sets_file = File::open(sets_filename).unwrap();
-	let sets_reader = BufReader::new(sets_file);
-	new_dict.sets = match serde_json::from_reader(sets_reader) {
-		//Ok(output) => {debug!("* new sets: {:?}", output); output}, // DEBUG: log the successful output
-		Ok(output) => {output},
-		Err(e) => {error!("! could not create ItemDict.sets: {}", e); Vec::new()}
-	};
+	if let Ok(sets_file) = File::open(sets_filename) {
+		let sets_reader = BufReader::new(sets_file);
+		new_dict.sets = match serde_json::from_reader(sets_reader) {
+			//Ok(output) => {debug!("* new sets: {:?}", output); output}, // DEBUG: log the successful output
+			Ok(output) => {output},
+			Err(e) => {error!("! could not create ItemDict.sets: {}", e); Vec::new()}
+		};
+	} else {
+		error!("! could not access the furniture sets file at {}", sets_filename);
+	}
 	// Now return the dict from this function (or put it where it needs to go)
 	new_dict
 }

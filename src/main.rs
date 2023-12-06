@@ -33,7 +33,11 @@ fn main() -> AppResult<()> {
 	let backend = CrosstermBackend::new(io::stdout());
 	let terminal = Terminal::new(backend)?;
 	//  ##: Now that we have a terminal, check the size to make sure we can continue
-	let tsize = terminal.size().unwrap();
+	let tsize = if let Ok(dims) = terminal.size() {
+		dims
+	} else {
+		return Err("! Failed to discover the terminal dimensions!".into());
+	};
 	if tsize.width < 80 || tsize.height < 40 {
 		// throw a bigtime error and bailout if the terminal is too small
 		return Err(format!("Terminal dimensions are too small: {}x{} (80x40 min)", tsize.width, tsize.height).into());

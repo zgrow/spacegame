@@ -46,8 +46,8 @@ pub fn planq_update_system(mut commands: Commands,
 ) {
 	if p_query.is_empty() { return; }
 	if q_query.is_empty() { return; }
-	let player = p_query.get_single().unwrap();
-	let planq_enty = q_query.get_single_mut().unwrap();
+	let player = if let Ok(value) = p_query.get_single() { value } else { return };
+	let planq_enty = if let Ok(value) = q_query.get_single_mut() { value } else { return };
 	// Handle any new GameEvents we're interested in
 	if !ereader.is_empty() {
 		for event in ereader.iter() {
@@ -60,22 +60,25 @@ pub fn planq_update_system(mut commands: Commands,
 			match atype {
 				// Player interaction events that need to be monitored
 				ActionType::MoveItem => { // The player (g)ot the PLANQ from somewhere external
-					let econtext = event.context.as_ref().unwrap();
-					planq.is_carried = econtext.subject == player.0 && econtext.object == planq_enty.0;
+					if let Some(econtext) = event.context.as_ref() {
+						planq.is_carried = econtext.subject == player.0 && econtext.object == planq_enty.0;
+					}
 				}
 				ActionType::DropItem => { // The player (d)ropped the PLANQ
-					let econtext = event.context.as_ref().unwrap();
-					if econtext.object == planq_enty.0 { planq.is_carried = false; }
+					if let Some(econtext) = event.context.as_ref() {
+						if econtext.object == planq_enty.0 { planq.is_carried = false; }
+					}
 				}
 				ActionType::UseItem => { // The player (a)pplied the PLANQ
-					let econtext = event.context.as_ref().unwrap();
-					if econtext.subject == player.0
-					&& econtext.object == planq_enty.0 {
-						// Note that the Operable system already handles the ItemUse action for the
-						// PLANQ: it allows the player to operate the power switch
-						// This seems likely to change in the future to allow some better service
-						// commands, like battery swaps or peripheral attachment
-						msglog.tell_player("There is a faint 'click' as you press the PLANQ's power button.".to_string());
+					if let Some(econtext) = event.context.as_ref() {
+						if econtext.subject == player.0
+						&& econtext.object == planq_enty.0 {
+							// Note that the Operable system already handles the ItemUse action for the
+							// PLANQ: it allows the player to operate the power switch
+							// This seems likely to change in the future to allow some better service
+							// commands, like battery swaps or peripheral attachment
+							msglog.tell_player("There is a faint 'click' as you press the PLANQ's power button.".to_string());
+						}
 					}
 				}
 				_ => { }
@@ -156,14 +159,15 @@ pub fn planq_update_system(mut commands: Commands,
 			if !planq.proc_table.is_empty() {
 				// if there are any running processes, check to see if they're done
 				for id in planq.proc_table.clone() {
-					let enty = t_query.get(id).unwrap();
-					if enty.1.timer.just_finished() {
-						match enty.1.outcome.etype {
-							BootStage(lvl) => {
-								planq.boot_stage = lvl;
+					if let Ok(enty) = t_query.get(id) {
+						if enty.1.timer.just_finished() {
+							match enty.1.outcome.etype {
+								BootStage(lvl) => {
+									planq.boot_stage = lvl;
+								}
+								PlanqEventType::GoIdle => { planq.idle_mode(&mut msglog); }
+								_ => { }
 							}
-							PlanqEventType::GoIdle => { planq.idle_mode(&mut msglog); }
-							_ => { }
 						}
 					}
 				}
@@ -303,8 +307,8 @@ pub fn planq_monitor_system(time:        Res<Time>,
 ) {
 	if p_query.is_empty() { return; }
 	if q_query.is_empty() { return; }
-	let player = p_query.get_single().unwrap();
-	let planq_enty = q_query.get_single_mut().unwrap();
+	let player = if let Ok(value) = p_query.get_single() { value } else { return };
+	let planq_enty = if let Ok(value) = q_query.get_single_mut() { value } else { return };
 	// Iterate any active PlanqProcesses
 	// These should be iterated locally here so that they are consistent from frame to frame; this is because
 	//   Bevy's Systems implement a multithreading model that does NOT guarantee anything about consistent concurrency
@@ -339,14 +343,15 @@ pub fn planq_monitor_system(time:        Res<Time>,
 				"test_sparkline"  => {
 					// This update method is 'backwards' to the others: instead of passing a new value to raw_data via entry(),
 					//   we modify the raw_data's values directly using the mutable reference we obtained with get_mut()
-					let entry = monitor.raw_data.get_mut(&source_name).unwrap();
-					if let PlanqDataType::Series(ref mut arr) = entry {
-						arr.push_back(rng.u64(0..10));
-						loop {
-							if arr.len() >= 31 {
-								arr.pop_front();
-							} else {
-								break;
+					if let Some(entry) = monitor.raw_data.get_mut(&source_name) {
+						if let PlanqDataType::Series(ref mut arr) = entry {
+							arr.push_back(rng.u64(0..10));
+							loop {
+								if arr.len() >= 31 {
+									arr.pop_front();
+								} else {
+									break;
+								}
 							}
 						}
 					}

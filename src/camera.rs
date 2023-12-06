@@ -219,9 +219,9 @@ impl From<Vec<String>> for ScreenCell { // Input string should be formatted as "
 	fn from(input: Vec<String>) -> Self {
 		ScreenCell {
 			glyph: input[0].clone(),
-			fg: input[1].parse::<u8>().unwrap(),
-			bg: input[2].parse::<u8>().unwrap(),
-			modifier: input[3].parse::<u16>().unwrap()
+			fg: input[1].parse::<u8>().unwrap_or(0),
+			bg: input[2].parse::<u8>().unwrap_or(0),
+			modifier: input[3].parse::<u16>().unwrap_or(0)
 		}
 	}
 }
@@ -229,9 +229,9 @@ impl From<Vec<&str>> for ScreenCell { // Input string should be formatted as "G 
 	fn from(input: Vec<&str>) -> Self {
 		ScreenCell {
 			glyph: input[0].to_string(),
-			fg: input[1].parse::<u8>().unwrap(),
-			bg: input[2].parse::<u8>().unwrap(),
-			modifier: input[3].parse::<u16>().unwrap()
+			fg: input[1].parse::<u8>().unwrap_or(0),
+			bg: input[2].parse::<u8>().unwrap_or(0),
+			modifier: input[3].parse::<u16>().unwrap_or(0)
 		}
 	}
 }
@@ -246,7 +246,7 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 ) {
 	// Bail out of the method if we're missing any of the structure we need
 	if p_query.get_single_mut().is_err() { return; }
-	let (p_enty, p_body, p_viewshed, p_memory) = p_query.get_single_mut().unwrap();
+	let (p_enty, p_body, p_viewshed, p_memory) = p_query.get_single_mut().unwrap(); // There's probably a better way to do this but the line above guards this one so it's okay for now b(> u * )
 	let world_map = &model.levels[p_posn.z as usize];
 	assert!(!camera.output.is_empty(), "camera_update_system: camera.output has length 0!");
 	assert!(!world_map.tiles.is_empty(), "camera_update_system: world_map.tiles has length 0!");
@@ -272,65 +272,83 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 			} else {
 				false
 			};
-			// If the map coordinates are valid, and the tile has at least been seen before
+			// If the map coordinates are valid, then we can go to the map to get a tile to draw on the screen
 			if map_x >= 0 && map_x < world_map.width as i32
 			&& map_y >= 0 && map_y < world_map.height as i32
 			{
-				camera.output[scr_index] = if *p_posn == map_posn { // This is the player's position, always render it
-					if let Some(glyph) = p_body.glyph_at(&map_posn) {
-						glyph.into()
-					} else {
-						warn!("? Error retrieving player's glyph at the player's position");
-						ScreenCell::placeholder()
-					}
-				}
-				else if is_visible { // Not the player, but the player can see it, update accordingly
-					// There's no System access over in the WorldMap stuff, so we have to pull the Entity ourselves
-					if let Some(enty) = world_map.get_visible_entity_at(map_posn) {
-						if enty == p_enty { // If it's the player after all, draw the player
-							p_body.glyph_at(&map_posn).unwrap().into()
-						} else if let Ok((_enty, e_body)) = e_query.get(enty) { // It's a non-player entity
-							e_body.glyph_at(&map_posn).unwrap().into()
-						} else { // There was somehow a failure to retrieve the visible entity; fallback to the map tile
-							//world_map.get_display_tile(map_posn).into() // DEBUG: disabled so i can catch this error case
-							warn!("? Error retrieving visible entity {:?} from the e_query during camera_update_system at posn {}", enty, map_posn);
+				// First, we must figure out what we're supposed to draw at this screen index:
+				camera.output[scr_index] =
+					// If this is the player's position, draw them
+					if *p_posn == map_posn {
+						if let Some(glyph) = p_body.glyph_at(&map_posn) {
+							glyph.into()
+						} else {
+							warn!("? Error retrieving player's glyph at the player's position");
 							ScreenCell::placeholder()
 						}
-					} else { // There were no visible entities at the specified position, use a map tile instead
-						world_map.get_display_tile(map_posn).into()
 					}
-				} else if has_seen { // Not the player, not visible, but has been seen by the player in the past
-					let mut new_cell: ScreenCell = {
-						if let Some(enty_list) = p_memory.visual.get(&map_posn) { // Try to get an entity list for that Position
-							if !enty_list.is_empty() {
-								if let Ok((_, remembered_body)) = e_query.get(enty_list[0]) {
-									if let Some(glyph) = remembered_body.glyph_at(&map_posn) {
-										glyph.into()
-									} else {
-										warn!("? Error retrieving entity's glyph from e_query during camera_update_system");
-										ScreenCell::placeholder()
-									}
+					// Not the player, but the player can see it, get a 'live' update of what's there
+					else if is_visible {
+						// There's no System access over in the WorldMap stuff, so we have to pull the Entity ourselves
+						if let Some(enty) = world_map.get_visible_entity_at(map_posn) {
+							if enty == p_enty { // If it's the player after all, draw the player
+								if let Some(p_glyph) = p_body.glyph_at(&map_posn) {
+									p_glyph.into()
 								} else {
-									warn!("? Error retrieving remembered entity from the e_query during camera_update_system");
+									// As below, there was a failure to retrieve the visible entity, draw a fallback
+									//world_map.get_display_tile(map_posn).into() // DEBUG: disabled so i can catch this error case
+									warn!("? Error retrieving player entity {:?} from the p_query during camera_update_system at posn {}", enty, map_posn);
 									ScreenCell::placeholder()
 								}
-							} else { // [1]: There's an entity list but it's empty, so 'fallthru' to the correct case
-								// I'm not sure if an actual fallthru is possible, so just make sure this matches the 'else' case below [2]
-								warn!("? tried to get a remembered enty at {:?} but couldn't", map_posn);
-								//world_map.get_display_tile(map_posn).into() // DEBUG: disabled so I can see what's being dropped
+							} else if let Ok((_enty, e_body)) = e_query.get(enty) { // It's a non-player entity
+								if let Some(e_glyph) = e_body.glyph_at(&map_posn) {
+									e_glyph.into()
+								} else {
+									warn!("? Error retrieving actor entity {:?} from the e_query during camera_update_system at posn {}", enty, map_posn);
+									ScreenCell::placeholder()
+								}
+							} else { // ...there was somehow a failure to retrieve the visible entity; fallback to the map tile
+								//world_map.get_display_tile(map_posn).into() // DEBUG: disabled so i can catch this error case
+								warn!("? Error retrieving visible entity {:?} from the e_query during camera_update_system at posn {}", enty, map_posn);
 								ScreenCell::placeholder()
 							}
-						} else { // [2]: Couldn't get a list -> there's no Entities there -> draw the map Tile instead
+						} else { // There were no visible entities at the specified position, use a map tile instead
 							world_map.get_display_tile(map_posn).into()
 						}
-					};
-					new_cell.fg = 8; // Set the foreground to dimmed
-					new_cell
-				} else { // Player hasn't seen the tile at all, so paint some fog over it
-					ScreenCell::fog_of_war()
-				}
-			} else { // The map coordinates are out of bounds, display a fallback tile
-				camera.output[scr_index] = ScreenCell::out_of_bounds(); // Painting this blank tile helps prevent artifacting
+					// Not the player, not visible, but has been seen by the player in the past: use the Memory component
+					} else if has_seen {
+						let mut new_cell: ScreenCell = {
+							if let Some(enty_list) = p_memory.visual.get(&map_posn) { // Try to get an entity list for that Position
+								if !enty_list.is_empty() {
+									if let Ok((_, remembered_body)) = e_query.get(enty_list[0]) {
+										if let Some(glyph) = remembered_body.glyph_at(&map_posn) {
+											glyph.into()
+										} else {
+											warn!("? Error retrieving entity's glyph from e_query during camera_update_system");
+											ScreenCell::placeholder()
+										}
+									} else {
+										warn!("? Error retrieving remembered entity from the e_query during camera_update_system");
+										ScreenCell::placeholder()
+									}
+								} else { // [1]: There's an entity list but it's empty, so 'fallthru' to the correct case
+									// I'm not sure if an actual fallthru is possible, so just make sure this matches the 'else' case below [2]
+									warn!("? tried to get a remembered enty at {:?} but couldn't", map_posn);
+									//world_map.get_display_tile(map_posn).into() // DEBUG: disabled so I can see what's being dropped
+									ScreenCell::placeholder()
+								}
+							} else { // [2]: Couldn't get a list -> there's no Entities there -> draw the map Tile instead
+								world_map.get_display_tile(map_posn).into()
+							}
+						};
+						new_cell.fg = 8; // Set the foreground to dimmed
+						new_cell
+					} else { // Player hasn't seen the tile at all, so paint some fog over it
+						ScreenCell::fog_of_war()
+					}
+				// The map coordinates are out of bounds, display a fallback tile
+				} else {
+					camera.output[scr_index] = ScreenCell::out_of_bounds(); // Painting this blank tile helps prevent artifacting
 			}
 			// Paint the targeting reticle onto the map if needed
 			if camera.reticle != Position::INVALID {

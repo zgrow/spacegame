@@ -45,12 +45,15 @@ impl JsonWorldBuilder {
 	/// Extracts, parses, and stores the furniture files in local data storage
 	pub fn load_json_file(&mut self, file_path: &str) {
 		//debug!("* opening input file at {}", file_path);
-		let file = File::open(file_path).unwrap();
-		let reader = BufReader::new(file);
-		let input_data: JsonBucket = match serde_json::from_reader(reader) {
-			Ok(output) => output,
-			//Ok(output) => {debug!("* output recvd: {:#?}", output); output},
-			Err(msg) => {warn!("! failed to read input data: {}", msg); JsonBucket::default()},
+		let input_data = if let Ok(file) = File::open(file_path) {
+			let reader = BufReader::new(file);
+			match serde_json::from_reader(reader) {
+				Ok(output) => output,
+				//Ok(output) => {debug!("* output recvd: {:#?}", output); output},
+				Err(msg) => {warn!("! failed to read input data: {}", msg); JsonBucket::default()},
+			}
+		} else {
+			JsonBucket::default()
 		};
 		// 1: Use the map lists to create the map stack and put it into the model
 		let mut hallway_tiles: Vec<Vec<Position>> = Vec::new();
@@ -100,18 +103,21 @@ impl JsonWorldBuilder {
 				if let Some(new_index) = self.model.layout.contains(destination.clone()) {
 					// If the destination cur_room already exists, get its room_index
 					dest_index = new_index;
+					self.model.layout.connect(room_index, dest_index);
 				} else if destination.contains("hallway") {
 					// If it doesn't exist AND it's a hallway ( FIXME: irregular shape!) then make the hallway now
 					let mut new_room = GraphRoom::default();
 					new_room.name = destination.clone();
 					new_room.set_interior_to(hallway_tiles[cur_room.z_level()].clone());
 					dest_index = self.model.layout.add_room(new_room);
+					self.model.layout.connect(room_index, dest_index);
 				} else {
-					// If it doesn't exist, just make it now and get its index
-					let new_room = input_data.room_list.iter().find(|x| x.name == *destination).unwrap();
-					dest_index = self.model.layout.add_room(new_room.clone().into());
+					// If it doesn't exist, just make it anyway and get its index
+					if let Some(new_room) = input_data.room_list.iter().find(|x| x.name == *destination) {
+						dest_index = self.model.layout.add_room(new_room.clone().into());
+						self.model.layout.connect(room_index, dest_index);
+					}
 				}
-				self.model.layout.connect(room_index, dest_index);
 			}
 			// Add the room's contents to the list of items that will need spawnpoints generated
 			if !cur_room.contents.is_empty() {
@@ -125,12 +131,13 @@ impl JsonWorldBuilder {
 		}
 		// 2.5: Use the logical door list to populate those tiles in the logical maps of each room
 		for posn in logical_door_list.iter() {
+			// FIXME: NEED to add Margin tiles around the door
 			// Get the room which contains the given position
 			// Change the position in the room to Occupied
 			if let Some(room_name) = self.model.layout.get_room_name(*posn) {
-				let room_index = self.model.layout.rooms.iter().position(|x| x.name == room_name).unwrap();
-				self.model.layout.rooms[room_index].new_interior.insert(*posn, CellType::Closed);
-				// FIXME: NEED to add Margin tiles around the door
+				if let Some(room_index) = self.model.layout.rooms.iter().position(|x| x.name == room_name) {
+					self.model.layout.rooms[room_index].new_interior.insert(*posn, CellType::Closed);
+				}
 			}
 			self.model.layout.add_door_to_map_at(*posn);
 		}

@@ -59,14 +59,17 @@ pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
 		match event.etype {
 			GameEventType::PlanqConnect(Entity::PLACEHOLDER) => {
 				planq.jack_cnxn = Entity::PLACEHOLDER;
-				let object_name = a_query.get(planq.jack_cnxn).unwrap().1;
-				msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name));
-				preader.send(PlanqEvent::new(PlanqEventType::AccessUnlink))
+				if let Ok(object_name) = a_query.get(planq.jack_cnxn) {
+					msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name.1));
+					preader.send(PlanqEvent::new(PlanqEventType::AccessUnlink))
+				}
 			}
 			GameEventType::PlanqConnect(target) => {
-				planq.jack_cnxn = event.context.unwrap().object;
-				msglog.tell_player(format!("The PLANQ's access jack clicks into place on the {:?}.", target));
-				preader.send(PlanqEvent::new(PlanqEventType::AccessLink))
+				if let Some(context) = event.context {
+					planq.jack_cnxn = context.object;
+					msglog.tell_player(format!("The PLANQ's access jack clicks into place on the {:?}.", target));
+					preader.send(PlanqEvent::new(PlanqEventType::AccessLink))
+				}
 			}
 			_ => { }
 		}
@@ -87,38 +90,40 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 	//     Set the ActionSet.outdated flag to false to avoid double-updates
 	for mut actor in a_query.iter_mut() {
 		if actor.1.outdated {
-			let mut new_set = HashSet::new();
-			for comp_id in get_components_for_entity(actor.0, archetypes).unwrap() {
-				if let Some(comp_info) = components.get_info(comp_id) {
-					let split_str: Vec<&str> = comp_info.name().split("::").collect();
-					let comp_name = split_str[split_str.len() - 1];
-					match comp_name {
-						"Description" => { new_set.insert(ActionType::Examine); }
-						"Portable"    => {
-							new_set.insert(ActionType::MoveItem);
-							new_set.insert(ActionType::DropItem);
+			if let Some(component_iter) = get_components_for_entity(actor.0, archetypes) {
+				let mut new_set = HashSet::new();
+				for comp_id in component_iter {
+					if let Some(comp_info) = components.get_info(comp_id) {
+						let split_str: Vec<&str> = comp_info.name().split("::").collect();
+						let comp_name = split_str[split_str.len() - 1];
+						match comp_name {
+							"Description" => { new_set.insert(ActionType::Examine); }
+							"Portable"    => {
+								new_set.insert(ActionType::MoveItem);
+								new_set.insert(ActionType::DropItem);
+							}
+							"Openable"    => {
+								new_set.insert(ActionType::OpenItem);
+								new_set.insert(ActionType::CloseItem);
+							}
+							"Lockable"    => {
+								new_set.insert(ActionType::UnlockItem);
+								new_set.insert(ActionType::LockItem);
+							}
+							"Key"         => {
+								new_set.insert(ActionType::UnlockItem);
+								new_set.insert(ActionType::LockItem);
+							}
+							"Device"      => {
+								new_set.insert(ActionType::UseItem);
+							}
+							_ => { }
 						}
-						"Openable"    => {
-							new_set.insert(ActionType::OpenItem);
-							new_set.insert(ActionType::CloseItem);
-						}
-						"Lockable"    => {
-							new_set.insert(ActionType::UnlockItem);
-							new_set.insert(ActionType::LockItem);
-						}
-						"Key"         => {
-							new_set.insert(ActionType::UnlockItem);
-							new_set.insert(ActionType::LockItem);
-						}
-						"Device"      => {
-							new_set.insert(ActionType::UseItem);
-						}
-						_ => { }
 					}
 				}
+				actor.1.actions = new_set;
+				actor.1.outdated = false;
 			}
-			actor.1.actions = new_set;
-			actor.1.outdated = false;
 		}
 	}
 }
@@ -135,14 +140,16 @@ pub fn examination_system(mut ereader:  EventReader<GameEvent>,
 	if ereader.is_empty() { return; }
 	for event in ereader.iter() {
 		if event.etype != PlayerAction(ActionType::Examine) { continue; }
-		let econtext = event.context.as_ref().unwrap();
-		if econtext.object == Entity::PLACEHOLDER {
-			warn!("* Attempted to Examine the Entity::PLACEHOLDER"); // DEBUG: warn if this case occurs
-			continue;
+		if let Some(econtext) = event.context.as_ref() {
+			if econtext.object == Entity::PLACEHOLDER {
+				warn!("* Attempted to Examine the Entity::PLACEHOLDER"); // DEBUG: warn if this case occurs
+				continue;
+			}
+			if let Ok(output_ref) = e_query.get(econtext.object) {
+				let output = output_ref.1.desc.clone();
+				msglog.tell_player(output);
+			}
 		}
-		let output_ref = e_query.get(econtext.object).unwrap();
-		let output = output_ref.1.desc.clone();
-		msglog.tell_player(output);
 	}
 }
 /// Handles pickup/drop/destroy requests for Items
@@ -172,12 +179,12 @@ pub fn item_collection_system(mut cmd:      Commands,
 		};
 		// All of the item events require an event context, so if there isn't any then don't try to handle the event
 		if event.context.is_none() { continue; }
-		let econtext = event.context.as_ref().unwrap();
+		let econtext = event.context.as_ref().expect("event.context should be Some(n)");
 		// We know that it is safe to unwrap these because calling is_invalid() checked that they are not placeholders
-		let subject = e_query.get(econtext.subject).unwrap();
+		let subject = e_query.get(econtext.subject).expect("econtext.subject should be Some(n)");
 		let subject_name = subject.1.name.clone();
 		let is_player_action = subject.4.is_some();
-		let (o_enty, o_desc, mut o_body, _) = i_query.get_mut(econtext.object).unwrap();
+		let (o_enty, o_desc, mut o_body, _) = i_query.get_mut(econtext.object).expect("econtext.object should be Some(n)");
 		let item_name = o_desc.name.clone();
 		// We have all of our context values now, so proceed to actually doing the requested action
 		let mut message: String = "".to_string();
@@ -238,10 +245,10 @@ pub fn lockable_system(mut _commands:    Commands,
 			}
 		}
 		if event.context.is_none() { continue; }
-		let econtext = event.context.as_ref().unwrap();
-		let actor = e_query.get_mut(econtext.subject).unwrap();
+		let econtext = event.context.as_ref().expect("event.context should be Some(n)");
+		let actor = e_query.get_mut(econtext.subject).expect("econtext.subject should be found in e_query");
 		let player_action = actor.3.is_some();
-		let mut target = lock_query.get_mut(econtext.object).unwrap();
+		let mut target = lock_query.get_mut(econtext.object).expect("econtext.object should be found in lock_query");
 		let mut message: String = "".to_string();
 		// If they have the right key then they can unlock it
 		// Lock attempts always succeed
@@ -325,9 +332,9 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					error!("* ! no context for actor movement"); // DEBUG: warn if the actor's movement is broken
 					continue;
 				}
-				let econtext = event.context.unwrap();
+				let econtext = event.context.expect("event.context should be Some(n)");
 				let origin = e_query.get_mut(econtext.subject);
-				let (actor_enty, mut actor_desc, mut actor_body, actor_viewshed, _) = origin.unwrap();
+				let (actor_enty, mut actor_desc, mut actor_body, actor_viewshed, _) = origin.expect("econtext.subject should be in e_query");
 				// TODO: this is now overkill, just use the match case to make an implicit PosnOffset applied to the old position
 				let mut xdiff = 0;
 				let mut ydiff = 0;
@@ -392,7 +399,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					let reply_msg = match blocked_tiles[0].1 {
 						Obstructor::Actor(enty) => {
 							// build an entity message
-							let actor = e_query.get(enty).unwrap();
+							let actor = e_query.get(enty).expect("Obstructor actor should be listed in e_query");
 							format!("a {}", actor.1.name)
 						}
 						Obstructor::Object(ttype) => {
@@ -434,14 +441,14 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					// 5. > and checks to see if it successfully unwrapped a Player component (the '.4.is_some()' field below)
 					// 6. > and if so, return the index of that element from the position() function to the index variable
 					// 7. which then uses the known-good index variable as an argument to remove the player from the list
-					if let Some(index) = contents_list.iter().position(|x| e_query.get(*x).unwrap().4.is_some()) {
+					if let Some(index) = contents_list.iter().position(|x| e_query.get(*x).expect("entry of contents_list should be in e_query").4.is_some()) {
 						contents_list.remove(index);
 					}
 					if !contents_list.is_empty() {
 						let message = if contents_list.len() <= 3 {
 							let mut message_text = "There's a ".to_string();
 							loop {
-								if let Ok(enty) = e_query.get(contents_list.pop().unwrap()) {
+								if let Ok(enty) = e_query.get(contents_list.pop().expect("contents_list should have popped a Some(n)")) {
 									if enty.4.is_none() {
 										message_text.push_str(&enty.1.name);
 									}
@@ -456,31 +463,6 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 						};
 						msglog.tell_player(message);
 					}
-					/* OLD METHOD
-					let mut contents = Vec::new();
-					//for enty in e_query.iter() {
-					for (_, desc, body, _, player) in e_query.iter() {
-						if body.ref_posn == new_location && player.is_none() {
-							contents.push(&desc.name);
-						}
-					}
-					// If so, tell the player about it
-					if !contents.is_empty() {
-						let message = if contents.len() <= 3 { // Make a shortlist if there's only a couple items here
-							let mut text = "There's a ".to_string();
-							loop {
-								text.push_str(contents.pop().unwrap());
-								if contents.is_empty() { break; }
-								else { text.push_str(", and a "); }
-							}
-							text.push_str(" here.");
-							text
-						} else { // Just summarize since there's more there than we can list in one line
-							"There's some stuff here on the ground.".to_string()
-						};
-						msglog.tell_player(message);
-					}
-					*/
 				}
 			}
 		}
@@ -505,9 +487,9 @@ pub fn openable_system(mut commands:    Commands,
 			}
 		}
 		if event.context.is_none() { continue; }
-		let econtext = event.context.as_ref().unwrap();
+		let econtext = event.context.as_ref().expect("event.context should be Some(n)");
 		// If they can see it, add it to the list of doors they can choose
-		let (_enty, _body, a_desc, a_player, a_viewshed) = e_query.get_mut(econtext.subject).unwrap();
+		let (_enty, _body, a_desc, a_player, a_viewshed) = e_query.get_mut(econtext.subject).expect("actor should be listed in e_query");
 		let is_player_action = a_player.is_some();
 		let mut message: String = "".to_string();
 		match atype {
@@ -574,10 +556,9 @@ pub fn operable_system(mut ereader: EventReader<GameEvent>,
 				continue;
 			}
 		}
-		let econtext = event.context.as_ref().unwrap();
+		let econtext = event.context.as_ref().expect("event.context should be Some(n)");
 		if econtext.is_blank() { continue; }
-		//let operator = o_query.get(econtext.subject).unwrap();
-		let mut device = d_query.get_mut(econtext.object).unwrap();
+		let mut device = d_query.get_mut(econtext.object).expect("econtext.object should be in d_query");
 		if !device.2.pw_switch { // If it's not powered on, assume that function first
 			device.2.power_toggle();
 		}
@@ -637,7 +618,7 @@ pub fn new_player_spawn(mut commands: Commands,
 ) {
 	if !p_query.is_empty() {
 		info!("* Existing player found, treating as a loaded game"); // DEBUG: announce possible game load
-		let player = p_query.get_single_mut().unwrap();
+		let player = p_query.get_single_mut().expect("A loaded game should have a valid player object already");
 		commands.entity(player.0).insert(Viewshed::new(8));
 		return;
 	}

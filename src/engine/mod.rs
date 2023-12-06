@@ -156,11 +156,11 @@ impl GameEngine<'_> {
 		for events in self.menu_context.drain_events() {
 			match events {
 				MenuEvent::Selected(event) => {
-					//debug!("* {:?}", event); // DEBUG: announce the context event that got matched
+					trace!("* tick(): menu event: {:?}", event); // DEBUG: announce the context event that got matched
 					if event.is_valid() {
-						//debug!("* Dispatching event..."); // DEBUG: announce event dispatch
-						let event_handler = &mut self.bevy.world.get_resource_mut::<Events<GameEvent>>().unwrap();
-						event_handler.send(event);
+						if let Some(event_handler) = &mut self.bevy.world.get_resource_mut::<Events<GameEvent>>() {
+							event_handler.send(event);
+						}
 					}
 					// WARN: In theory this should be the only GameEventType that comes through here, no guarantees though!
 					if let GameEventType::PlayerAction(action) = event.etype {
@@ -212,12 +212,13 @@ impl GameEngine<'_> {
 		let default_block = Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::White).bg(Color::Black));
 		// If the engine is in standby mode, defer immediately
 		if self.standby { self.render_main_menu(frame); return; }
+		// Try to get the player's position out of Bevy
+		let p_posn: Position = *self.bevy.world.get_resource::<Position>().unwrap_or(&Position::INVALID);
 		// If there's a valid CameraView to render, use that
-		let p_posn = *self.bevy.world.get_resource::<Position>().unwrap();
 		if let Some(mut view) = self.bevy.world.get_resource_mut::<CameraView>() {
 			if self.visible_menu == MenuType::Context {
 				if let Some(target) = self.menu_context.target {
-					if target != Position::INVALID {
+					if target != Position::INVALID && p_posn.is_valid() {
 						view.reticle = target.to_camera_coords(self.ui_grid.camera_main, p_posn);
 					}
 				}
@@ -242,12 +243,13 @@ impl GameEngine<'_> {
 		self.render_message_log(frame);
 		// Display the fancy "PAUSED" banner if the game is paused
 		if self.mode == EngineMode::Paused {
-			let xpfile = &XpFile::from_resource("../resources/big_pause.xp").unwrap();
-			let graphic = load_rex_pgraph(xpfile);
-			let banner_area = Rect::new(10, 5, graphic.width() as u16, (graphic.height() + 2) as u16);
-			let banner_img = Paragraph::new(graphic).block(Block::default().borders(Borders::TOP | Borders::BOTTOM));
-			frame.render_widget(Clear, banner_area);
-			frame.render_widget(banner_img, banner_area);
+			if let Ok(xpfile) = &XpFile::from_resource("../resources/big_pause.xp") {
+				let graphic = load_rex_pgraph(xpfile);
+				let banner_area = Rect::new(10, 5, graphic.width() as u16, (graphic.height() + 2) as u16);
+				let banner_img = Paragraph::new(graphic).block(Block::default().borders(Borders::TOP | Borders::BOTTOM));
+				frame.render_widget(Clear, banner_area);
+				frame.render_widget(banner_img, banner_area);
+			}
 		} else if self.mode == EngineMode::GoodEnd {
 			info!("*************************");
 			info!("*** Victory detected! ***");
@@ -276,34 +278,35 @@ impl GameEngine<'_> {
 	}
 	/// Renders the PLANQ sidebar object
 	pub fn render_planq<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
-		{ // This has to be wrapped in a sub-scope to keep the borrow checker happy
-			let monitor = self.bevy.world.get_resource::<PlanqMonitor>().unwrap();
+		if let Some(monitor) = self.bevy.world.get_resource::<PlanqMonitor>() {
 			self.ui_grid.p_status_height = monitor.status_bars.len();
 		}
-		let mut planq = self.bevy.world.get_resource_mut::<PlanqData>().unwrap();
-		self.ui_grid.calc_planq_layout(self.ui_grid.planq_sidebar);
-		// Display some kind of 'planq offline' state if not carried
-		if !planq.is_carried { // Player is not carrying a planq
-			frame.render_widget(
-				Paragraph::new("[no PLANQ detected]").block(
-					Block::default().borders(Borders::NONE)
-				),
-				self.ui_grid.planq_status,
-			);
-			return;
-		}
-		// Display the terminal window if it's been set to visible
-		if planq.show_terminal {
-			planq.render_terminal(frame, self.ui_grid.planq_stdout);
-			// Only display the CLI if there's a terminal visible to contain it
-			if planq.show_cli_input {
-				planq.render_cli(frame, self.ui_grid.planq_stdin, &mut self.planq_stdin);
+		if let Some(mut planq) = self.bevy.world.get_resource_mut::<PlanqData>() {
+			self.ui_grid.calc_planq_layout(self.ui_grid.planq_sidebar);
+			// Display some kind of 'planq offline' state if not carried
+			if !planq.is_carried { // Player is not carrying a planq
+				frame.render_widget(
+					Paragraph::new("[no PLANQ detected]").block(
+						Block::default().borders(Borders::NONE)
+					),
+					self.ui_grid.planq_status,
+				);
+				return;
+			}
+			// Display the terminal window if it's been set to visible
+			if planq.show_terminal {
+				planq.render_terminal(frame, self.ui_grid.planq_stdout);
+				// Only display the CLI if there's a terminal visible to contain it
+				if planq.show_cli_input {
+					planq.render_cli(frame, self.ui_grid.planq_stdin, &mut self.planq_stdin);
+				}
 			}
 		}
 		// Always render the status widgets: need to provide battery power, ship time, PLANQ status
 		// WARN: this MUST be after we are done with the planq object above due to borrow checking
-		let mut monitor = self.bevy.world.get_resource_mut::<PlanqMonitor>().unwrap();
-		monitor.render(frame, self.ui_grid.planq_status);
+		if let Some(mut monitor) = self.bevy.world.get_resource_mut::<PlanqMonitor>() {
+			monitor.render(frame, self.ui_grid.planq_status);
+		}
 	}
 	/// Renders the message log pane at the bottom
 	pub fn render_message_log<B: Backend>(&mut self, frame: &mut Frame<'_, B>) {
@@ -553,7 +556,7 @@ impl GameEngine<'_> {
 		// - Creates the 'logical' topology map of GraphRooms/GraphPortals that provide pathfinding and placement
 		// - Generates the baseline list of doors required to connect all of the rooms in the map
 		// - Generates the list of 'ladders' that connect rooms across z-levels and allow movement
-		let mut rng = self.bevy.world.get_resource_mut::<GlobalRng>().unwrap();
+		let mut rng = self.bevy.world.get_resource_mut::<GlobalRng>().expect("RNG should always be an available Bevy resource");
 		self.mason.build_world(); // <- remove the RNG from here for starters, insert it closer to where it's needed
 		// Get a copy of the freshly-constructed world model
 		let mut model = self.mason.get_model();
@@ -634,9 +637,14 @@ impl GameEngine<'_> {
 			camera.set_dims(self.ui_grid.camera_main.width as i32, self.ui_grid.camera_main.height as i32);
 		}
 	}
-	/// Executes a command on the PLANQ, generally from the CLI
+	/// Executes a command on the PLANQ, generally from the CLI; DEBUG: always returns false
 	pub fn exec(&mut self, cmd: PlanqCmd) -> bool {
-		let mut msglog = self.bevy.world.get_resource_mut::<MessageLog>().unwrap();
+		// FIXME: this unwrap() cannot be replaced in situ, because regardless of whether or not there's a MessageLog,
+		// the PLANQ's commands should still be executed!
+		// Therefore, it would be better to pull all of these msglog-unwrap-tell_planq chains out to their own
+		// dedicated method, as self.tell_planq(), which itself handles these parts and can safely handle
+		// the unwrapping logic
+		let mut msglog = self.bevy.world.get_resource_mut::<MessageLog>().expect("MessageLog should be in Bevy");
 		match cmd {
 			PlanqCmd::Error(msg) => {
 				msglog.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[fg:red]]ERROR:".to_string());

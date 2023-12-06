@@ -1,5 +1,8 @@
 // engine/menu.rs
 // Rebuilt from previous method from pattern found at shuoli84/tui-menu
+// NOTE: I'm not gonna touch these unwrap() calls until I know EXACTLY how to replace them:
+// as written they're doing some fairly clever in-place recursion that I'm not 100% about yet;
+// it's possible they're entirely safe and can return None values as expected...
 
 //  ###: EXTERNAL LIBRARIES
 use std::borrow::Cow;
