@@ -46,8 +46,8 @@ pub fn planq_update_system(mut commands: Commands,
 ) {
 	if p_query.is_empty() { return; }
 	if q_query.is_empty() { return; }
-	let player = if let Ok(value) = p_query.get_single() { value } else { return };
-	let planq_enty = if let Ok(value) = q_query.get_single_mut() { value } else { return };
+	let (p_enty, p_body) = if let Ok(value) = p_query.get_single() { value } else { return };
+	let (q_enty, q_device, q_portable) = if let Ok(value) = q_query.get_single_mut() { value } else { return };
 	// Handle any new GameEvents we're interested in
 	if !ereader.is_empty() {
 		for event in ereader.iter() {
@@ -61,18 +61,18 @@ pub fn planq_update_system(mut commands: Commands,
 				// Player interaction events that need to be monitored
 				ActionType::MoveItem => { // The player (g)ot the PLANQ from somewhere external
 					if let Some(econtext) = event.context.as_ref() {
-						planq.is_carried = econtext.subject == player.0 && econtext.object == planq_enty.0;
+						planq.is_carried = econtext.subject == p_enty && econtext.object == q_enty;
 					}
 				}
 				ActionType::DropItem => { // The player (d)ropped the PLANQ
 					if let Some(econtext) = event.context.as_ref() {
-						if econtext.object == planq_enty.0 { planq.is_carried = false; }
+						if econtext.object == q_enty { planq.is_carried = false; }
 					}
 				}
 				ActionType::UseItem => { // The player (a)pplied the PLANQ
 					if let Some(econtext) = event.context.as_ref() {
-						if econtext.subject == player.0
-						&& econtext.object == planq_enty.0 {
+						if econtext.subject == p_enty
+						&& econtext.object == q_enty {
 							// Note that the Operable system already handles the ItemUse action for the
 							// PLANQ: it allows the player to operate the power switch
 							// This seems likely to change in the future to allow some better service
@@ -134,13 +134,13 @@ pub fn planq_update_system(mut commands: Commands,
 	}
 	// Update the PLANQData resources:
 	// - Get the device hardware info
-	if !planq.power_is_on && planq_enty.1.pw_switch {
-		planq.power_is_on = planq_enty.1.pw_switch; // Update the power switch setting
+	if !planq.power_is_on && q_device.pw_switch {
+		planq.power_is_on = q_device.pw_switch; // Update the power switch setting
 		planq.show_terminal = true;
 		planq.cpu_mode = PlanqCPUMode::Startup; // Begin booting the PLANQ's OS
 	}
-	if planq.power_is_on && !planq_enty.1.pw_switch {
-		planq.power_is_on = planq_enty.1.pw_switch; // Update the power switch setting
+	if planq.power_is_on && !q_device.pw_switch {
+		planq.power_is_on = q_device.pw_switch; // Update the power switch setting
 		planq.cpu_mode = PlanqCPUMode::Shutdown; // Initiate a shutdown
 	}
 	// - Handle the Planq's CPU mode logic
@@ -159,9 +159,9 @@ pub fn planq_update_system(mut commands: Commands,
 			if !planq.proc_table.is_empty() {
 				// if there are any running processes, check to see if they're done
 				for id in planq.proc_table.clone() {
-					if let Ok(enty) = t_query.get(id) {
-						if enty.1.timer.just_finished() {
-							match enty.1.outcome.etype {
+					if let Ok((_proc_enty, q_proc_data)) = t_query.get(id) {
+						if q_proc_data.timer.just_finished() {
+							match q_proc_data.outcome.etype {
 								BootStage(lvl) => {
 									planq.boot_stage = lvl;
 								}
@@ -193,50 +193,50 @@ pub fn planq_update_system(mut commands: Commands,
 					}
 				}
 				1 => {
-					if let Ok(mut proc) = proc_ref {
-						if proc.1.timer.just_finished() {
+					if let Ok((_enty, mut proc)) = proc_ref {
+						if proc.timer.just_finished() {
 							//debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 							msglog.boot_message(planq.boot_stage);
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it
-							proc.1.timer.reset(); // will be iterated on at next system run
-							proc.1.outcome = PlanqEvent::new(PlanqEventType::BootStage(2));
+							proc.timer.reset(); // will be iterated on at next system run
+							proc.outcome = PlanqEvent::new(PlanqEventType::BootStage(2));
 						}
 					}
 				}
 				2 => {
-					if let Ok(mut proc) = proc_ref {
-						if proc.1.timer.just_finished() {
+					if let Ok((_enty, mut proc)) = proc_ref {
+						if proc.timer.just_finished() {
 							//debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 							msglog.boot_message(planq.boot_stage);
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it and start it
-							proc.1.timer.reset(); // will be iterated on at next system run
-							proc.1.outcome = PlanqEvent::new(PlanqEventType::BootStage(3));
+							proc.timer.reset(); // will be iterated on at next system run
+							proc.outcome = PlanqEvent::new(PlanqEventType::BootStage(3));
 						}
 					}
 				}
 				3 => {
-					if let Ok(mut proc) = proc_ref {
-						if proc.1.timer.just_finished() {
+					if let Ok((_enty, mut proc)) = proc_ref {
+						if proc.timer.just_finished() {
 							//debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 							msglog.boot_message(planq.boot_stage);
 							// set its duration, if needed
 							//proc.1.timer.set_duration(Duration::from_secs(5));
 							// reset it and start it
-							proc.1.timer.reset(); // will be iterated on at next system run
-							proc.1.outcome = PlanqEvent::new(PlanqEventType::BootStage(4));
+							proc.timer.reset(); // will be iterated on at next system run
+							proc.outcome = PlanqEvent::new(PlanqEventType::BootStage(4));
 						}
 					}
 				}
 				4 => {
-					if let Ok(mut proc) = proc_ref {
-						if proc.1.timer.just_finished() {
+					if let Ok((_enty, mut proc)) = proc_ref {
+						if proc.timer.just_finished() {
 							//debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 							msglog.boot_message(planq.boot_stage);
-							proc.1.outcome = PlanqEvent::new(PlanqEventType::NullEvent);
+							proc.outcome = PlanqEvent::new(PlanqEventType::NullEvent);
 							planq.idle_mode(&mut msglog);
 						}
 					}
@@ -285,14 +285,14 @@ pub fn planq_update_system(mut commands: Commands,
 		}
 	}
 	// - Iterate any active PlanqProcesses (these are NOT DataSampleTimers!)
-	for mut proc in t_query.iter_mut() {
-		if !proc.1.timer.finished() {
-			proc.1.timer.tick(time.delta());
+	for (_enty, mut proc) in t_query.iter_mut() {
+		if !proc.timer.finished() {
+			proc.timer.tick(time.delta());
 		}
 	}
 	// - Check for some edge cases and other things that we'd like to avoid
-	if planq.is_carried && planq_enty.2.carrier != player.0 { planq.is_carried = false; }
-	if !planq.is_carried && planq_enty.2.carrier == player.0 { planq.is_carried = true; }
+	if planq.is_carried && q_portable.carrier != p_enty { planq.is_carried = false; }
+	if !planq.is_carried && q_portable.carrier == p_enty { planq.is_carried = true; }
 }
 /// Handles the PLANQ's output status bars and other such things
 pub fn planq_monitor_system(time:        Res<Time>,
@@ -307,26 +307,26 @@ pub fn planq_monitor_system(time:        Res<Time>,
 ) {
 	if p_query.is_empty() { return; }
 	if q_query.is_empty() { return; }
-	let player = if let Ok(value) = p_query.get_single() { value } else { return };
-	let planq_enty = if let Ok(value) = q_query.get_single_mut() { value } else { return };
+	let (_enty, p_body, p_desc) = if let Ok(value) = p_query.get_single() { value } else { return };
+	let (_enty, q_device) = if let Ok(value) = q_query.get_single_mut() { value } else { return };
 	// Iterate any active PlanqProcesses
 	// These should be iterated locally here so that they are consistent from frame to frame; this is because
 	//   Bevy's Systems implement a multithreading model that does NOT guarantee anything about consistent concurrency
-	for mut pq_timer in s_query.iter_mut() {
-		if !pq_timer.1.timer.finished() {
-			pq_timer.1.timer.tick(time.delta());
+	for (_enty, mut s_clock) in s_query.iter_mut() {
+		if !s_clock.timer.finished() {
+			s_clock.timer.tick(time.delta());
 		}
 	}
 	// -- STATUS BARS
-	for mut process in s_query.iter_mut() {
-		if process.1.timer.finished() {
-			let source_name = process.1.source.clone();
+	for (_enty, mut s_clock) in s_query.iter_mut() {
+		if s_clock.timer.finished() {
+			let source_name = s_clock.source.clone();
 			match source_name.as_str() {
 				"planq_mode"      => {
 					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(planq.cpu_mode.to_string()));
 				}
 				"player_location" => {
-					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(player.2.locn.clone()));
+					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(p_desc.locn.clone()));
 				}
 				"current_time"    => { // FIXME: this shows as a stopwatch instead of an actual clock
 					let start_time_offset = Duration::new(2096, 789); // 12:34:56.789
@@ -334,7 +334,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(current_time.get_as_string()));
 				}
 				"planq_battery"   => {
-					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Percent(planq_enty.1.batt_voltage as u32));
+					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Percent(q_device.batt_voltage as u32));
 				}
 				"test_line"       => {
 					monitor.raw_data.entry(source_name)
@@ -343,15 +343,13 @@ pub fn planq_monitor_system(time:        Res<Time>,
 				"test_sparkline"  => {
 					// This update method is 'backwards' to the others: instead of passing a new value to raw_data via entry(),
 					//   we modify the raw_data's values directly using the mutable reference we obtained with get_mut()
-					if let Some(entry) = monitor.raw_data.get_mut(&source_name) {
-						if let PlanqDataType::Series(ref mut arr) = entry {
-							arr.push_back(rng.u64(0..10));
-							loop {
-								if arr.len() >= 31 {
-									arr.pop_front();
-								} else {
-									break;
-								}
+					if let Some(PlanqDataType::Series(ref mut arr)) = monitor.raw_data.get_mut(&source_name) {
+						arr.push_back(rng.u64(0..10));
+						loop {
+							if arr.len() >= 31 {
+								arr.pop_front();
+							} else {
+								break;
 							}
 						}
 					}
@@ -363,7 +361,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 				_ => { error!("* unrecognized data source in planq_monitor_system: {}", source_name); } // DEBUG: announce a missing data source
 			}
 		} else {
-			process.1.timer.tick(time.delta());
+			s_clock.timer.tick(time.delta());
 		}
 	}
 	// -- SIMPLE DATA
@@ -371,7 +369,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 	// TODO: optimize this to avoid doing a full copy of the log every single time
 	planq.stdout = msglog.get_log_as_messages("planq".to_string(), 0);
 	// Get the player's location
-	planq.player_loc = player.1.ref_posn;
+	planq.player_loc = p_body.ref_posn;
 }
 
 /// BEVY: Defines the Planq settings/controls (interface bwn my GameEngine class & Bevy)

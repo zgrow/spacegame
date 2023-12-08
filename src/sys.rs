@@ -59,8 +59,8 @@ pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
 		match event.etype {
 			GameEventType::PlanqConnect(Entity::PLACEHOLDER) => {
 				planq.jack_cnxn = Entity::PLACEHOLDER;
-				if let Ok(object_name) = a_query.get(planq.jack_cnxn) {
-					msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name.1));
+				if let Ok((_enty, object_name)) = a_query.get(planq.jack_cnxn) {
+					msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name));
 					preader.send(PlanqEvent::new(PlanqEventType::AccessUnlink))
 				}
 			}
@@ -88,9 +88,9 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 	//     Match the strings to commands that will add the correct ActionTypes to the ActionSet Component
 	//     Update the actor's ActionSet component
 	//     Set the ActionSet.outdated flag to false to avoid double-updates
-	for mut actor in a_query.iter_mut() {
-		if actor.1.outdated {
-			if let Some(component_iter) = get_components_for_entity(actor.0, archetypes) {
+	for (a_enty, mut a_actionset) in a_query.iter_mut() { // Use tuple indexing instead of destructive binding
+		if a_actionset.outdated {
+			if let Some(component_iter) = get_components_for_entity(a_enty, archetypes) {
 				let mut new_set = HashSet::new();
 				for comp_id in component_iter {
 					if let Some(comp_info) = components.get_info(comp_id) {
@@ -121,8 +121,8 @@ pub fn action_referee_system(_cmd:       Commands, // gonna need this eventually
 						}
 					}
 				}
-				actor.1.actions = new_set;
-				actor.1.outdated = false;
+				a_actionset.actions = new_set;
+				a_actionset.outdated = false;
 			}
 		}
 	}
@@ -145,8 +145,8 @@ pub fn examination_system(mut ereader:  EventReader<GameEvent>,
 				warn!("* Attempted to Examine the Entity::PLACEHOLDER"); // DEBUG: warn if this case occurs
 				continue;
 			}
-			if let Ok(output_ref) = e_query.get(econtext.object) {
-				let output = output_ref.1.desc.clone();
+			if let Ok((_enty, e_desc)) = e_query.get(econtext.object) {
+				let output = e_desc.desc.clone();
 				msglog.tell_player(output);
 			}
 		}
@@ -181,9 +181,10 @@ pub fn item_collection_system(mut cmd:      Commands,
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().expect("event.context should be Some(n)");
 		// We know that it is safe to unwrap these because calling is_invalid() checked that they are not placeholders
-		let subject = e_query.get(econtext.subject).expect("econtext.subject should be Some(n)");
-		let subject_name = subject.1.name.clone();
-		let is_player_action = subject.4.is_some();
+		//let subject = e_query.get(econtext.subject).expect("econtext.subject should be Some(n)");
+		let (s_enty, s_desc, s_body, _container, s_player) = e_query.get(econtext.subject).expect("econtext.subject should be Some(n)");
+		let subject_name = s_desc.name.clone();
+		let is_player_action = s_player.is_some();
 		let (o_enty, o_desc, mut o_body, _) = i_query.get_mut(econtext.object).expect("econtext.object should be Some(n)");
 		let item_name = o_desc.name.clone();
 		// We have all of our context values now, so proceed to actually doing the requested action
@@ -192,7 +193,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 			ActionType::MoveItem => { // Move an Item into an Entity's possession
 				// NOTE: the insert(Portable) call below will overwrite any previous instance of that component
 				cmd.entity(o_enty)
-				.insert(Portable{carrier: subject.0}) // put the container's ID to the target's Portable component
+				.insert(Portable{carrier: s_enty}) // put the container's ID to the target's Portable component
 				.insert(IsCarried::default()); // add the IsCarried tag to the component
 				if is_player_action {
 					message = format!("Obtained a {}.", item_name);
@@ -205,7 +206,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 				cmd.entity(o_enty)
 				.insert(Portable{carrier: Entity::PLACEHOLDER}) // still portable but not carried
 				.remove::<IsCarried>(); // remove the tag from the component
-				o_body.move_to(subject.2.ref_posn);
+				o_body.move_to(s_body.ref_posn);
 				if is_player_action {
 					message = format!("Dropped a {}.", item_name);
 				} else {
@@ -246,37 +247,37 @@ pub fn lockable_system(mut _commands:    Commands,
 		}
 		if event.context.is_none() { continue; }
 		let econtext = event.context.as_ref().expect("event.context should be Some(n)");
-		let actor = e_query.get_mut(econtext.subject).expect("econtext.subject should be found in e_query");
-		let player_action = actor.3.is_some();
-		let mut target = lock_query.get_mut(econtext.object).expect("econtext.object should be found in lock_query");
+		let (e_enty, _body, e_desc, e_player) = e_query.get_mut(econtext.subject).expect("econtext.subject should be found in e_query");
+		let player_action = e_player.is_some();
+		let (_enty, _portable, l_desc, mut l_lock) = lock_query.get_mut(econtext.object).expect("econtext.object should be found in lock_query");
 		let mut message: String = "".to_string();
 		// If they have the right key then they can unlock it
 		// Lock attempts always succeed
 		match atype {
 			ActionType::LockItem => {
-				target.3.is_locked = true;
+				l_lock.is_locked = true;
 				if player_action {
-					message = format!("You tap the LOCK button on the {}.", target.2.name.clone());
+					message = format!("You tap the LOCK button on the {}.", l_desc.name.clone());
 				} else {
-					message = format!("The {} locks the {}.", actor.2.name.clone(), target.2.name.clone());
+					message = format!("The {} locks the {}.", e_desc.name.clone(), l_desc.name.clone());
 				}
 			}
 			ActionType::UnlockItem => {
 				// Obtain the set of keys that the actor is carrying
 				let mut carried_keys: Vec<(Entity, i32, String)> = Vec::new();
-				for key in key_query.iter() {
-					if key.1.carrier == actor.0 { carried_keys.push((key.0, key.3.key_id, key.2.name.clone())); }
+				for (k_enty, k_portable, k_desc, k_key) in key_query.iter() {
+					if k_portable.carrier == e_enty { carried_keys.push((k_enty, k_key.key_id, k_desc.name.clone())); }
 				}
 				if carried_keys.is_empty() { continue; } // no keys to try!
 				// The actor has at least one key to try in the lock
-				for key in carried_keys.iter() {
-					if key.1 == target.3.key_id {
+				for (_enty, try_key_id, try_key_name) in carried_keys.iter() {
+					if *try_key_id == l_lock.key_id {
 						// the subject has the right key, unlock the lock
-						target.3.is_locked = false;
+						l_lock.is_locked = false;
 						if player_action {
-							message = format!("Your {} unlocks the {}.", key.2, target.2.name.clone());
+							message = format!("Your {} unlocks the {}.", try_key_name, l_desc.name.clone());
 						} else {
-							message = format!("The {} unlocks the {}.", actor.2.name.clone(), target.2.name.clone());
+							message = format!("The {} unlocks the {}.", e_desc.name.clone(), l_desc.name.clone());
 						}
 					} else {
 						// none of the keys worked, report a failure
@@ -689,8 +690,8 @@ pub fn test_npc_spawn(mut commands: Commands,
 	// Check the spawnpoint for collisions
 	loop {
 		let mut found_open_tile = true;
-		for enty in e_query.iter() { // FIXME: this should probably be a call to Model.is_occupied instead
-			if enty.1 == &spawnpoint { found_open_tile = false; }
+		for (_enty, posn) in e_query.iter() { // FIXME: this should probably be a call to Model.is_occupied instead
+			if posn == &spawnpoint { found_open_tile = false; }
 		}
 		if found_open_tile { break; }
 	}

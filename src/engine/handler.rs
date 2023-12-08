@@ -160,16 +160,16 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				let mut item_names = Vec::new();
 				// Get every Entity that has a Description, is Portable, and is currently being carried by someone
 				let mut backpack_query = eng.bevy.world.query::<(Entity, &Description, &Portable, &ActionSet)>();
-				for item in backpack_query.iter(&eng.bevy.world) {
-					debug!("* found item {}", item.1.name.clone()); // DEBUG: report the item being worked on
-					if item.2.carrier == player {
+				for (i_enty, i_desc, i_portable, i_actions) in backpack_query.iter(&eng.bevy.world) {
+					debug!("* found item {}", i_desc.name.clone()); // DEBUG: report the item being worked on
+					if i_portable.carrier == player {
 						let mut menu_entries = Vec::new();
-						for action in item.3.actions.iter() {
-							menu_entries.push(GameEvent::new(PlayerAction(*action), Some(player), Some(item.0)));
+						for action in i_actions.actions.iter() {
+							menu_entries.push(GameEvent::new(PlayerAction(*action), Some(player), Some(i_enty)));
 						}
 						let submenu = make_new_submenu(menu_entries);
 						//debug!("* Made submenu of size {} from {} actions", submenu.len(), item.3.actions.len()); // DEBUG: report submenu creation
-						item_names.push(MenuItem::group(item.1.name.clone(), submenu));
+						item_names.push(MenuItem::group(i_desc.name.clone(), submenu));
 					}
 				}
 				if item_names.is_empty() {
@@ -187,11 +187,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 			KeyCode::Char('d') => { // DROP an item from player's inventory
 				let mut item_names = Vec::new();
 				let mut backpack_query = eng.bevy.world.query_filtered::<(Entity, &Description, &Portable), With<IsCarried>>();
-				for item in backpack_query.iter(&eng.bevy.world) {
-					if item.2.carrier == player {
+				for (i_enty, i_desc, i_portable) in backpack_query.iter(&eng.bevy.world) {
+					if i_portable.carrier == player {
 						item_names.push(MenuItem::item(
-							item.1.name.clone(),
-							GameEvent::new(PlayerAction(DropItem), Some(player), Some(item.0)),
+							i_desc.name.clone(),
+							GameEvent::new(PlayerAction(DropItem), Some(player), Some(i_enty)),
 							None,
 							)
 						);
@@ -215,12 +215,12 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				} else {
 					return Ok(())
 				};
-				for target in item_query.iter(&eng.bevy.world) {
+				for (t_enty, t_desc, t_body, _portable) in item_query.iter(&eng.bevy.world) {
 					//debug!("* found item {}", target.1.name.clone()); // DEBUG: announce found targets for GET
-					if target.2.contains(p_posn) {
+					if t_body.contains(p_posn) {
 						item_names.push(MenuItem::item(
-							target.1.name.clone(),
-							GameEvent::new(PlayerAction(MoveItem), Some(player), Some(target.0)),
+							t_desc.name.clone(),
+							GameEvent::new(PlayerAction(MoveItem), Some(player), Some(t_enty)),
 							None,
 						));
 					}
@@ -245,13 +245,13 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				} else {
 					return Ok(())
 				};
-				for target in item_query.iter(&eng.bevy.world) {
+				for (t_enty, t_desc, t_body, t_open) in item_query.iter(&eng.bevy.world) {
 					//debug!("* found item {}", target.1.name.clone()); // DEBUG: report found OPENABLE items
-					if target.2.is_adjacent_to(p_posn) && !target.3.is_open {
+					if t_body.is_adjacent_to(p_posn) && !t_open.is_open {
 						item_names.push(MenuItem::item(
-								target.1.name.clone(),
-								GameEvent::new(PlayerAction(OpenItem), Some(player), Some(target.0)),
-								Some(target.2.ref_posn)
+								t_desc.name.clone(),
+								GameEvent::new(PlayerAction(OpenItem), Some(player), Some(t_enty)),
+								Some(t_body.ref_posn)
 							)
 						);
 					}
@@ -275,13 +275,13 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				} else {
 					return Ok(())
 				};
-				for target in item_query.iter(&eng.bevy.world) {
+				for (t_enty, t_desc, t_body, t_open) in item_query.iter(&eng.bevy.world) {
 					//debug!("* found item {}", target.1.name.clone()); // DEBUG: report found closed OPENABLE items
-					if target.2.is_adjacent_to(p_posn) && target.3.is_open {
+					if t_body.is_adjacent_to(p_posn) && t_open.is_open {
 						item_names.push(MenuItem::item(
-								target.1.name.clone(),
-								GameEvent::new(PlayerAction(CloseItem), Some(player), Some(target.0)),
-								Some(target.2.ref_posn)
+								t_desc.name.clone(),
+								GameEvent::new(PlayerAction(CloseItem), Some(player), Some(t_enty)),
+								Some(t_body.ref_posn)
 							)
 						);
 					}
@@ -305,13 +305,13 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				} else {
 					return Ok(())
 				};
-				for target in enty_query.iter(&eng.bevy.world) {
+				for (t_enty, t_desc, t_body) in enty_query.iter(&eng.bevy.world) {
 					//debug!("* Found target {}", target.1.name.clone()); // DEBUG: announce EXAMINE target
-					if target.2.in_range_of(p_posn, 2) {
+					if t_body.in_range_of(p_posn, 2) {
 						enty_names.push(MenuItem::item(
-							target.1.name.clone(),
-							GameEvent::new(PlayerAction(Examine), Some(player), Some(target.0)),
-							Some(target.2.ref_posn),
+							t_desc.name.clone(),
+							GameEvent::new(PlayerAction(Examine), Some(player), Some(t_enty)),
+							Some(t_body.ref_posn),
 						));
 					}
 				}
@@ -337,21 +337,21 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				};
 				//eng.item_chooser.list.clear();
 				// Drop them into one of the choosers
-				for device in device_query.iter(&eng.bevy.world) {
-					if let Some(d_portable) = device.3 {
-						if d_portable.carrier == player {
+				for (d_enty, d_body, d_desc, d_portable, _device) in device_query.iter(&eng.bevy.world) {
+					if let Some(is_portable) = d_portable {
+						if is_portable.carrier == player {
 							device_names.push(MenuItem::item(
-								device.2.name.clone(),
-								GameEvent::new(PlayerAction(UseItem), Some(player), Some(device.0)),
+								d_desc.name.clone(),
+								GameEvent::new(PlayerAction(UseItem), Some(player), Some(d_enty)),
 								None,
 							));
 						}
 					//} else if device.1.is_some() { // Is the player near it?
-					} else if let Some(d_body) = device.1 {
-						if p_posn.in_range_of(&d_body.ref_posn, 1) {
+					} else if let Some(has_body) = d_body {
+						if p_posn.in_range_of(&has_body.ref_posn, 1) {
 							device_names.push(MenuItem::item(
-								device.2.name.clone(),
-								GameEvent::new(PlayerAction(UseItem), Some(player), Some(device.0)),
+								d_desc.name.clone(),
+								GameEvent::new(PlayerAction(UseItem), Some(player), Some(d_enty)),
 								None,
 							));
 						}
@@ -374,13 +374,13 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				} else {
 					return Ok(())
 				};
-				for lock in lock_query.iter(&eng.bevy.world) {
-					if let Some(l_posn) = lock.1 {
-						if l_posn.in_range_of(&p_posn, 1)
-						&& lock.3.is_locked {
+				for (l_enty, l_body, l_desc, l_lock) in lock_query.iter(&eng.bevy.world) {
+					if let Some(l_posn) = l_body {
+						if l_posn.in_range_of(p_posn, 1)
+						&& l_lock.is_locked {
 							lock_names.push(MenuItem::item(
-								lock.2.name.clone(),
-								GameEvent::new(PlayerAction(LockItem), Some(player), Some(lock.0)),
+								l_desc.name.clone(),
+								GameEvent::new(PlayerAction(LockItem), Some(player), Some(l_enty)),
 								None,
 							));
 						}
@@ -403,13 +403,13 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				} else {
 					return Ok(())
 				};
-				for lock in lock_query.iter(&eng.bevy.world) {
-					if let Some(l_posn) = lock.1 {
-						if !lock.3.is_locked
+				for (l_enty, l_body, l_desc, l_lock) in lock_query.iter(&eng.bevy.world) {
+					if let Some(l_posn) = l_body {
+						if !l_lock.is_locked
 						&& l_posn.in_range_of(&p_posn, 1) {
 							lock_names.push(MenuItem::item(
-								lock.2.name.clone(),
-								GameEvent::new(PlayerAction(UnlockItem), Some(player), Some(lock.0)),
+								l_desc.name.clone(),
+								GameEvent::new(PlayerAction(UnlockItem), Some(player), Some(l_enty)),
 								None,
 							));
 						}
@@ -432,11 +432,11 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				} else {
 					return Ok(())
 				};
-				for port in port_query.iter(&eng.bevy.world) {
-					if port.1.is_adjacent_to(&p_posn) {
+				for (p_enty, p_body, p_desc) in port_query.iter(&eng.bevy.world) {
+					if p_body.is_adjacent_to(p_posn) {
 						access_ports.push(MenuItem::item(
-							port.2.name.clone(),
-							GameEvent::new(PlanqConnect(port.0), Some(player), Some(port.0)), // NOTE: might want to swap player for planq here?
+							p_desc.name.clone(),
+							GameEvent::new(PlanqConnect(p_enty), Some(player), Some(p_enty)), // NOTE: might want to swap player for planq here?
 							None,
 						));
 					}
