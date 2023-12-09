@@ -46,7 +46,7 @@ pub fn planq_update_system(mut commands: Commands,
 ) {
 	if p_query.is_empty() { return; }
 	if q_query.is_empty() { return; }
-	let (p_enty, p_body) = if let Ok(value) = p_query.get_single() { value } else { return };
+	let (p_enty, _body) = if let Ok(value) = p_query.get_single() { value } else { return };
 	let (q_enty, q_device, q_portable) = if let Ok(value) = q_query.get_single_mut() { value } else { return };
 	// Handle any new GameEvents we're interested in
 	if !ereader.is_empty() {
@@ -77,7 +77,7 @@ pub fn planq_update_system(mut commands: Commands,
 							// PLANQ: it allows the player to operate the power switch
 							// This seems likely to change in the future to allow some better service
 							// commands, like battery swaps or peripheral attachment
-							msglog.tell_player("There is a faint 'click' as you press the PLANQ's power button.".to_string());
+							msglog.tell_player("There is a faint 'click' as you press the PLANQ's power button.");
 						}
 					}
 				}
@@ -320,7 +320,11 @@ pub fn planq_monitor_system(time:        Res<Time>,
 	// -- STATUS BARS
 	for (_enty, mut s_clock) in s_query.iter_mut() {
 		if s_clock.timer.finished() {
-			let source_name = s_clock.source.clone();
+			// If the timer's finished, ie the job is complete,
+			// go to the logic for that data source and perform an update
+			// HashMap::entry(key: K) retrieves the key's corresponding entry for modification;
+			// HashMap::and_modify(f: F) performs the modification via closure F
+			let source_name = s_clock.source.clone(); // <- type String needed here to give to the HashMap
 			match source_name.as_str() {
 				"planq_mode"      => {
 					monitor.raw_data.entry(source_name).and_modify(|x| *x = PlanqDataType::Text(planq.cpu_mode.to_string()));
@@ -367,7 +371,7 @@ pub fn planq_monitor_system(time:        Res<Time>,
 	// -- SIMPLE DATA
 	// Refresh the planq's scrollback
 	// TODO: optimize this to avoid doing a full copy of the log every single time
-	planq.stdout = msglog.get_log_as_messages("planq".to_string(), 0);
+	planq.stdout = msglog.get_log_as_messages("planq", 0);
 	// Get the player's location
 	planq.player_loc = p_body.ref_posn;
 }
@@ -454,7 +458,7 @@ impl PlanqData {
 	pub fn idle_mode(&mut self, msglog: &mut MessageLog) {
 		//self.stdout.push(Message::new(0, 0, "planq".to_string(), "".to_string()));
 		//self.stdout.push(Message::new(0, 0, "planq".to_string(), "".to_string()));
-		msglog.tell_planq(" ".to_string());
+		msglog.tell_planq(" ");
 		self.cpu_mode = PlanqCPUMode::Idle;
 	}
 }
@@ -470,15 +474,15 @@ impl PlanqMonitor {
 	pub fn new() -> PlanqMonitor {
 		PlanqMonitor::default()
 	}
-	pub fn watch(mut self, source: String) -> Self {
-		self.status_bars.push(source);
+	pub fn watch(mut self, source: &str) -> Self {
+		self.status_bars.push(source.to_string());
 		self
 	}
 	// General
 	/// Removes the specified source from the list of status_bars, thus removing it from the PLANQ
 	/// Returns true if the source was successfully removed
-	pub fn remove(mut self, source: String) -> bool {
-		if let Some(posn) = self.status_bars.iter().position(|x| x == source.as_str()) {
+	pub fn remove(mut self, source: &str) -> bool {
+		if let Some(posn) = self.status_bars.iter().position(|x| x == source) {
 			self.status_bars.remove(posn);
 			return true;
 		}
@@ -504,7 +508,7 @@ impl PlanqMonitor {
 		for source in &self.status_bars {
 			if let Some(source_type) = self.raw_data.get(source) {
 				match source_type {
-					PlanqDataType::Text(text) => {
+					PlanqDataType::Text(text_input) => {
 						let prefix = match source.as_str() {
 							"planq_mode" => { "MODE: ".to_string() }
 							"player_location" => { "LOCN: ".to_string() }
@@ -512,7 +516,7 @@ impl PlanqMonitor {
 							_ => { "".to_string() }
 						};
 						let remainder = area.width as usize - prefix.len() - 2;
-						let line = PlanqMonitor::right_align(text.clone(), remainder);
+						let line = PlanqMonitor::right_align(text_input, remainder);
 						let output = prefix + &line;
 						frame.render_widget(Paragraph::new(output).block(default_block.clone()), area);
 					}
@@ -524,7 +528,8 @@ impl PlanqMonitor {
 						if source == "planq_battery" {
 							let prefix = "BATT: ".to_string();
 							let remainder = area.width as usize - prefix.len() - 2;
-							let line = PlanqMonitor::right_align(pct.to_string() + "%", remainder);
+							//let line = PlanqMonitor::right_align(pct.to_string() + "%", remainder);
+							let line = PlanqMonitor::right_align(format!("{}{}", pct, "%").as_str(), remainder);
 							let output = prefix + &line;
 							frame.render_widget(Gauge::default().percent(*pct as u16).label(format!("{:width$}", output, width = area.width as usize))
 							                    .gauge_style(Style::default().fg(Color::White).bg(Color::Black))
@@ -562,8 +567,8 @@ impl PlanqMonitor {
 	//       If string padding with arbitrary chars is desired, must either:
 	//         consistently use the same char every time,
 	//         or use an external crate that provides the syntax
-	fn right_align(input: String, width: usize) -> String {
-		if input.len() >= width { return input; }
+	fn right_align(input: &str, width: usize) -> String {
+		if input.len() >= width { return input.to_string(); }
 		format!("{:>str_width$}", input, str_width = width)
 	}
 }
@@ -763,8 +768,8 @@ impl DataSampleTimer {
 		self.timer = Timer::new(Duration::from_secs(duration), TimerMode::Repeating);
 		self
 	}
-	pub fn source(mut self, source: String) -> Self {
-		self.source = source;
+	pub fn source(mut self, source: &str) -> Self {
+		self.source = source.to_string();
 		self
 	}
 }

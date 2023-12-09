@@ -92,7 +92,7 @@ impl JsonWorldBuilder {
 		for cur_room in input_data.room_list.iter() {
 			let room_index: usize;
 			// If the cur_room already exists, use its cur_room index; else make a new room
-			if let Some(new_index) = self.model.layout.contains(cur_room.name.clone()) {
+			if let Some(new_index) = self.model.layout.contains(&cur_room.name) {
 				room_index = new_index;
 			} else {
 				room_index = self.model.layout.add_room((*cur_room).clone().into());
@@ -100,7 +100,7 @@ impl JsonWorldBuilder {
 			// Iterate on all the exits attached to this room
 			for destination in &cur_room.exits {
 				let dest_index: usize;
-				if let Some(new_index) = self.model.layout.contains(destination.clone()) {
+				if let Some(new_index) = self.model.layout.contains(destination) {
 					// If the destination cur_room already exists, get its room_index
 					dest_index = new_index;
 					self.model.layout.connect(room_index, dest_index);

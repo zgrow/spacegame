@@ -78,8 +78,8 @@ impl JsonRoom {
 	pub fn new() -> JsonRoom {
 		JsonRoom::default()
 	}
-	pub fn name(mut self, new_name: String) -> JsonRoom {
-		self.name = new_name;
+	pub fn name(mut self, new_name: &str) -> JsonRoom {
+		self.name = new_name.to_string();
 		self
 	}
 	pub fn exits(mut self, exit_list: Vec<String>) -> JsonRoom {

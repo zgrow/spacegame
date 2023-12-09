@@ -30,7 +30,7 @@ impl MessageLog {
 	/// * `msg_chan` - The msg channel's name, ie "world"
 	/// * `msg_prio` - Higher -> more important
 	/// * `msg_time` - As number of seconds since game epoch
-	pub fn add(&mut self, msg_text: String, msg_chan: String, msg_prio: i32, msg_time: i32) {
+	pub fn add(&mut self, msg_text: &str, msg_chan: &str, msg_prio: i32, msg_time: i32) {
 		// Check for an existing channel to add the new message to
 		for channel in &mut self.logs {
 			if channel.name == msg_chan {
@@ -41,12 +41,12 @@ impl MessageLog {
 		}
 		// if we arrived here, we didn't find a matching channel
 		// make a new channel and add the message to it
-		let mut new_channel = MessageChannel::new(&msg_chan);
+		let mut new_channel = MessageChannel::new(msg_chan);
 		new_channel.add(Message::new(msg_time, msg_prio, msg_chan, msg_text));
 		self.logs.push(new_channel);
 	}
 	/// Replaces the last message in the given channel with the new message; does nothing if channel does not exist
-	pub fn replace(&mut self, msg_text: String, msg_chan: String, msg_prio: i32, msg_time: i32) {
+	pub fn replace(&mut self, msg_text: &str, msg_chan: &str, msg_prio: i32, msg_time: i32) {
 		// Check for an existing channel to add the new message to
 		for channel in &mut self.logs {
 			if channel.name == msg_chan {
@@ -59,7 +59,7 @@ impl MessageLog {
 		// if we arrived here, we didn't find a matching channel, don't do anything
 	}
 	/// Counts the number of messages in the specified channel; RETURNS 0 if channel not found!
-	pub fn channel_len(&self, req_channel: String) -> usize {
+	pub fn channel_len(&self, req_channel: &str) -> usize {
 		for channel in &self.logs {
 			if channel.name == req_channel { return channel.contents.len(); }
 		}
@@ -82,34 +82,34 @@ impl MessageLog {
 			//                     _123456789_12356789_123456789_
 			0 => {
 				//│─
-				self.tell_planq("[[fg:gray]]╃────────────────────────────╄".to_string());
-				self.tell_planq("[[fg:gray]]│[[fg:ltcyan]] __         __  __     __   [[fg:gray]]│".to_string());
-				self.tell_planq("[[fg:gray]]│[[fg:ltcyan]]/   _||   |/  \\(_     /_    [[fg:gray]]│".to_string());
-				self.tell_planq("[[fg:gray]]│[[fg:ltcyan]]\\__(-|||_||\\__/__)  [[fg:green]]\\/[[fg:ltcyan]]__)[[fg:red]]/) [[fg:gray]]│".to_string());
-				self.tell_planq("[[fg:gray]]│[[fg:green]]────────<-──────────<-─<[[fg:red]]{ (<[[fg:gray]]│".to_string());
-				self.tell_planq("[[fg:gray]]│[[fg:green]]         \\           \\   [[fg:red]]\\) [[fg:gray]]│".to_string());
-				self.tell_planq("[[fg:gray]]┽────────────────────────────╆".to_string());
-				self.tell_planq(" ".to_string());
-				self.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]BIOS:  GRAIN v17.6.8, [[mod:+italic]]Cedar[[end]]".to_string());
+				self.tell_planq("[[fg:gray]]╃────────────────────────────╄");
+				self.tell_planq("[[fg:gray]]│[[fg:ltcyan]] __         __  __     __   [[fg:gray]]│");
+				self.tell_planq("[[fg:gray]]│[[fg:ltcyan]]/   _||   |/  \\(_     /_    [[fg:gray]]│");
+				self.tell_planq("[[fg:gray]]│[[fg:ltcyan]]\\__(-|||_||\\__/__)  [[fg:green]]\\/[[fg:ltcyan]]__)[[fg:red]]/) [[fg:gray]]│");
+				self.tell_planq("[[fg:gray]]│[[fg:green]]────────<-──────────<-─<[[fg:red]]{ (<[[fg:gray]]│");
+				self.tell_planq("[[fg:gray]]│[[fg:green]]         \\           \\   [[fg:red]]\\) [[fg:gray]]│");
+				self.tell_planq("[[fg:gray]]┽────────────────────────────╆");
+				self.tell_planq(" ");
+				self.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]BIOS:  GRAIN v17.6.8, [[mod:+italic]]Cedar[[end]]");
 			}
 			1 => {
-				self.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Hardware Status ..... [ [[fg:green]]OK[[end]] ]".to_string());
+				self.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Hardware Status ..... [ [[fg:green]]OK[[end]] ]");
 			}
 			2 => {
-				self.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Firmware Status ..... [ [[fg:green]]OK[[end]] ]".to_string());
+				self.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Firmware Status ..... [ [[fg:green]]OK[[end]] ]");
 			}
 			3 => {
-				self.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Bootloader Status ... [ [[fg:green]]OK[[end]] ]".to_string());
+				self.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Bootloader Status ... [ [[fg:green]]OK[[end]] ]");
 			}
 			4 => {
-				self.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Ready for input!".to_string());
+				self.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Ready for input!");
 			}
 			_ => { }
 		};
 	}
 	/// Clears a message channel's backscroll: WARN: irreversible!
 	/// Returns false if the specified channel was not found
-	pub fn clear(&mut self, target: String) -> bool {
+	pub fn clear(&mut self, target: &str) -> bool {
 		if let Some(chan_index) = self.logs.iter().position(|x| x.name == target) {
 			self.logs[chan_index].contents.clear();
 			return true;
@@ -120,7 +120,7 @@ impl MessageLog {
 	/// This means the text will be formatted for display in a ratatui::Paragraph!
 	/// If the given channel does not exist, an empty vector will be returned
 	/// Specify a count of 0 to obtain the full log for that channel
-	pub fn get_log_as_lines(&self, req_channel: String, count: usize) -> Vec<Line> {
+	pub fn get_log_as_lines(&self, req_channel: &str, count: usize) -> Vec<Line> {
 		// TODO: See if possible to optimize this by not building the whole list each time
 		let mut backlog: Vec<Line> = Vec::new();
 		if self.logs.is_empty() { return backlog; }
@@ -141,7 +141,7 @@ impl MessageLog {
 	/// This preserves the log message metadata
 	/// If the given channel does not exist, an empty vector will be returned
 	/// Specify a count of 0 to obtain the full log for that channel
-	pub fn get_log_as_messages(&self, req_channel: String, count: usize) -> Vec<Message> {
+	pub fn get_log_as_messages(&self, req_channel: &str, count: usize) -> Vec<Message> {
 		if self.logs.is_empty() { return Vec::new(); }
 		for channel in &self.logs {
 			if channel.name == req_channel {
@@ -153,12 +153,12 @@ impl MessageLog {
 		Vec::new()
 	}
 	/// Helper method for writing a message directly to the "world" channel, ie the main feedback message channel
-	pub fn tell_player(&mut self, msg_text: String) {
-		self.add(msg_text, "world".to_string(), 0, 0);
+	pub fn tell_player(&mut self, msg_text: &str) {
+		self.add(msg_text, "world", 0, 0);
 	}
 	/// Helper method: adds a new message directly to the "planq" channel (aka 'stdout')
-	pub fn tell_planq(&mut self, msg_text: String) {
-		self.add(msg_text, "planq".to_string(), 0, 0);
+	pub fn tell_planq(&mut self, msg_text: &str) {
+		self.add(msg_text, "planq", 0, 0);
 	}
 
 }
@@ -180,7 +180,7 @@ pub struct MessageChannel {
 	pub contents: Vec<Message>,
 }
 impl MessageChannel {
-	pub fn new(new_name: &String) -> MessageChannel {
+	pub fn new(new_name: &str) -> MessageChannel {
 		MessageChannel {
 			name: new_name.to_string(),
 			contents: Vec::new(),
@@ -207,12 +207,12 @@ pub struct Message {
 	pub text: String,
 }
 impl Message {
-	pub fn new(time: i32, level: i32, chan: String, msg: String) -> Message {
+	pub fn new(time: i32, level: i32, chan: &str, msg: &str) -> Message {
 		Message {
 			timestamp: time,
 			priority: level,
-			channel: chan,
-			text: msg,
+			channel: chan.to_string(),
+			text: msg.to_string(),
 		}
 	}
 }

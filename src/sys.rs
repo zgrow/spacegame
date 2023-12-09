@@ -60,14 +60,14 @@ pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
 			GameEventType::PlanqConnect(Entity::PLACEHOLDER) => {
 				planq.jack_cnxn = Entity::PLACEHOLDER;
 				if let Ok((_enty, object_name)) = a_query.get(planq.jack_cnxn) {
-					msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name));
+					msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name).as_str());
 					preader.send(PlanqEvent::new(PlanqEventType::AccessUnlink))
 				}
 			}
 			GameEventType::PlanqConnect(target) => {
 				if let Some(context) = event.context {
 					planq.jack_cnxn = context.object;
-					msglog.tell_player(format!("The PLANQ's access jack clicks into place on the {:?}.", target));
+					msglog.tell_player(format!("The PLANQ's access jack clicks into place on the {:?}.", target).as_str());
 					preader.send(PlanqEvent::new(PlanqEventType::AccessLink))
 				}
 			}
@@ -146,7 +146,8 @@ pub fn examination_system(mut ereader:  EventReader<GameEvent>,
 				continue;
 			}
 			if let Ok((_enty, e_desc)) = e_query.get(econtext.object) {
-				let output = e_desc.desc.clone();
+				//let output = e_desc.desc.clone();
+				let output = &e_desc.desc;
 				msglog.tell_player(output);
 			}
 		}
@@ -222,7 +223,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 			}
 		}
 		if !message.is_empty() {
-			msglog.add(message, "world".to_string(), 0, 0);
+			msglog.add(&message, "world", 0, 0);
 		}
 	}
 }
@@ -290,7 +291,7 @@ pub fn lockable_system(mut _commands:    Commands,
 			_ => { }
 		}
 		if !message.is_empty() {
-			msglog.tell_player(message);
+			msglog.tell_player(&message);
 		}
 	}
 }
@@ -360,13 +361,13 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					//debug!("* Attempting ladder traverse to target posn {}", new_location);
 					// CASE 1: The target location is beyond the Model's height
 					if new_location.z < 0 || new_location.z as usize >= model.levels.len() {
-						msglog.tell_player(format!("You're already on the {}-most deck.", dir));
+						msglog.tell_player(format!("You're already on the {}-most deck.", dir).as_str());
 						continue;
 					}
 					// CASE 2: The actor is not standing on a ladder Tile
 					let actor_index = model.levels[actor_body.ref_posn.z as usize].to_index(actor_body.ref_posn.x, actor_body.ref_posn.y);
 					if model.levels[actor_body.ref_posn.z as usize].tiles[actor_index].ttype != TileType::Stairway {
-						msglog.tell_player(format!("You can't go {} without a ladder.", dir));
+						msglog.tell_player(format!("You can't go {} without a ladder.", dir).as_str());
 						continue;
 					}
 					// CASE 3: Attempt to retrieve a Portal (aka ladder) from the list for this Position
@@ -374,17 +375,17 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 					if let Some(portal) = possible {
 						new_location = portal;
 					} else {
-						msglog.tell_player("Couldn't find a ladder to traverse (possible bug?)".to_string());
+						msglog.tell_player("Couldn't find a ladder to traverse (possible bug?)");
 						continue;
 					}
 					// CASE 4: The actor is trying to climb higher than the ladder allows
 					if dir == Direction::UP && (actor_body.ref_posn.z > new_location.z) {
-						msglog.tell_player("You're already at the top of the ladder.".to_string());
+						msglog.tell_player("You're already at the top of the ladder.");
 						continue;
 					}
 					// CASE 5: The actor is trying to climb lower than the ladder allows
 					if dir == Direction::DOWN && (actor_body.ref_posn.z < new_location.z) {
-						msglog.tell_player("You're already at the bottom of the ladder.".to_string());
+						msglog.tell_player("You're already at the bottom of the ladder.");
 						continue;
 					}
 				}
@@ -408,7 +409,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 							format!("a {}", ttype)
 						}
 					};
-					msglog.tell_player(format!("The way {} is blocked by {}", dir, reply_msg));
+					msglog.tell_player(format!("The way {} is blocked by {}", dir, reply_msg).as_str());
 					return;
 				}
 				// -> POINT OF NO RETURN
@@ -462,7 +463,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 						} else {
 							"There's some stuff here on the ground.".to_string()
 						};
-						msglog.tell_player(message);
+						msglog.tell_player(&message);
 					}
 				}
 			}
@@ -541,7 +542,7 @@ pub fn openable_system(mut commands:    Commands,
 			_ => { }
 		}
 		if !message.is_empty() {
-			msglog.tell_player(message);
+			msglog.tell_player(&message);
 		}
 	}
 }
@@ -656,11 +657,11 @@ pub fn new_player_spawn(mut commands: Commands,
 		RngComponent::from(&mut global_rng),
 	)).id();
 	debug!("* new planq spawned into player inventory: {:?}", planq); // DEBUG: announce creation of player's planq
-	commands.spawn(DataSampleTimer::new().source("player_location".to_string()));
-	commands.spawn(DataSampleTimer::new().source("current_time".to_string()));
-	commands.spawn(DataSampleTimer::new().source("planq_battery".to_string()));
-	commands.spawn(DataSampleTimer::new().source("planq_mode".to_string()));
-	msglog.tell_player("[[fg:green]]WELCOME[[end]] TO [[fg:blue,mod:+italic]]SPACEGAME[[end]]".to_string());
+	commands.spawn(DataSampleTimer::new().source("player_location"));
+	commands.spawn(DataSampleTimer::new().source("current_time"));
+	commands.spawn(DataSampleTimer::new().source("planq_battery"));
+	commands.spawn(DataSampleTimer::new().source("planq_mode"));
+	msglog.tell_player("[[fg:green]]WELCOME[[end]] TO [[fg:blue,mod:+italic]]SPACEGAME[[end]]");
 }
 /// Spawns a new LMR at the specified Position, using default values
 pub fn new_lmr_spawn(mut commands:  Commands,
@@ -679,7 +680,7 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 		Container::default(),
 		Opaque::new(true),
 	));
-	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0), "debug".to_string(), 1, 1);
+	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0).as_str(), "debug", 1, 1);
 }
 /// Adds a demo NPC to the game world
 pub fn test_npc_spawn(mut commands: Commands,

@@ -138,7 +138,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 					// HINT: This will in fact return the entire string if the string consists of only a single word
 					//    let new_string: Vec<&str> = component.split(' ').collect();
 					let mut new_cmpnt = component.split(' ');
-					let part = new_cmpnt.next().unwrap_or_else(|| ""); // This is a closure that returns an empty string
+					let part = new_cmpnt.next().unwrap_or(""); // This is a closure that returns an empty string
 					let details: Vec<&str> = new_cmpnt.collect();
 					let error_msg = "! ERR: Could not parse key:value for ";
 					match part {
@@ -400,7 +400,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			// item_data should be a RawItem object, representing a single item, so it's okay to return wholesale
 			//debug!("* Obtained item_data: {:?}", item_data); // DEBUG: log obtained item_data
 			let mut new_template: SpawnTemplate = (*rng.sample(&item_data.shapes)?).clone().into();
-			new_template.assign_name(item_data.name.clone());
+			new_template.assign_name(&item_data.name);
 			return Some(new_template);
 		} else if let Some(set_data) = self.item_dict.sets.iter().find(|x| x.name == item_name) {
 			// As above, but for the 'sets' list of RawItemSets in the ItemDict
@@ -426,10 +426,10 @@ pub struct ItemRequest {
 	pub recipient: Option<Entity>,
 }
 impl ItemRequest {
-	pub fn new(new_id: String, new_name: String) -> ItemRequest {
+	pub fn new(new_id: &str, new_name: &str) -> ItemRequest {
 		ItemRequest {
-			placement: new_id,
-			name: new_name,
+			placement: new_id.to_string(),
+			name: new_name.to_string(),
 			destination: None,
 			recipient: None,
 		}

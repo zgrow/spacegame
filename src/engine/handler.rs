@@ -69,9 +69,9 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 					} else {
 					*/
 					if let Some(mut msglog) = eng.bevy.world.get_resource_mut::<MessageLog>() { // See above ^^^
-						msglog.tell_planq(echo_text.clone());
+						msglog.tell_planq(&echo_text);
 					}
-					eng.exec(planq_parser(input_text));
+					eng.exec(planq_parser(&input_text));
 				}
 				// TODO: set up the cursor dirs to allow movement? or reserve for planq menus?
 				the_input => {
@@ -175,7 +175,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if item_names.is_empty() {
 					debug!("* Nothing in inventory to display"); // DEBUG: announce feedback
 					if let Some(mut msglog) = eng.bevy.world.get_resource_mut::<MessageLog>() {
-						msglog.tell_player("You are not carrying anything.".to_string());
+						msglog.tell_player("You are not carrying anything.");
 					}
 					return Ok(());
 				} else {
@@ -199,7 +199,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 				if item_names.is_empty() {
 					if let Some(mut msglog) = eng.bevy.world.get_resource_mut::<MessageLog>() {
-						msglog.tell_player("You have nothing to drop.".to_string());
+						msglog.tell_player("You have nothing to drop.");
 					}
 					return Ok(())
 				} else {
@@ -228,7 +228,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if item_names.is_empty() {
 					//debug!("* Nothing to pick up at player's position"); // DEBUG: announce feedback
 					if let Some(mut msglog) = eng.bevy.world.get_resource_mut::<MessageLog>() {
-						msglog.tell_player("There's nothing here to pick up.".to_string());
+						msglog.tell_player("There's nothing here to pick up.");
 					}
 					return Ok(())
 				} else {
@@ -259,7 +259,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if item_names.is_empty() {
 					//debug!("* Nothing to open nearby"); // DEBUG: announce feedback
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("There's nothing nearby to open.".to_string());
+					msglog.tell_player("There's nothing nearby to open.");
 					return Ok(())
 				} else {
 					//debug!("* Attempting to set the entity menu"); // DEBUG: announce entity menu use
@@ -289,7 +289,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if item_names.is_empty() {
 					//debug!("* Nothing to close nearby"); // DEBUG: announce feedback
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("There's nothing nearby to close.".to_string());
+					msglog.tell_player("There's nothing nearby to close.");
 					return Ok(())
 				} else {
 					//debug!("* Attempting to set the entity menu"); // DEBUG: announce entity menu use
@@ -318,7 +318,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if enty_names.is_empty() {
 					//debug!("* Nothing close enough to examine"); // DEBUG: report EXAMINE failure
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("There's nothing nearby to examine.".to_string());
+					msglog.tell_player("There's nothing nearby to examine.");
 					return Ok(());
 				} else {
 					//debug!("* Attempting to set the entity menu with targets");// DEBUG: announce examine menu use
@@ -359,7 +359,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 				if device_names.is_empty() {
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("There's nothing nearby to use.".to_string());
+					msglog.tell_player("There's nothing nearby to use.");
 					return Ok(())
 				} else {
 					eng.menu_context = MenuState::new(device_names);
@@ -388,7 +388,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 				if lock_names.is_empty() {
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("There's nothing to lock nearby.".to_string());
+					msglog.tell_player("There's nothing to lock nearby.");
 					return Ok(())
 				} else {
 					eng.menu_context = MenuState::new(lock_names);
@@ -406,7 +406,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				for (l_enty, l_body, l_desc, l_lock) in lock_query.iter(&eng.bevy.world) {
 					if let Some(l_posn) = l_body {
 						if !l_lock.is_locked
-						&& l_posn.in_range_of(&p_posn, 1) {
+						&& l_posn.in_range_of(p_posn, 1) {
 							lock_names.push(MenuItem::item(
 								l_desc.name.clone(),
 								GameEvent::new(PlayerAction(UnlockItem), Some(player), Some(l_enty)),
@@ -417,7 +417,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 				if lock_names.is_empty() {
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("There's nothing to unlock nearby.".to_string());
+					msglog.tell_player("There's nothing to unlock nearby.");
 					return Ok(())
 				} else {
 					eng.menu_context = MenuState::new(lock_names);
@@ -443,7 +443,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 				if access_ports.is_empty() {
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("There are no access ports nearby.".to_string());
+					msglog.tell_player("There are no access ports nearby.");
 					return Ok(())
 				} else {
 					eng.menu_context = MenuState::new(access_ports);
@@ -454,7 +454,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				if planq.jack_cnxn == Entity::PLACEHOLDER {
 					// report "no connection" and abort the action
 					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("There's nothing connected to your PLANQ.".to_string());
+					msglog.tell_player("There's nothing connected to your PLANQ.");
 				} else {
 					// disconnect the PLANQ
 					new_game_event.etype = PlanqConnect(Entity::PLACEHOLDER);
@@ -527,7 +527,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	Ok(())
 }
 /// Translates an input string from the player into a PLANQ command and context
-pub fn planq_parser(input: String) -> PlanqCmd {
+pub fn planq_parser(input: &str) -> PlanqCmd {
 	let input_vec: Vec<&str> = input.trim_matches(|c| c == '>' || c == '¶').trim_start().split(' ').collect();
 	//debug!("> {:?}", input_vec); // DEBUG: log the parser's input vector
 	match input_vec[0] {

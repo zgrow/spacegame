@@ -136,11 +136,11 @@ impl GameEngine<'_> {
 			match event {
 				MenuEvent::Selected(item) => match item.as_ref() {
 					"main.new_game"  => { self.new_game(); }
-					"main.load_game" => { self.load_game(self.savegame_filename.clone()); }
-					"main.save_game" => { self.save_game(self.savegame_filename.clone()); }
+					"main.load_game" => { self.load_game(&self.savegame_filename.clone()); }
+					"main.save_game" => { self.save_game(&self.savegame_filename.clone()); }
 					"main.abandon_game" => {
 						info!("* Deleting savegame at {} and shutting down...", self.savegame_filename.clone()); // DEBUG: announce game abandon
-						let _ = self.delete_game(self.savegame_filename.clone()); // WARN: may want to trap this error?
+						let _ = self.delete_game(&self.savegame_filename.clone()); // WARN: may want to trap this error?
 						self.set_mode(EngineMode::Offline);
 					}
 					"main.quit"      => {
@@ -314,7 +314,7 @@ impl GameEngine<'_> {
 		let msglog_ref = self.bevy.world.get_resource::<MessageLog>();
 		let msglog = msglog_ref.unwrap_or_default(); // get a handle on the msglog service
 		if msglog_ref.is_some() {
-			let worldmsg = msglog.get_log_as_lines("world".to_string(), 0); // get the full backlog
+			let worldmsg = msglog.get_log_as_lines("world", 0); // get the full backlog
 			/* WARN: magic number offset for window borders
 			 * NOTE: it would be possible to 'reserve' space here by setting the magic num offset
 			 *       greater than is strictly required to cause scrollback
@@ -394,16 +394,16 @@ impl GameEngine<'_> {
 	/// Saves the currently-running game to an external file
 	//  INFO: By default (not sure how to change this!), on Linux, this savegame will be at
 	//      ~/.local/share/spacegame/saves/FILENAME.sav
-	pub fn save_game(&mut self, filename: String) {
+	pub fn save_game(&mut self, filename: &str) {
 		//debug!("* save_game() called on {}", filename); // DEBUG: alert when save_game is called
-		if let Err(e) = self.bevy.world.save(&filename) {
+		if let Err(e) = self.bevy.world.save(filename) {
 			error!("! ! save_game() failed on '{}', error: {}", filename, e); // DEBUG: warn about save game error
 			return;
 		}
 		self.quit();
 	}
 	/// Loads a saved game from the given external file
-	pub fn load_game(&mut self, filename: String) {
+	pub fn load_game(&mut self, filename: &str) {
 		//debug!("* load_game() called on {} ({})", filename, self.standby); // DEBUG: alert when load_game is called
 		if !self.standby {
 			warn!("* ! game is in progress!"); // DEBUG: warn about running game
@@ -412,7 +412,7 @@ impl GameEngine<'_> {
 			self.running = false;
 		}
 		self.init_bevy();
-		match self.bevy.world.load_applier(&filename) {
+		match self.bevy.world.load_applier(filename) {
 			Ok(applier) => {
 				if let Err(f) = applier.despawn(DespawnMode::Unmapped).apply() {
 					error!( "! ERR: load_game() failed to apply the EntityMap, error: {}", f); // DEBUG: warn about loading error
@@ -429,9 +429,9 @@ impl GameEngine<'_> {
 		//debug!("* load_game() finished successfully"); // DEBUG: alert when load_game finishes
 	}
 	/// Deletes the game save, ie after dying or abandoning the game
-	pub fn delete_game(&mut self, filename: String) -> std::io::Result<()> {
+	pub fn delete_game(&mut self, filename: &str) -> std::io::Result<()> {
 		//debug!("* delete_game() called on {}", filename); // DEBUG: alert when delete_game is called
-		let filepath = bevy_save::get_save_file(&filename);
+		let filepath = bevy_save::get_save_file(filename);
 		std::fs::remove_file(filepath)
 	}
 	/// Puts the game into a PAUSED state
@@ -647,16 +647,16 @@ impl GameEngine<'_> {
 		let mut msglog = self.bevy.world.get_resource_mut::<MessageLog>().expect("MessageLog should be in Bevy");
 		match cmd {
 			PlanqCmd::Error(msg) => {
-				msglog.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[fg:red]]ERROR:".to_string());
-				msglog.tell_planq(format!("[[fg:yellow]]¶[[fg:gray]]│[[end]]{}", msg));
-				msglog.tell_planq(" ".to_string());
+				msglog.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[fg:red]]ERROR:");
+				msglog.tell_planq(format!("[[fg:yellow]]¶[[fg:gray]]│[[end]]{}", msg).as_str());
+				msglog.tell_planq(" ");
 			}
 			PlanqCmd::Help => {
-				msglog.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Available commands:".to_string());
+				msglog.tell_planq("[[fg:yellow]]¶[[fg:gray]]│[[end]]Available commands:");
 				for command in PlanqCmd::iter() {
-					msglog.tell_planq(format!("[[fg:yellow]]¶[[fg:gray]]│[[end]]  {}", command));
+					msglog.tell_planq(format!("[[fg:yellow]]¶[[fg:gray]]│[[end]]  {}", command).as_str());
 				}
-				msglog.tell_planq(" ".to_string());
+				msglog.tell_planq(" ");
 			}
 			PlanqCmd::Shutdown => { todo!(); /* trigger a shutdown */ }
 			PlanqCmd::Reboot => { todo!(); /* execute a reboot */ }

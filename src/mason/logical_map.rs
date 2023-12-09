@@ -76,9 +76,9 @@ impl SpawnTemplate {
 	}
 	/// Replaces the IDs in a SpawnTemplate with a single string; usually meant for single-item templates, but note that
 	/// this will work just the same on a template with multiple entity positions!
-	pub fn assign_name(&mut self, name: String) {
+	pub fn assign_name(&mut self, name: &str) {
 		for item in self.output.iter_mut() {
-			item.1 = name.clone();
+			item.1 = name.to_string();
 		}
 	}
 	/// Replaces the IDs in a SpawnTemplate with the item names in a RawItemSet's contents list
@@ -163,7 +163,7 @@ impl ShipGraph {
 		Successors { graph: self, current_door_index: first_outgoing_door }
 	}
 	/// Tests whether the specified Room is listed in the layout
-	pub fn contains(&self, target: String) -> Option<usize> {
+	pub fn contains(&self, target: &str) -> Option<usize> {
 		for (index, room) in self.rooms.iter().enumerate() {
 			if room.name == target {
 				return Some(index);
