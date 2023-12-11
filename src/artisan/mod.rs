@@ -72,8 +72,7 @@ use bevy_turborand::*;
 
 // ###: INTERNAL LIBRARIES
 use crate::components::*;
-use crate::engine::planq::*;
-use crate::worldmap::*;
+use crate::planq::*;
 use crate::mason::logical_map::SpawnTemplate;
 
 //  ###: COMPLEX TYPES
@@ -297,42 +296,6 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		if let Some(planq)    = self.planq { new_item.insert(planq); self.planq = None; }
 		if let Some(portable) = self.portable { new_item.insert(portable); self.portable = None; }
 		vec![(new_item, item_shape)]
-	}
-	/// Generates the list of decorative items that the worldgen will need to spawn
-	pub fn decorate(&mut self, worldmap: &WorldModel) -> Vec<Position> {
-		// Each placement entry MUST provide:
-		// - A defn for the item's Description component
-		// - A defn for the item's Body component
-		// Technically the ActionSet component is not required but leaving it out creates very boring objects
-		//let posns = Vec::new();
-		// Get the list of rooms we're going to decorate
-		let room_names = worldmap.get_room_name_list();
-		for name in room_names.iter() {
-			// Get the room's list of candidate items
-			// Each object defn must include:
-			// - Description: name, description
-			// - Body: at least one Position and ScreenCell pair
-			// [the ActionSet component will be automatically attached except in special cases]
-			// - An ItemPattern for the object, eg if it is furniture and needs some walkway margin
-			// - Any other additional components to be included
-			let max_count = 0; // ERROR: this will need to be assigned per-room later on
-			//let candidates = self.get_candidates(name);
-			// Generate placements for all mandatory objects
-			let mut generated_count = 0;
-			loop {
-				// Try to generate an item
-				// If successful, incremement generated_count
-				if generated_count >= max_count {
-					break;
-				}
-				generated_count += 1;
-			}
-			// Generate placements for any additional/optional objects
-			
-		}
-		// - Return the entire list of placements
-		//posns
-		todo!("Not done implementing this yet"); // TODO: finish implementing the decorate() method in artisan
 	}
 	/// Retrieves a random template from the set defined for a specified item
 	pub fn get_random_shape(&self, item_name: &str, rng: &mut GlobalRng) -> Option<SpawnTemplate> {

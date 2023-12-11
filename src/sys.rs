@@ -40,7 +40,8 @@ use crate::engine::event::*;
 use crate::engine::event::GameEventType::*;
 use crate::engine::event::ActionType::*;
 use crate::engine::messagelog::*;
-use crate::engine::planq::*;
+use crate::planq::*;
+use crate::planq::monitor::*;
 use crate::worldmap::*;
 
 // ###: CONTINUOUS SYSTEMS

@@ -618,13 +618,6 @@ pub enum Color {
 	LtCyan,   // 14
 	LtWhite   // 15
 }
-//   ##: Creature
-/// A convenient type that makes it clear whether we mean the Player entity or some other
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Creature {
-	Player,     // The player(s)
-	Zilch,      // Any non-player entity or character
-}
 //   ##: Direction
 /// The compass rose - note this is not a component...
 /// These are mapped to cardinals just for ease of comprehension

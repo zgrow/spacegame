@@ -34,7 +34,6 @@ pub mod event;
 pub mod handler;
 pub mod menu;
 pub mod messagelog;
-pub mod planq;
 pub mod tui;
 pub mod viewport;
 use crate::{
@@ -45,17 +44,19 @@ use crate::{
 		event::*,
 		menu::*,
 		messagelog::*,
-		planq::*,
 		viewport::Viewport,
 	},
-	worldmap::*,
 	mason::{
 		get_world_builder,
 		rexpaint_loader::load_rex_pgraph,
 		WorldBuilder,
 	},
+	planq::*,
+	planq::monitor::*,
+	planq::tui::*,
 	rex_assets::*,
-	sys::*
+	sys::*,
+	worldmap::*,
 };
 
 // ###: COMPLEX TYPES

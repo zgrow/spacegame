@@ -17,5 +17,7 @@ pub mod mason;
 pub mod rex_assets;
 // Collection of Systems for Bevy that aren't directly associated with a particular type
 pub mod sys;
+// Provide's the player's PLANQ
+pub mod planq;
 
 // EOF

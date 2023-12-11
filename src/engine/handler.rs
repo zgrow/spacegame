@@ -15,7 +15,7 @@ use crate::engine::*;
 use crate::engine::handler::ActionType::*;
 use crate::engine::event::*;
 use crate::engine::event::GameEventType::*;
-use crate::engine::planq::*;
+use crate::planq::*;
 //use crate::engine::planq::PlanqEventType::*;
 
 /// Parses the player inputs coming from ratatui and turns them into game logic
