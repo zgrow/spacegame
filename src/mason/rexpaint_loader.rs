@@ -10,7 +10,6 @@ use simplelog::*;
 //  ###: INTERNAL LIBRARIES
 use crate::worldmap::*;
 use crate::components::Position;
-use crate::artisan::ItemType;
 
 //  ###: TYPES
 pub struct XpFileParser {
@@ -80,7 +79,8 @@ impl Default for XpFileParser {
 
 //  ###: HELPERS
 /// Produces a Map object, complete with tilemap, from the specified REXPaint resource
-pub fn load_rex_map(xp_file: &XpFile) -> (WorldMap, Vec<(ItemType, Position)>) {
+//pub fn load_rex_map(xp_file: &XpFile) -> (WorldMap, Vec<(ItemType, Position)>) {
+pub fn load_rex_map(xp_file: &XpFile) -> (WorldMap, Vec<Position>) {
 	let mut new_width: usize = 1;
 	let mut new_height: usize = 1;
 	let mut layer_count = 0;
@@ -92,7 +92,7 @@ pub fn load_rex_map(xp_file: &XpFile) -> (WorldMap, Vec<(ItemType, Position)>) {
 	// WARN: We assume only ONE layer exists in the file!
 	assert!(layer_count == 1, "More than one layer detected in REXfile");
 	let mut map: WorldMap = WorldMap::new(new_width, new_height);
-	let mut enty_list = Vec::new();
+	let enty_list = Vec::new();
 	for layer in &xp_file.layers {
 		//debug!("- Loading map from rexfile"); //:DEBUG:
 		assert!(map.width == layer.width && map.height == layer.height, "REXfile dims mismatch");
@@ -112,7 +112,8 @@ pub fn load_rex_map(xp_file: &XpFile) -> (WorldMap, Vec<(ItemType, Position)>) {
 						60 => map.tiles[index] = Tile::new_stairway(),  // <    (Upward)
 						61 => {                                         // =    Door
 							//debug!("* found a DOOR: {}, {}", x, y); // DEBUG:
-							enty_list.push((ItemType::Door, Position::new(x as i32, y as i32, 0)));
+							// ItemType has been deprecated, this is an old method call
+							//enty_list.push((ItemType::Door, Position::new(x as i32, y as i32, 0)));
 							map.tiles[index] = Tile::new_floor()
 						},
 						62 => map.tiles[index] = Tile::new_stairway(),  // >    (Downward)

@@ -61,7 +61,6 @@ use std::fs::File;
 use std::io::BufReader;
 use serde::{Deserialize, Serialize};
 use bevy::prelude::{
-	Bundle,
 	Entity,
 	Reflect,
 	ReflectResource,
@@ -75,10 +74,7 @@ use bevy_turborand::*;
 use crate::components::*;
 use crate::engine::planq::*;
 use crate::worldmap::*;
-use furniture::Facade;
 use crate::mason::logical_map::SpawnTemplate;
-
-pub mod furniture;
 
 //  ###: COMPLEX TYPES
 //   ##: THE ITEM BUILDER
@@ -106,7 +102,6 @@ pub struct ItemBuilder {
 	open:     Option<Openable>,
 	portable: Option<Portable>,
 	planq:    Option<Planq>,
-	backdrop: Option<Facade>,
 	#[reflect(ignore)]
 	item_dict:     ItemDict,
 }
@@ -128,7 +123,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		//debug!("* ItemBuilder create() request: {}", new_item); // DEBUG: log item builder request
 		if let Some(item_data) = self.item_dict.furniture.iter().find(|x| x.name == new_item) {
 			self.desc = Some(Description::new().name(&item_data.name).desc(&item_data.desc));
-			//debug!("* recvd item_data.body: {:?}", item_data.body.clone()); // DEBUG: log new Body component
+			debug!("* recvd item_data.body: {:?}", item_data.body.clone()); // DEBUG: log new Body component
 			self.body = Some(Body::new_from_str(item_data.body.clone()));
 			if !item_data.extra.is_empty() {
 				// Parse and add any additional components that are in the item's definition
@@ -251,57 +246,6 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		 */
 		self
 	}
-	#[deprecated(note = "--> Switch to using ItemBuilder::create(str)")]
-	pub fn create_by_itemtype(&mut self, new_type: ItemType) -> &mut ItemBuilder {
-		match new_type {
-			ItemType::Simple    => {
-				self.desc = Some(Description::new().name(&format!("_simpleItem_{}", self.spawn_count)).desc("A simple Item."));
-				self.actions = Some(ActionSet::new());
-			}
-			ItemType::Thing     => {
-				self.desc = Some(Description::new().name(&format!("_thing_{}", self.spawn_count)).desc("A new Thing."));
-				self.actions = Some(ActionSet::new());
-				self.portable = Some(Portable::empty());
-			}
-			ItemType::Fixture   => {
-				self.desc = Some(Description::new().name(&format!("_fixture_{}", self.spawn_count)).desc("A plain Fixture."));
-				self.actions = Some(ActionSet::new());
-				self.obstruct = Some(Obstructive::default());
-				self.opaque = Some(Opaque::new(true));
-			}
-			ItemType::Furniture => {
-				self.desc = Some(Description::new().name(&format!("_furnish_{}", self.spawn_count)).desc("A piece of Furniture."));
-				self.actions = Some(ActionSet::new());
-				self.obstruct = Some(Obstructive::default());
-				self.opaque = Some(Opaque::new(true));
-			}
-			ItemType::Scenery   => {
-				self.backdrop = Some(Facade::default());
-				self.obstruct = Some(Obstructive::default());
-				self.opaque = Some(Opaque::new(true));
-			}
-			ItemType::Door      => {
-				self.desc = Some(Description::new().name(&format!("_door_{}", self.spawn_count)).desc("A regular Door."));
-				self.actions = Some(ActionSet::new());
-				self.obstruct = Some(Obstructive::default());
-				self.opaque = Some(Opaque::new(true));
-				self.open = Some(Openable::new(false, "▔", "█",));
-			}
-			ItemType::Snack     => {
-				self.desc = Some(Description::new().name(&format!("_snack_{}", self.spawn_count)).desc("A tasty Snack."));
-				self.actions = Some(ActionSet::new());
-				self.portable = Some(Portable::empty());
-			}
-			ItemType::Planq     => {
-				self.desc = Some(Description::new().name("PLANQ").desc("It's your PLANQ."));
-				self.actions = Some(ActionSet::new());
-				self.portable = Some(Portable::empty());
-				self.device = Some(Device::new(-1));
-				self.planq = Some(Planq::new());
-			}
-		}
-		self
-	}
 	/// Sets the item's position in the game world, given the ref_point to spawn it at
 	pub fn at(&mut self, posn: Position) -> &mut ItemBuilder {
 		if self.request_list.is_empty() {
@@ -341,7 +285,6 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 			new_item.insert(body.clone()); self.body = None;
 		}
 		if let Some(actions)  = &self.actions { new_item.insert(actions.clone()); self.actions = None; }
-		if let Some(backdrop) = self.backdrop { new_item.insert(backdrop); self.backdrop = None; }
 		if let Some(contain)  = &self.contain { new_item.insert(*contain); self.contain = None; }
 		if let Some(device)   = self.device { new_item.insert(device); self.device = None; }
 		if let Some(is_carried) = self.is_carried { new_item.insert(is_carried); self.is_carried = None; }
@@ -454,7 +397,6 @@ pub struct ItemData {
 	viewshed: Option<Viewshed>,
 	// These are just tags, all that is required is to create the component
 	access:   Option<AccessPort>,
-	backdrop: Option<Facade>,
 	contain:  Option<Container>,
 	carried:  Option<IsCarried>,
 	memory:   Option<Memory>,
@@ -535,55 +477,5 @@ pub fn load_furniture_defns(items_filename: &str, sets_filename: &str) -> ItemDi
 	// Now return the dict from this function (or put it where it needs to go)
 	new_dict
 }
-
-//  ###: OLD METHOD: predefined item types and bundles
-/// Defines the set of item types, which allow requests to be made for specific types of items at runtime
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-pub enum ItemType {
-	#[default]
-	Simple,  /// aka Item, name changed for better disambiguation
-	Thing,
-	Snack,
-	Fixture,
-	Furniture,
-	Scenery,
-	Door,
-	Planq,
-}
-/// Defines a baseline 'inanimate object' component bundle
-/// This is only useful on its own for defining pieces of scenery/backdrop, ie
-/// things that will not move, do not have interactions, and do not block movement or sight
-#[derive(Bundle)]
-pub struct Item {
-	pub desc:    Description,
-	pub actions: ActionSet,
-}
-/// Defines the class of objects that are generally smaller than the player/assumed to be Portable
-#[derive(Bundle)]
-pub struct Thing {
-	pub item:       Item,
-	pub portable:   Portable,
-}
-/// just a demo thing for now, might change later
-#[derive(Bundle)]
-pub struct Snack {
-	pub item:       Thing,
-//	pub consume:    Consumable,
-}
-/// Defines the class of objects that are generally larger than the player/assumed to Obstruct movement
-#[derive(Bundle)]
-pub struct Fixture {
-	pub item:       Item,
-	pub obstructs:  Obstructive,
-	pub opaque:     Opaque,
-}
-/// Defines the class of objects that allow/obstruct entity movement across a threshold
-#[derive(Bundle)]
-pub struct Door {
-	pub item:       Fixture,
-	pub door:       Openable,
-	pub lock:       Lockable,
-}
-
 
 // EOF

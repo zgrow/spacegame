@@ -50,10 +50,8 @@ use crate::{
 	},
 	worldmap::*,
 	mason::{
-		//get_map_builder,
 		get_world_builder,
 		rexpaint_loader::load_rex_pgraph,
-		//MapBuilder,
 		WorldBuilder,
 	},
 	rex_assets::*,

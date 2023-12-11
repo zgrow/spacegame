@@ -40,11 +40,6 @@ pub struct CameraView {
 	pub height: i32,
 	pub reticle: Position,
 	pub reticle_glyphs: String,
-	pub terrain: Vec<ScreenCell>, // The map of all the 'base' tiles, provides the 'fallback' minimum visual for rendering
-	pub scenery: Vec<ScreenCell>, // The map of all the scenery and furniture objects
-	pub actors: Vec<ScreenCell>, // The map of all the Actor glyphs
-	pub blinken: Vec<ScreenCell>, // The map of all the 'scenery' effects: glowing screens and other cycling animations
-	pub vfx: Vec<ScreenCell>, // The map of the special effects feedback visuals - short-term and incidental
 }
 impl CameraView {
 	pub fn new(new_width: i32, new_height: i32) -> Self {
@@ -54,11 +49,6 @@ impl CameraView {
 			height: new_height,
 			reticle: Position::INVALID,
 			reticle_glyphs: "⌟⌞⌝⌜".to_string(), // Corner frame
-			terrain: vec![ScreenCell::default(); (new_width * new_height) as usize],
-			scenery: vec![ScreenCell::default(); (new_width * new_height) as usize],
-			actors: vec![ScreenCell::default(); (new_width * new_height) as usize],
-			blinken: vec![ScreenCell::default(); (new_width * new_height) as usize],
-			vfx: vec![ScreenCell::default(); (new_width * new_height) as usize],
 		}
 		// Other options for reticles might include: (not all tested)
 		// The reticle glyph order is UL, UR, DL, DR
@@ -99,8 +89,20 @@ impl ScreenCell {
 	/// Creates a ScreenCell from an input string, formatted as "G f b m" where G is the display char,
 	/// f and b are the foreground and background colors,
 	/// and m is the set of text modifications to apply
-	pub fn new_from_str(input: Vec<&str>) -> ScreenCell {
-		//debug!("* new_from_str input: {:?}", input); // DEBUG: log the input
+	pub fn new_from_str(input: &str) -> ScreenCell {
+		debug!("* new_from_str input: {:?}", input); // DEBUG: log the input
+		let mut new_cell = ScreenCell::new();
+		let str_list: Vec<&str> = input.split(' ').collect();
+		new_cell.glyph = str_list[0].to_string();
+		new_cell.fg = COLOR_DICT[str_list[1]];
+		new_cell.bg = COLOR_DICT[str_list[2]];
+		new_cell.modifier = MODS_DICT[str_list[3]];
+		new_cell
+	}
+	/// Creates a ScreenCell from an input Vec of strings, such as might be obtained by collect()ing an
+	/// input vector after doing some parsing to it
+	pub fn new_from_str_vec(input: Vec<&str>) -> ScreenCell {
+		debug!("* new_from_str_vec input: {:?}", input); // DEBUG: log the input
 		let mut new_cell = ScreenCell::new();
 		new_cell.glyph = input[0].to_string();
 		new_cell.fg = COLOR_DICT[input[1]];
@@ -205,16 +207,6 @@ impl From<ScreenCell> for Cell { // Used for converting my custom ScreenCell obj
 		}
 	}
 }
-impl From<Tile> for ScreenCell { // Used for converting my custom Tile objects into renderable ScreenCells
-	fn from(input: Tile) -> Self {
-		ScreenCell {
-			glyph: input.glyph.clone(),
-			fg: input.fg,
-			bg: input.bg,
-			modifier: input.mods,
-		}
-	}
-}
 impl From<Vec<String>> for ScreenCell { // Input string should be formatted as "G f b m" where G is the display char and f,b,m are integers
 	fn from(input: Vec<String>) -> Self {
 		ScreenCell {
@@ -313,7 +305,7 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 								ScreenCell::placeholder()
 							}
 						} else { // There were no visible entities at the specified position, use a map tile instead
-							world_map.get_display_tile(map_posn).into()
+							world_map.get_display_tile(map_posn).cell
 						}
 					// Not the player, not visible, but has been seen by the player in the past: use the Memory component
 					} else if has_seen {
@@ -338,7 +330,7 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 									ScreenCell::placeholder()
 								}
 							} else { // [2]: Couldn't get a list -> there's no Entities there -> draw the map Tile instead
-								world_map.get_display_tile(map_posn).into()
+								world_map.get_display_tile(map_posn).cell
 							}
 						};
 						new_cell.fg = 8; // Set the foreground to dimmed
@@ -351,6 +343,7 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 					camera.output[scr_index] = ScreenCell::out_of_bounds(); // Painting this blank tile helps prevent artifacting
 			}
 			// Paint the targeting reticle onto the map if needed
+			/*
 			if camera.reticle != Position::INVALID {
 				// TODO: Add some logic that will detect other entity positions (such as the player!) and choose
 				//       a reticle shape that minimizes the number of entities who will be hidden by the points
@@ -364,6 +357,7 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 					match ret_chars.chars().count() {
 						3 => { todo!(); /* TODO: impl logic for 3-point reticles */ }
 						4 => {
+							/*
 							match index {
 								0 => {camera.blinken[ul_index].glyph = corner.to_string(); camera.blinken[ul_index].fg = 11; camera.blinken[ul_index].bg = 8;}
 								1 => {camera.blinken[ur_index].glyph = corner.to_string(); camera.blinken[ur_index].fg = 11; camera.blinken[ur_index].bg = 8;}
@@ -371,11 +365,12 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 								3 => {camera.blinken[dr_index].glyph = corner.to_string(); camera.blinken[dr_index].fg = 11; camera.blinken[dr_index].bg = 8;}
 								_ => { }
 							}
+							*/
 						}
 						_ => { }
 					}
 				}
-			}
+			}*/
 		}
 	}
 }
@@ -413,26 +408,27 @@ lazy_static::lazy_static! {
 }
 lazy_static::lazy_static! {
 /// Provides a dictionary of string modification name strings to their u16 equivalents for ratatui
-	static ref MODS_DICT: HashMap<&'static str, Modifier> = {
+	static ref MODS_DICT: HashMap<&'static str, u16> = {
 		let mut map = HashMap::new();
-		map.insert("bright", Modifier::BOLD);
-		map.insert("bold", Modifier::BOLD);
-		map.insert("dark", Modifier::DIM);
-		map.insert("dim", Modifier::DIM);
-		map.insert("reverse", Modifier::REVERSED);
-		map.insert("underline", Modifier::UNDERLINED);
-		map.insert("italic", Modifier::ITALIC);
-		map.insert("hidden", Modifier::HIDDEN);
-		map.insert("strikeout", Modifier::CROSSED_OUT);
-		map.insert("blink", Modifier::SLOW_BLINK);
-		map.insert("flash", Modifier::RAPID_BLINK);
+		map.insert("none", Modifier::empty().bits());
+		map.insert("bright", Modifier::BOLD.bits());
+		map.insert("bold", Modifier::BOLD.bits());
+		map.insert("dark", Modifier::DIM.bits());
+		map.insert("dim", Modifier::DIM.bits());
+		map.insert("reverse", Modifier::REVERSED.bits());
+		map.insert("underline", Modifier::UNDERLINED.bits());
+		map.insert("italic", Modifier::ITALIC.bits());
+		map.insert("hidden", Modifier::HIDDEN.bits());
+		map.insert("strikeout", Modifier::CROSSED_OUT.bits());
+		map.insert("blink", Modifier::SLOW_BLINK.bits());
+		map.insert("flash", Modifier::RAPID_BLINK.bits());
 		map
 	};
 }
 /// Parses a string of Modifier types into a single Modifier object
-pub fn parse_mods(input: &str) -> Modifier {
+pub fn parse_mods(input: &str) -> u16 {
 	let tokens: Vec<&str> = input.split(' ').collect();
-	let mut modifier = Modifier::empty();
+	let mut modifier: u16 = 0;
 	for string in tokens {
 		modifier |= MODS_DICT[string];
 	}

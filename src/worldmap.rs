@@ -17,6 +17,7 @@ use bevy_turborand::*;
 
 // ###: INTERNAL LIBS
 use crate::components::*;
+use crate::camera::*;
 use crate::mason::logical_map::*;
 
 // ###: CONSTANTS
@@ -263,10 +264,7 @@ impl BaseMap for WorldMap {
 pub struct Tile {
 	pub ttype: TileType,
 	contents: Vec<(i32, Entity)>, // Implemented as a stack with sorting on the first value of the tuple
-	pub glyph: String,
-	pub fg: u8, // Corresponds to indexed colors, ie the ANSI 0-15 basic set
-	pub bg: u8, // Same as fg
-	pub mods: u16, // Corresponds to ratatui's Modifier type; use Modifier::bits()/to_bits() for conversion
+	pub cell: ScreenCell,
 }
 impl Tile {
 	pub fn tiletype(mut self, new_type: TileType) -> Self {
@@ -274,16 +272,16 @@ impl Tile {
 		self
 	}
 	pub fn glyph(mut self, new_glyph: &str) -> Self {
-		self.glyph = new_glyph.to_string();
+		self.cell.glyph = new_glyph.to_string();
 		self
 	}
 	pub fn colors(mut self, new_fg: u8, new_bg: u8) -> Self {
-		self.fg = new_fg;
-		self.bg = new_bg;
+		self.cell.fg = new_fg;
+		self.cell.bg = new_bg;
 		self
 	}
 	pub fn mods(mut self, new_mods: u16) -> Self {
-		self.mods = new_mods;
+		self.cell.modifier = new_mods;
 		self
 	}
 	/// Adds an entity to this Tile's list of contents
@@ -336,10 +334,7 @@ impl Tile {
 		Tile {
 			ttype: TileType::Vacuum,
 			contents: Vec::new(),
-			glyph: "★".to_string(),
-			fg: 8,
-			bg: 0,
-			mods: 0,
+			cell: ScreenCell::new_from_str("★ grey black none"),
 		}
 	}
 	/// Produces a default 'floor' tile
@@ -347,10 +342,7 @@ impl Tile {
 		Tile {
 			ttype: TileType::Floor,
 			contents: Vec::new(),
-			glyph: ".".to_string(),
-			fg: 8,
-			bg: 0,
-			mods: 0,
+			cell: ScreenCell::new_from_str(". grey black none"),
 		}
 	}
 	/// Produces a default 'wall' tile
@@ -358,10 +350,7 @@ impl Tile {
 		Tile {
 			ttype: TileType::Wall,
 			contents: Vec::new(),
-			glyph: "╳".to_string(),
-			fg: 7,
-			bg: 0,
-			mods: 0,
+			cell: ScreenCell::new_from_str("╳ white black none"),
 		}
 	}
 	/// Produces a default 'stairway' tile
@@ -369,10 +358,7 @@ impl Tile {
 		Tile {
 			ttype: TileType::Stairway,
 			contents: Vec::new(),
-			glyph: "∑".to_string(),
-			fg: 5,
-			bg: 0,
-			mods: 0,
+			cell: ScreenCell::new_from_str("∑ white black none"),
 		}
 	}
 }

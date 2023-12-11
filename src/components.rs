@@ -207,7 +207,8 @@ impl Body {
 			if let Some(posn) = body_parts.next() {
 				posns.push(posn.into());
 			}
-			cells.push(ScreenCell::new_from_str(body_parts.collect()));
+			//cells.push(ScreenCell::new_from_str(&body_parts.collect::<Vec<&str>>().join(" "))); // HINT: rejoins back into string
+			cells.push(ScreenCell::new_from_str_vec(body_parts.collect()));
 		}
 		Body::large(posns, cells)
 	}
