@@ -18,7 +18,7 @@ use bevy::prelude::{
 	Without,
 };
 use bracket_geometry::prelude::*;
-use ratatui::style::Color;
+use ratatui::style::Color as RatatuiColor;
 use ratatui::buffer::Cell;
 use ratatui::style::Modifier;
 use simplelog::*;
@@ -26,6 +26,7 @@ use simplelog::*;
 // ###: INTERNAL LIBS
 use crate::components::*;
 use crate::worldmap::*;
+use crate::components::Color;
 
 //  ###: MAIN CLASSES
 //   ##: CameraView
@@ -94,8 +95,8 @@ impl ScreenCell {
 		let mut new_cell = ScreenCell::new();
 		let str_list: Vec<&str> = input.split(' ').collect();
 		new_cell.glyph = str_list[0].to_string();
-		new_cell.fg = COLOR_DICT[str_list[1]];
-		new_cell.bg = COLOR_DICT[str_list[2]];
+		new_cell.fg = COLOR_DICT[str_list[1]] as u8;
+		new_cell.bg = COLOR_DICT[str_list[2]] as u8;
 		new_cell.modifier = MODS_DICT[str_list[3]];
 		new_cell
 	}
@@ -105,15 +106,15 @@ impl ScreenCell {
 		debug!("* new_from_str_vec input: {:?}", input); // DEBUG: log the input
 		let mut new_cell = ScreenCell::new();
 		new_cell.glyph = input[0].to_string();
-		new_cell.fg = COLOR_DICT[input[1]];
-		new_cell.bg = COLOR_DICT[input[2]];
+		new_cell.fg = COLOR_DICT[input[1]] as u8;
+		new_cell.bg = COLOR_DICT[input[2]] as u8;
 		new_cell
 	}
-	pub fn create(new_glyph: &str, new_fg: u8, new_bg: u8, mods: u16) -> ScreenCell {
+	pub fn create(new_glyph: &str, new_fg: Color, new_bg: Color, mods: u16) -> ScreenCell {
 		ScreenCell {
 			glyph: new_glyph.to_string(),
-			fg: new_fg,
-			bg: new_bg,
+			fg: new_fg as u8,
+			bg: new_bg as u8,
 			modifier: mods,
 		}
 	}
@@ -124,12 +125,12 @@ impl ScreenCell {
 		self.glyph = new_glyph.to_string();
 		self
 	}
-	pub fn fg(mut self, new_color: u8) -> Self {
-		self.fg = new_color;
+	pub fn fg(mut self, new_color: Color) -> Self {
+		self.fg = new_color as u8;
 		self
 	}
-	pub fn bg(mut self, new_color: u8) -> Self {
-		self.bg = new_color;
+	pub fn bg(mut self, new_color: Color) -> Self {
+		self.bg = new_color as u8;
 		self
 	}
 	pub fn modifier(mut self, new_mod: u16) -> Self {
@@ -200,29 +201,49 @@ impl From<ScreenCell> for Cell { // Used for converting my custom ScreenCell obj
 	fn from(input: ScreenCell) -> Self {
 		Cell {
 			symbol: input.glyph.clone(),
-			fg: Color::Indexed(input.fg),
-			bg: Color::Indexed(input.bg),
-			underline_color: Color::LightMagenta, // DEBUG: This is intentionally set to a trash color as I do not plan to make use of it at this time
+			fg: RatatuiColor::Indexed(input.fg),
+			bg: RatatuiColor::Indexed(input.bg),
+			underline_color: RatatuiColor::LightMagenta, // DEBUG: This is intentionally set to a trash color as I do not plan to make use of it at this time
 			modifier: Modifier::from_bits(input.modifier).unwrap_or(Modifier::empty()),
 		}
 	}
 }
 impl From<Vec<String>> for ScreenCell { // Input string should be formatted as "G f b m" where G is the display char and f,b,m are integers
 	fn from(input: Vec<String>) -> Self {
+		let fg_color = if let Ok(color) = input[1].parse::<u8>() {
+			color
+		} else { // try the color dict
+			COLOR_DICT[input[1].as_str()] as u8
+		};
+		let bg_color = if let Ok(color) = input[2].parse::<u8>() {
+			color
+		} else {
+			COLOR_DICT[input[2].as_str()] as u8
+		};
 		ScreenCell {
 			glyph: input[0].clone(),
-			fg: input[1].parse::<u8>().unwrap_or(0),
-			bg: input[2].parse::<u8>().unwrap_or(0),
+			fg: fg_color,
+			bg: bg_color,
 			modifier: input[3].parse::<u16>().unwrap_or(0)
 		}
 	}
 }
 impl From<Vec<&str>> for ScreenCell { // Input string should be formatted as "G f b m" where G is the display char and f,b,m are integers
 	fn from(input: Vec<&str>) -> Self {
+		let fg_color = if let Ok(color) = input[1].parse::<u8>() {
+			color
+		} else { // try the color dict
+			COLOR_DICT[input[1]] as u8
+		};
+		let bg_color = if let Ok(color) = input[2].parse::<u8>() {
+			color
+		} else {
+			COLOR_DICT[input[2]] as u8
+		};
 		ScreenCell {
 			glyph: input[0].to_string(),
-			fg: input[1].parse::<u8>().unwrap_or(0),
-			bg: input[2].parse::<u8>().unwrap_or(0),
+			fg: fg_color,
+			bg: bg_color,
 			modifier: input[3].parse::<u16>().unwrap_or(0)
 		}
 	}
@@ -381,28 +402,28 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 extern crate lazy_static;
 use std::collections::HashMap;
 lazy_static::lazy_static! {
-/// Provides a dictionary of color name strings to their u8 equivalents for ratatui
-	static ref COLOR_DICT: HashMap<&'static str, u8> = {
+/// Provides a dictionary of color name strings to my Color (which has u8 equivalents for ratatui)
+	static ref COLOR_DICT: HashMap<&'static str, Color> = {
 		let mut map = HashMap::new();
-		map.insert("black", 0);
-		map.insert("red", 1);
-		map.insert("green", 2);
-		map.insert("orange", 3);
-		map.insert("blue", 4);
-		map.insert("purple", 5);
-		map.insert("cyan", 6);
-		map.insert("white", 7);
-		map.insert("grey", 8);
-		map.insert("gray", 8);
-		map.insert("ltblack", 8);
-		map.insert("ltred", 9);
-		map.insert("ltgreen", 10);
-		map.insert("yellow", 11);
-		map.insert("ltblue", 12);
-		map.insert("pink", 13);
-		map.insert("ltpurple", 13);
-		map.insert("ltcyan", 14);
-		map.insert("ltwhite", 15);
+		map.insert("black", Color::Black);
+		map.insert("red", Color::Red);
+		map.insert("green", Color::Green);
+		map.insert("orange", Color::Yellow);
+		map.insert("blue", Color::Blue);
+		map.insert("purple", Color::Pink);
+		map.insert("cyan", Color::Cyan);
+		map.insert("white", Color::White);
+		map.insert("grey", Color::LtBlack);
+		map.insert("gray", Color::LtBlack);
+		map.insert("ltblack", Color::LtBlack);
+		map.insert("ltred", Color::LtRed);
+		map.insert("ltgreen", Color::LtGreen);
+		map.insert("yellow", Color::LtYellow);
+		map.insert("ltblue", Color::LtBlue);
+		map.insert("pink", Color::LtPink);
+		map.insert("ltpurple", Color::LtPink);
+		map.insert("ltcyan", Color::LtCyan);
+		map.insert("ltwhite", Color::LtWhite);
 		map
 	};
 }

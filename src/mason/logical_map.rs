@@ -496,7 +496,7 @@ pub enum CellType {
 	Margin, // A Cell that must remain Open, ie cannot have an occupant
 }
 //   ##: RoomIndex, DoorIndex
-/// Simple enum wrappers to provide some type guarantees for these classes
+/// Simple type aliases to provide some type guarantees for these classes
 pub type RoomIndex = usize; // An index to a GraphRoom
 pub type DoorIndex = usize; // An index to a GraphDoor
 

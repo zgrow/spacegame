@@ -5,6 +5,7 @@
  *   AccessPort - "accessport"
  *   ActionSet - "actionset"
  *     actions: HashSet<ActionType>
+ *     outdated: bool
  *   Body - "body NNN"
  *     ref_posn: Position
  *     extent: Vec<Glyph>
@@ -27,7 +28,7 @@
  *   LMR - "lmr"
  *   Lockable - "lockable state key_id"
  *     is_locked: bool
- *     key: i32
+ *     key_id: i32
  *   Memory - "memory"
  *     visual: HashMap<Position, Vec<Entity>>
  *   Mobile - "mobile"
@@ -55,20 +56,22 @@
  *     height: i32
  *     reticle: Position
  *     reticle_glyphs: String
- *     terrain: Vec<ScreenCell>
- *     scenery: Vec<ScreenCell>
- *     actors: Vec<ScreenCell>
- *     blinken: Vec<ScreenCell>
- *     vfx: Vec<ScreenCell>
+ *   ScreenCell
+ *     glyph: String
+ *     fg: u8
+ *     bg: u8
+ *     modifier: u16
  */
-/* planq.rs
- *   DataSampleTimer - "datasampletimer"
- *     timer: Timer
- *     source: String
+/* planq/mod.rs
  *   Planq - "planq"
  *   PlanqProcess - "planqprocess"
  *     timer: Timer
  *     outcome: PlanqEvent
+ */
+/* planq/monitor.rs
+ *   DataSampleTimer - "datasampletimer"
+ *     timer: Timer
+ *     source: String
  */
 
 // ###: EXTERNAL LIBS
@@ -596,7 +599,8 @@ pub struct Obstructive { }
 //  ###: PRIMITIVES AND COMPUTED VALUES (ie no save/load)
 //   ##: Color
 /// A small type that lets us specify friendly names for colors instead of using ints everywhere
-/// Because none of these carry any data, they can be cast to numeric types directly
+/// Because none of these carry any data, and because Rust implicitly zero-indexes them, they can be cast
+/// directly to numeric types using the "as" keyword: "my_color_var as u8"
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 pub enum Color {
 	// These are arranged in order of their ANSI index

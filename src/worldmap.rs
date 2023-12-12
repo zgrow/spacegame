@@ -17,6 +17,7 @@ use bevy_turborand::*;
 
 // ###: INTERNAL LIBS
 use crate::components::*;
+use crate::components::Color;
 use crate::camera::*;
 use crate::mason::logical_map::*;
 
@@ -275,16 +276,16 @@ impl Tile {
 		self.cell.glyph = new_glyph.to_string();
 		self
 	}
-	pub fn colors(mut self, new_fg: u8, new_bg: u8) -> Self {
-		self.cell.fg = new_fg;
-		self.cell.bg = new_bg;
+	pub fn colors(mut self, new_fg: Color, new_bg: Color) -> Self {
+		self.cell.fg = new_fg as u8;
+		self.cell.bg = new_bg as u8;
 		self
 	}
 	pub fn mods(mut self, new_mods: u16) -> Self {
 		self.cell.modifier = new_mods;
 		self
 	}
-	/// Adds an entity to this Tile's list of contents
+	/// Adds one or more Entities to this Tile's list of contents
 	pub fn add_to_contents(&mut self, new_item: (i32, Entity)) {
 		// Always make sure there's at least a dummy Entity in the list, this could probably be more clever
 		//if self.contents.is_empty() {
