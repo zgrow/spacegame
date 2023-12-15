@@ -82,6 +82,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 							key: keycode_to_input_key(the_input),
 							ctrl: false, // FIXME: probably want to detect this
 							alt: false, // FIXME: probably want to detect this
+							shift: false, // FIXME: probably want to detect this
 						}
 					);
 					//debug!("* lines: {}", eng.planq_stdin.input.lines()[0]); // DEBUG: log the output

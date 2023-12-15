@@ -377,6 +377,7 @@ impl Viewshed {
 #[derive(Component, Clone, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct Memory {
+	#[reflect(ignore)]
 	pub visual: HashMap<Position, Vec<Entity>>,
 }
 impl Memory {

@@ -205,6 +205,7 @@ impl From<ScreenCell> for Cell { // Used for converting my custom ScreenCell obj
 			bg: RatatuiColor::Indexed(input.bg),
 			underline_color: RatatuiColor::LightMagenta, // DEBUG: This is intentionally set to a trash color as I do not plan to make use of it at this time
 			modifier: Modifier::from_bits(input.modifier).unwrap_or(Modifier::empty()),
+			skip: false,
 		}
 	}
 }

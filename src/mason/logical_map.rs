@@ -247,6 +247,7 @@ pub struct GraphRoom {
 	// *** my new properties
 	// This HashMap structure was developed before I had the Glyph structure created; technically it's plausible
 	// to replace this with a Vec<Glyph> but I'm choosing not to since this isn't even broken
+	#[reflect(ignore)]
 	pub new_interior: HashMap<Position, CellType>,
 	pub centerpoint: Position, // We prefer centerpoint over corner so that we can discern relative spatial locations
 	pub ul_corner: Position,
