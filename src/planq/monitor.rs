@@ -5,6 +5,7 @@
 use std::collections::VecDeque;
 use bevy::prelude::*;
 use bevy_turborand::{DelegatedRng, GlobalRng};
+use bevy::utils::HashMap;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
 use ratatui::widgets::*;

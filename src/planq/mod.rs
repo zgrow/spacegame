@@ -7,7 +7,8 @@
 use bevy::{
 	prelude::*,
 	ecs::query::*,
-	utils::*,
+	//utils::*,
+	utils::Duration,
 };
 use ratatui::prelude::*;
 use ratatui::layout::Rect;
@@ -50,7 +51,7 @@ pub fn planq_update_system(mut commands: Commands,
 	let (q_enty, q_device, q_portable) = if let Ok(value) = q_query.get_single_mut() { value } else { return };
 	// Handle any new GameEvents we're interested in
 	if !ereader.is_empty() {
-		for event in ereader.iter() {
+		for event in ereader.read() {
 			let atype;
 			if let GameEventType::PlayerAction(action) = event.etype {
 				atype = action;
@@ -87,7 +88,7 @@ pub fn planq_update_system(mut commands: Commands,
 	}
 	// Handle all new PlanqEvents
 	if !preader.is_empty() {
-		for event in preader.iter() {
+		for event in preader.read() {
 			match event.etype {
 				// PLANQ system commands
 				PlanqEventType::NullEvent      => { /* do nothing */ }

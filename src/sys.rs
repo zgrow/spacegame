@@ -57,7 +57,7 @@ pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
 	//   Assign the planq's jack connection to the target entity,
 	//   Send a feedback message to the player to inform them of the change,
 	//   Send an appropriate PLANQ event to the queue
-	for event in ereader.iter() {
+	for event in ereader.read() {
 		match event.etype {
 			GameEventType::PlanqConnect(Entity::PLACEHOLDER) => {
 				planq.jack_cnxn = Entity::PLACEHOLDER;
@@ -140,7 +140,7 @@ pub fn examination_system(mut ereader:  EventReader<GameEvent>,
 	//   Get the target's description,
 	//   Show the description to the player
 	if ereader.is_empty() { return; }
-	for event in ereader.iter() {
+	for event in ereader.read() {
 		if event.etype != PlayerAction(ActionType::Examine) { continue; }
 		if let Some(econtext) = event.context.as_ref() {
 			if econtext.object == Entity::PLACEHOLDER {
@@ -166,7 +166,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 ) {
 	// Don't even bother trying if there's no events to worry about
 	if ereader.is_empty() { return; }
-	for event in ereader.iter() {
+	for event in ereader.read() {
 		// Skip any events with the wrong type by filtering on the event's type's action's type
 		let atype: ActionType;
 		match event.etype {
@@ -239,7 +239,7 @@ pub fn lockable_system(mut _commands:    Commands,
 ) {
 	// Bail out if there's no events or the wrong type
 	if ereader.is_empty() { return; }
-	for event in ereader.iter() {
+	for event in ereader.read() {
 		let mut atype = ActionType::NoAction;
 		if let PlayerAction(action) | ActorAction(action) = event.etype {
 			if action != LockItem && action != UnlockItem {
@@ -327,7 +327,7 @@ pub fn movement_system(mut ereader:     EventReader<GameEvent>,
 	                     mut e_query:     Query<(Entity, &mut Description, &mut Body, Option<&mut Viewshed>, Option<&Player>)>
 ) {
 	if ereader.is_empty() { return; } // Don't even bother trying if there's no events to worry about
-	for event in ereader.iter() {
+	for event in ereader.read() {
 		// Only process the event if it's an ____Action(MoveTo(dir)) type
 		if let PlayerAction(atype) | ActorAction(atype) = event.etype {
 			if let MoveTo(dir) = atype {
@@ -481,7 +481,7 @@ pub fn openable_system(mut commands:    Commands,
 ) {
 	// Bail out if no events or wrong type
 	if ereader.is_empty() { return; }
-	for event in ereader.iter() {
+	for event in ereader.read() {
 		let mut atype = ActionType::NoAction;
 		if let PlayerAction(action) | ActorAction(action) = event.etype {
 			if action != OpenItem && action != CloseItem {
@@ -554,7 +554,7 @@ pub fn operable_system(mut ereader: EventReader<GameEvent>,
                        mut d_query: Query<(Entity, &Description, &mut Device)>,
 ) {
 	if ereader.is_empty() { return; }
-	for event in ereader.iter() {
+	for event in ereader.read() {
 		if let PlayerAction(action) | ActorAction(action) = event.etype {
 			if action != UseItem {
 				continue;

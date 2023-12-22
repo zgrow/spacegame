@@ -295,7 +295,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		if let Some(open)     = &self.open { new_item.insert(open.clone()); self.open = None; }
 		if let Some(planq)    = self.planq { new_item.insert(planq); self.planq = None; }
 		if let Some(portable) = self.portable { new_item.insert(portable); self.portable = None; }
-		vec![(new_item, item_shape)]
+		vec![(new_item.into(), item_shape)]
 	}
 	/// Retrieves a random template from the set defined for a specified item
 	pub fn get_random_shape(&self, item_name: &str, rng: &mut GlobalRng) -> Option<SpawnTemplate> {

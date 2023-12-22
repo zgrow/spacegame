@@ -91,7 +91,7 @@ impl ScreenCell {
 	/// f and b are the foreground and background colors,
 	/// and m is the set of text modifications to apply
 	pub fn new_from_str(input: &str) -> ScreenCell {
-		debug!("* new_from_str input: {:?}", input); // DEBUG: log the input
+		//debug!("* new_from_str input: {:?}", input); // DEBUG: log the input
 		let mut new_cell = ScreenCell::new();
 		let str_list: Vec<&str> = input.split(' ').collect();
 		new_cell.glyph = str_list[0].to_string();
@@ -103,7 +103,7 @@ impl ScreenCell {
 	/// Creates a ScreenCell from an input Vec of strings, such as might be obtained by collect()ing an
 	/// input vector after doing some parsing to it
 	pub fn new_from_str_vec(input: Vec<&str>) -> ScreenCell {
-		debug!("* new_from_str_vec input: {:?}", input); // DEBUG: log the input
+		//debug!("* new_from_str_vec input: {:?}", input); // DEBUG: log the input
 		let mut new_cell = ScreenCell::new();
 		new_cell.glyph = input[0].to_string();
 		new_cell.fg = COLOR_DICT[input[1]] as u8;
