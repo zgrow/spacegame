@@ -4,13 +4,14 @@
 // ###: EXTERNAL LIBS
 use std::borrow::Cow;
 use std::error;
+use std::path::{Path, PathBuf};
 use bevy::{
 	prelude::*,
-	utils::*,
+	utils::{HashMap, HashSet},
 };
-use bevy_save::prelude::*;
 use bevy_turborand::prelude::*;
 use bracket_rex::prelude::*;
+use moonshine_save::prelude::*;
 use ratatui::{
 	prelude::*,
 	Frame,
@@ -44,6 +45,7 @@ use crate::{
 	},
 	mason::{
 		get_world_builder,
+		logical_map::*,
 		rexpaint_loader::load_rex_pgraph,
 		WorldBuilder,
 	},
@@ -100,7 +102,7 @@ impl GameEngine<'_> {
 			planq_stdin: PlanqInput::new(),
 		};
 		new_eng.planq_stdin.input.set_cursor_line_style(Style::default().fg(Color::Yellow).bg(Color::Black));
-		new_eng.bevy.add_plugins(MinimalPlugins).add_plugins(SavePlugins);
+		new_eng.bevy.add_plugins(MinimalPlugins).add_plugins((SavePlugin, LoadPlugin));
 		new_eng
 	}
 	/// Runs a single update cycle of the GameEngine
@@ -124,6 +126,23 @@ impl GameEngine<'_> {
 	 */
 		// This is where I'd pull any mode changes that might have happened during the last Bevy update and apply them
 		//if settings.mode_changed { ... }
+		// If the game is supposed to shut down, then do so
+		if let Some(quit_event) = self.bevy.world.get_resource::<Events<QuitRequest>>() {
+			if !quit_event.is_empty() {
+				debug!("* detected QuitRequest via tick()");
+				self.set_mode(EngineMode::Offline);
+			}
+		}
+		// If the game was just restarted, then invoke the startup sequence
+		if let Some(start_event) = self.bevy.world.get_resource::<Events<StartRequest>>() {
+			if !start_event.is_empty() {
+				debug!("* detected StartRequest via tick()");
+				self.bevy.update();
+				self.standby = false;
+				self.running = true;
+				self.set_mode(EngineMode::Running);
+			}
+		}
 		// If there are any menu events, handle them
 		for event in self.menu_main.drain_events() {
 			// NOTE: if the user selects a submenu heading as their choice, *nothing* will be generated; the menu will just close
@@ -131,8 +150,14 @@ impl GameEngine<'_> {
 			match event {
 				MenuEvent::Selected(item) => match item.as_ref() {
 					"main.new_game"  => { self.new_game(); }
-					"main.load_game" => { self.load_game(&self.savegame_filename.clone()); }
-					"main.save_game" => { self.save_game(&self.savegame_filename.clone()); }
+					"main.load_game" => {
+						debug!("* Now sending LoadRequest");
+						self.bevy.world.send_event(LoadRequest{ path: self.savegame_filename.clone().into() });
+					}
+					"main.save_game" => {
+						debug!("* Now sending SaveRequest");
+						self.bevy.world.send_event(SaveRequest{ path: self.savegame_filename.clone().into() });
+					}
 					"main.abandon_game" => {
 						info!("* Deleting savegame at {} and shutting down...", self.savegame_filename.clone()); // DEBUG: announce game abandon
 						let _ = self.delete_game(&self.savegame_filename.clone()); // WARN: may want to trap this error?
@@ -338,11 +363,11 @@ impl GameEngine<'_> {
 		if m_type == MenuType::Main {
 			let mut menu_items: Vec<MenuItem<Cow<'_, str>>> = Vec::new();
 			menu_items.push(MenuItem::item("New Game", "main.new_game".into(), None));
-			let filepath = bevy_save::get_save_file(&self.savegame_filename);
 			if !self.standby {
 				menu_items.push(MenuItem::item("Save Game", "main.save_game".into(), None));
 			}
-			if std::fs::metadata(filepath).is_ok() {
+			//let filepath = bevy_save::get_save_file(&self.savegame_filename);
+			if std::fs::metadata(Path::new(&self.savegame_filename)).is_ok() {
 				menu_items.push(MenuItem::item("Load Game", "main.load_game".into(), None));
 			}
 			if !self.standby {
@@ -384,50 +409,13 @@ impl GameEngine<'_> {
 		self.standby = true;
 		self.set_mode(EngineMode::Standby);
 		self.bevy = App::new();
-		self.bevy.add_plugins(MinimalPlugins).add_plugins(SavePlugins);
-	}
-	/// Saves the currently-running game to an external file
-	//  INFO: By default (not sure how to change this!), on Linux, this savegame will be at
-	//      ~/.local/share/spacegame/saves/FILENAME.sav
-	pub fn save_game(&mut self, filename: &str) {
-		//debug!("* save_game() called on {}", filename); // DEBUG: alert when save_game is called
-		if let Err(e) = self.bevy.world.save(filename) {
-			error!("! ! save_game() failed on '{}', error: {}", filename, e); // DEBUG: warn about save game error
-			return;
-		}
-		self.quit();
-	}
-	/// Loads a saved game from the given external file
-	pub fn load_game(&mut self, filename: &str) {
-		//debug!("* load_game() called on {} ({})", filename, self.standby); // DEBUG: alert when load_game is called
-		if !self.standby {
-			warn!("* ! game is in progress!"); // DEBUG: warn about running game
-			self.halt_game();
-			self.standby = true;
-			self.running = false;
-		}
-		self.init_bevy();
-		match self.bevy.world.load_applier(filename) {
-			Ok(applier) => {
-				if let Err(f) = applier.despawn(DespawnMode::Unmapped).apply() {
-					error!( "! ERR: load_game() failed to apply the EntityMap, error: {}", f); // DEBUG: warn about loading error
-				}
-			}
-			Err(e) => {
-				error!("! ERR: load_game() failed on '{}', error: {}", filename, e); // DEBUG: warn about loading error
-			}
-		}
-		self.bevy.update();
-		self.standby = false;
-		self.running = true;
-		self.set_mode(EngineMode::Running);
-		//debug!("* load_game() finished successfully"); // DEBUG: alert when load_game finishes
+		self.bevy.add_plugins(MinimalPlugins).add_plugins((SavePlugin, LoadPlugin));
 	}
 	/// Deletes the game save, ie after dying or abandoning the game
 	pub fn delete_game(&mut self, filename: &str) -> std::io::Result<()> {
 		//debug!("* delete_game() called on {}", filename); // DEBUG: alert when delete_game is called
-		let filepath = bevy_save::get_save_file(filename);
-		std::fs::remove_file(filepath)
+		//let filepath = bevy_save::get_save_file(filename);
+		std::fs::remove_file(Path::new(filename))
 	}
 	/// Puts the game into a PAUSED state
 	pub fn pause_game(&mut self) {
@@ -454,9 +442,21 @@ impl GameEngine<'_> {
 		self.bevy
 		.add_plugins(RngPlugin::default()) // Non-deterministic RNG
 		//.add_plugins(RngPlugin::new().with_rng_seed(69420)) // Forces the RNG to be deterministic
+		.add_systems(PreUpdate, (raise_quit_event_after_saving_game.in_set(SaveSet::PostSave),
+			                       raise_start_event_after_loading_game.in_set(LoadSet::PostLoad),
+			                       load_from_file_on_event::<LoadRequest>(),
+			                       save_default()
+			                         .include_resource::<CameraView>()
+			                         .include_resource::<MessageLog>()
+															 .include_resource::<PlanqData>()
+															 .include_resource::<PlanqMonitor>()
+			                         .include_resource::<Position>()
+			                         .include_resource::<WorldModel>()
+			                         .into_file_on_event::<SaveRequest>()
+		))
 		.add_systems(Startup, (new_player_spawn,
 			                     new_lmr_spawn,
-			                     ))
+		))
 		.add_systems(Update, (action_referee_system,
 			                    camera_update_system,
 			                    examination_system,
@@ -469,69 +469,92 @@ impl GameEngine<'_> {
 			                    planq_update_system,
 			                    planq_monitor_system,
 			                    visibility_system,
-			                    ))
-		.register_type::<(i32, i32, i32)>()
+		))
+		.add_event::<LoadRequest>()
+		.add_event::<QuitRequest>()
+		.add_event::<SaveRequest>()
+		.add_event::<StartRequest>()
+		.register_type::<AccessPort>()
+		.register_type::<ActionSet>()
+		.register_type::<ActionType>()
+		.register_type::<Body>()
+		.register_type::<CameraView>()
+		.register_type::<Container>()
+		.register_type::<DataSampleTimer>()
+		.register_type::<Description>()
+		.register_type::<Device>()
 		.register_type::<DeviceState>()
+		.register_type::<crate::components::Direction>()
+		.register_type::<EngineMode>()
+		.register_type::<GameEvent>()
+		.register_type::<GameEventContext>()
+		.register_type::<GameEventType>()
+		.register_type::<GlobalRng>()
+		.register_type::<Glyph>()
+		.register_type::<GraphCell>()
+		.register_type::<GraphDoor>()
+		.register_type::<GraphRoom>()
+		.register_type::<ItemBuilder>()
+		.register_type::<ItemRequest>()
+		.register_type::<Key>()
+		.register_type::<LMR>()
+		.register_type::<Lockable>()
+		.register_type::<Memory>()
+		.register_type::<Message>()
+		.register_type::<MessageChannel>()
+		.register_type::<MessageLog>()
+		.register_type::<Mobile>()
+		.register_type::<Networkable>()
+		.register_type::<Obstructive>()
+		.register_type::<Opaque>()
+		.register_type::<Openable>()
+		.register_type::<Planq>()
+		.register_type::<PlanqActionMode>()
+		.register_type::<PlanqCPUMode>()
+		.register_type::<PlanqData>()
 		.register_type::<PlanqDataType>()
 		.register_type::<PlanqEvent>()
 		.register_type::<PlanqEventType>()
+		.register_type::<PlanqMonitor>()
+		.register_type::<PlanqProcess>()
+		.register_type::<Player>()
+		.register_type::<Portable>()
 		.register_type::<Portal>()
 		.register_type::<Position>()
+		.register_type::<RngComponent>()
+		.register_type::<ScreenCell>()
+		.register_type::<ShipGraph>()
+		.register_type::<Tile>()
+		.register_type::<TileType>()
 		.register_type::<TimerMode>()
+		.register_type::<Viewshed>()
+		.register_type::<WorldMap>()
+		.register_type::<WorldModel>()
+		.register_type::<(i32, Entity)>()
+		.register_type::<(i32, i32, i32)>()
+		.register_type::<Option<usize>>()
+		.register_type::<HashSet<ActionType>>()
+		.register_type::<HashMap<(i32, i32, i32), (i32, i32, i32)>>()
+		.register_type::<HashMap<Entity, Position>>() // planned to be superceded by the below type
+		.register_type::<HashMap<Position, Position>>()
+		.register_type::<HashMap<Position, ScreenCell>>()
+		.register_type::<HashMap<Position, Vec<Entity>>>()
+		.register_type::<HashMap<String, PlanqDataType>>()
 		.register_type::<Vec<bool>>()
+		.register_type::<Vec<String>>()
 		.register_type::<Vec<Entity>>()
-		.register_type::<Vec<WorldMap>>()
+		.register_type::<Vec<Glyph>>()
+		.register_type::<Vec<GraphDoor>>()
+		.register_type::<Vec<GraphRoom>>()
 		.register_type::<Vec<Message>>()
 		.register_type::<Vec<MessageChannel>>()
 		.register_type::<Vec<Portal>>()
-		.register_type::<Vec<String>>()
-		.register_type::<Vec<TileType>>()
+		.register_type::<Vec<Position>>()
+		.register_type::<Vec<ScreenCell>>()
 		.register_type::<Vec<Tile>>()
-		.register_type::<HashMap<(i32, i32, i32), (i32, i32, i32)>>()
-		.register_type::<HashMap<Entity, Position>>() // planned to be superceded by the below type
-		.register_type::<HashMap<Position, Vec<Entity>>>()
-		.register_type::<HashMap<String, PlanqDataType>>()
-		.register_type::<HashMap<Position, ScreenCell>>()
-		.register_type::<bevy::utils::HashSet<ActionType>>()
-		.register_saveable::<AccessPort>()
-		.register_saveable::<ActionSet>()
-		.register_saveable::<CameraView>()
-		.register_saveable::<Container>()
-		.register_saveable::<DataSampleTimer>()
-		.register_saveable::<Description>()
-		.register_saveable::<Device>()
-		.register_saveable::<GameEvent>()
-		.register_saveable::<GameEventContext>()
-		.register_saveable::<GameEventType>()
-		.register_saveable::<GlobalRng>()
-		.register_saveable::<Key>()
-		.register_saveable::<LMR>()
-		.register_saveable::<Lockable>()
-		.register_saveable::<WorldMap>()
-		.register_saveable::<Memory>()
-		.register_saveable::<Message>()
-		.register_saveable::<MessageChannel>()
-		.register_saveable::<MessageLog>()
-		.register_saveable::<Mobile>()
-		.register_saveable::<WorldModel>()
-		.register_saveable::<Networkable>()
-		.register_saveable::<Obstructive>()
-		.register_saveable::<Opaque>()
-		.register_saveable::<Openable>()
-		.register_saveable::<Planq>()
-		.register_saveable::<PlanqActionMode>()
-		.register_saveable::<PlanqCPUMode>()
-		.register_saveable::<PlanqData>()
-		.register_saveable::<PlanqMonitor>()
-		.register_saveable::<PlanqProcess>()
-		.register_saveable::<Player>()
-		.register_saveable::<Portable>()
-		.register_saveable::<Position>()
-		.register_saveable::<RngComponent>()
-		.register_saveable::<Tile>()
-		.register_saveable::<TileType>()
-		.register_saveable::<bevy::utils::hashbrown::HashMap<Position, Position>>()
-		.register_saveable::<bevy::utils::hashbrown::HashSet<ActionType>>()
+		.register_type::<Vec<TileType>>()
+		.register_type::<Vec<WorldMap>>()
+		.register_type::<Vec<(i32, Entity)>>()
 		.insert_resource(Events::<GameEvent>::default())
 		.insert_resource(Events::<PlanqEvent>::default())
 		.insert_resource(MessageLog::new(chanlist))
@@ -663,6 +686,40 @@ impl GameEngine<'_> {
 	}
 }
 
+//  ###: ENGINE SYSTEMS
+/// Watches for a Resource of type Saved, and when found, emits a QuitRequest Event; set to run after moonshine's save system
+fn raise_quit_event_after_saving_game(mut quit_events: EventWriter<QuitRequest>,
+																			saved_data: Option<Res<Saved>>
+) {
+	debug!("* raise_quit_event_after... running");
+	if let Some(data) = saved_data {
+		if data.is_added() {
+			eprintln!("* Raising QuitRequest via raise_quit_event_after...");
+			quit_events.send(QuitRequest);
+		}
+	} else {
+		debug!("* Did not locate a Resource of type Saved");
+	}
+}
+/// Watches for a new Resource of type Loaded, and when found, emits a StartRequest Event; set to run after moonshine's load system
+fn raise_start_event_after_loading_game(mut start_events: EventWriter<StartRequest>,
+																				loaded_data: Option<Res<Loaded>>,
+																				mut model: ResMut<WorldModel>,
+																				b_query: Query<(Entity, &Body)>
+) {
+	debug!("* raise_start_event_after... running");
+	if let Some(data) = loaded_data {
+		if data.is_added() {
+			eprintln!("* A loaded game was detected, now starting");
+			let enty_body_map = b_query.iter().map(|pair| (pair.0, pair.1.extent.clone())).collect();
+			model.reload_tile_contents(data.entity_map.clone(), enty_body_map);
+			start_events.send(StartRequest);
+		}
+	} else {
+		debug!("* Did not find a Loaded resource");
+	}
+}
+
 //  ###: SIMPLE TYPES AND HELPERS
 //   ##: EngineMode
 /// Defines the set of modes that the GameEngine may run in during the course of the program
@@ -681,5 +738,33 @@ pub enum EngineMode {
 //   ##: AppResult
 /// Application result type, provides some nice handling if the game crashes
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
+//   ##: Request Events
+//  Defines a set of 'global' requests that can be made via Bevy's event system for certain operations
+//    #: LoadRequest
+#[derive(Event)]
+pub struct LoadRequest {
+	pub path: PathBuf
+}
+impl LoadFromFileRequest for LoadRequest {
+	fn path(&self) -> &Path {
+		self.path.as_ref()
+	}
+}
+//    #: QuitRequest
+#[derive(Event)]
+pub struct QuitRequest;
+//    #: SaveRequest
+#[derive(Event)]
+pub struct SaveRequest {
+	pub path: PathBuf
+}
+impl SaveIntoFileRequest for SaveRequest {
+	fn path(&self) -> &Path {
+		self.path.as_ref()
+	}
+}
+//    #: StartRequest
+#[derive(Event)]
+pub struct StartRequest;
 
 // EOF

@@ -25,6 +25,7 @@ use bevy::ecs::system::{
 use bevy::utils::{Duration, HashSet};
 use bevy_turborand::*;
 use bracket_pathfinding::prelude::*;
+use moonshine_save::prelude::*;
 use simplelog::*;
 
 // ###: INTERNAL LIBS
@@ -60,17 +61,19 @@ pub fn access_port_system(mut ereader:      EventReader<GameEvent>,
 	for event in ereader.read() {
 		match event.etype {
 			GameEventType::PlanqConnect(Entity::PLACEHOLDER) => {
-				planq.jack_cnxn = Entity::PLACEHOLDER;
-				if let Ok((_enty, object_name)) = a_query.get(planq.jack_cnxn) {
-					msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name).as_str());
-					preader.send(PlanqEvent::new(PlanqEventType::AccessUnlink))
-				}
+				// FIXME: Disabled pending fixes to jack_cnxn field
+				//planq.jack_cnxn = Entity::PLACEHOLDER;
+				//if let Ok((_enty, object_name)) = a_query.get(planq.jack_cnxn) {
+				//	msglog.tell_player(format!("The PLANQ's access jack unsnaps from the {}.", object_name).as_str());
+				//	preader.send(PlanqEvent::new(PlanqEventType::AccessUnlink))
+				//}
 			}
 			GameEventType::PlanqConnect(target) => {
 				if let Some(context) = event.context {
-					planq.jack_cnxn = context.object;
-					msglog.tell_player(format!("The PLANQ's access jack clicks into place on the {:?}.", target).as_str());
-					preader.send(PlanqEvent::new(PlanqEventType::AccessLink))
+					// FIXME: Disabled pending fixes to jack_cnxn field
+					//planq.jack_cnxn = context.object;
+					//msglog.tell_player(format!("The PLANQ's access jack clicks into place on the {:?}.", target).as_str());
+					//preader.send(PlanqEvent::new(PlanqEventType::AccessLink))
 				}
 			}
 			_ => { }
@@ -157,6 +160,7 @@ pub fn examination_system(mut ereader:  EventReader<GameEvent>,
 }
 /// Handles pickup/drop/destroy requests for Items
 pub fn item_collection_system(mut cmd:      Commands,
+															mut model:    ResMut<WorldModel>,
 	                            mut ereader:  EventReader<GameEvent>,
 	                            mut msglog:   ResMut<MessageLog>,
 	                            // The list of Entities that also have Containers
@@ -197,7 +201,8 @@ pub fn item_collection_system(mut cmd:      Commands,
 				// NOTE: the insert(Portable) call below will overwrite any previous instance of that component
 				cmd.entity(o_enty)
 				.insert(Portable{carrier: s_enty}) // put the container's ID to the target's Portable component
-				.insert(IsCarried::default()); // add the IsCarried tag to the component
+				.insert(IsCarried); // add the IsCarried tag to the component if it's not already
+				model.remove_contents(&o_body.posns(), o_enty); // If it was on the ground, remove it from tile contents
 				if is_player_action {
 					message = format!("Obtained a {}.", item_name);
 				} else {
@@ -210,6 +215,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 				.insert(Portable{carrier: Entity::PLACEHOLDER}) // still portable but not carried
 				.remove::<IsCarried>(); // remove the tag from the component
 				o_body.move_to(s_body.ref_posn);
+				model.add_contents(&o_body.posns(), 0, o_enty);
 				if is_player_action {
 					message = format!("Dropped a {}.", item_name);
 				} else {
@@ -218,6 +224,7 @@ pub fn item_collection_system(mut cmd:      Commands,
 			}
 			ActionType::KillItem => { // DESTROY an Item entirely, ie remove it from the game
 				//debug!("* KILLing item..."); // DEBUG: announce item destruction
+				model.remove_contents(&o_body.posns(), o_enty); // If it was on the ground, remove it from tile contents
 				cmd.entity(o_enty).despawn();
 			}
 			action => {
@@ -639,30 +646,35 @@ pub fn new_player_spawn(mut commands: Commands,
 		Player { },
 		ActionSet::new(),
 		Description::new().name("Pleyeur").desc("Still your old self."),
-		*spawnpoint,
 		Body::small(*spawnpoint, ScreenCell::new().glyph("@").fg(Color::LtBlue).bg(Color::Black)),
 		Viewshed::new(8),
-		Mobile::default(),
-		Obstructive::default(),
+		Mobile,
+		Obstructive,
 		Container::default(),
 		Memory::new(),
+		Save,
+		Unload,
 	)).id();
 	model.add_contents(&vec![*spawnpoint], 0, player);
 	//debug!("* new_player_spawn spawned @{spawnpoint:?}"); // DEBUG: print spawn location of new player
+	// FIXME: Setting a Position::INVALID seems to work fine for a single-tile entity, but what about multitile...?
 	let planq = commands.spawn((
 		Planq::new(),
 		Description::new().name("PLANQ").desc("It's your PLANQ."),
 		Body::small(*spawnpoint, ScreenCell::new().glyph("¶").fg(Color::Pink).bg(Color::Black)),
+		//Body::small(Position::INVALID, ScreenCell::new().glyph("¶").fg(Color::Pink).bg(Color::Black)),
 		ActionSet::new(),
 		Portable::new(player),
 		Device::new(-1),
 		RngComponent::from(&mut global_rng),
+		Save,
+		Unload,
 	)).id();
 	debug!("* new planq spawned into player inventory: {:?}", planq); // DEBUG: announce creation of player's planq
-	commands.spawn(DataSampleTimer::new().source("player_location"));
-	commands.spawn(DataSampleTimer::new().source("current_time"));
-	commands.spawn(DataSampleTimer::new().source("planq_battery"));
-	commands.spawn(DataSampleTimer::new().source("planq_mode"));
+	commands.spawn((DataSampleTimer::new().source("player_location"), Save, Unload));
+	commands.spawn((DataSampleTimer::new().source("current_time"), Save, Unload));
+	commands.spawn((DataSampleTimer::new().source("planq_battery"), Save, Unload));
+	commands.spawn((DataSampleTimer::new().source("planq_mode"), Save, Unload));
 	msglog.tell_player("[[fg:green]]WELCOME[[end]] TO [[fg:blue,mod:+italic]]SPACEGAME[[end]]");
 }
 /// Spawns a new LMR at the specified Position, using default values
@@ -681,6 +693,8 @@ pub fn new_lmr_spawn(mut commands:  Commands,
 		Obstructive::default(),
 		Container::default(),
 		Opaque::new(true),
+		Save,
+		Unload,
 	));
 	msglog.add(format!("LMR spawned at {}, {}, {}", 12, 12, 0).as_str(), "debug", 1, 1);
 }
@@ -706,6 +720,8 @@ pub fn test_npc_spawn(mut commands: Commands,
 		Mobile::default(),
 		Obstructive::default(),
 		Container::default(),
+		Save,
+		Unload,
 	));
 	//debug!("* Spawned new npc at {}", spawnpoint); // DEBUG: announce npc creation
 }

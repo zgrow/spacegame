@@ -69,6 +69,7 @@ use bevy::prelude::{
 };
 use bevy::ecs::world::EntityMut;
 use bevy_turborand::*;
+use moonshine_save::prelude::*;
 
 // ###: INTERNAL LIBRARIES
 use crate::components::*;
@@ -101,6 +102,8 @@ pub struct ItemBuilder {
 	open:     Option<Openable>,
 	portable: Option<Portable>,
 	planq:    Option<Planq>,
+	save:     Option<bool>, // This is a tag component, but from moonshine_save, and does not impl Reflect, so cannot be saved directly
+	unload:   Option<bool>, // Same as with 'save'; i suppose i could swap these with strings if i needed uniqueness
 	#[reflect(ignore)]
 	item_dict:     ItemDict,
 }
@@ -189,9 +192,9 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 							}
 							self.lock = Some(new_lock);
 						}
-						"mobile"      => { self.mobile = Some(Mobile::default()); } // tag component
+						"mobile"      => { self.mobile = Some(Mobile); } // tag component
 						"networkable" => { self.network = Some(Networkable::default()); } // tag component
-						"obstructs"   => { self.obstruct = Some(Obstructive::default()); } // tag component
+						"obstructs"   => { self.obstruct = Some(Obstructive); } // tag component
 						"opaque"      => {
 							let mut new_opaque = Opaque::default();
 							if details.is_empty() {
@@ -224,6 +227,8 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 							self.open = Some(new_open);
 						}
 						"portable"    => { self.portable = Some(Portable::empty()); } // the Entity field cannot be specified before runtime
+						"save"        => { self.save = Some(true) } // tag component from moonshine_save
+						"unload"      => { self.unload = Some(true) } // tag component from moonshine_save
 						_ => { error!("! ERR: requested component {} was not recognized", component); }
 					}
 				}
@@ -262,7 +267,7 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 	pub fn give_to(&mut self, target: Entity) -> &mut ItemBuilder {
 		if self.request_list.is_empty() {
 			self.portable = Some(Portable::new(target));
-			self.is_carried = Some(IsCarried::default());
+			self.is_carried = Some(IsCarried);
 		} else {
 			for item in self.request_list.iter_mut() {
 				item.recipient = Some(target);
@@ -295,6 +300,8 @@ impl<'a, 'b> ItemBuilder where 'a: 'b {
 		if let Some(open)     = &self.open { new_item.insert(open.clone()); self.open = None; }
 		if let Some(planq)    = self.planq { new_item.insert(planq); self.planq = None; }
 		if let Some(portable) = self.portable { new_item.insert(portable); self.portable = None; }
+		if let Some(save)     = self.save { new_item.insert(Save); self.save = None; }
+		if let Some(unload)   = self.unload { new_item.insert(Unload); self.unload = None; }
 		vec![(new_item.into(), item_shape)]
 	}
 	/// Retrieves a random template from the set defined for a specified item

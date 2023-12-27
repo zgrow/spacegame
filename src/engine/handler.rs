@@ -39,6 +39,7 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 	let mut player_query = eng.bevy.world.query_filtered::<Entity, With<Player>>();
 	let player_ref = player_query.get_single(&eng.bevy.world);
 	let player = player_ref.unwrap_or(Entity::PLACEHOLDER);
+	eprintln!("* key_parser: player: {:?}", player);
 	// ###: GAME CONTROL HANDLING
 	if eng.mode == EngineMode::Running {
 		let mut new_game_event = GameEvent::new(GameEventType::NullEvent, Some(player), None);
@@ -452,15 +453,16 @@ pub fn key_parser(key_event: KeyEvent, eng: &mut GameEngine) -> AppResult<()> {
 				}
 			}
 			KeyCode::Char('D') => { // DISCONNECT the PLANQ from a connected AccessPort, if set
-				if planq.jack_cnxn == Entity::PLACEHOLDER {
-					// report "no connection" and abort the action
-					let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
-					msglog.tell_player("There's nothing connected to your PLANQ.");
-				} else {
-					// disconnect the PLANQ
-					new_game_event.etype = PlanqConnect(Entity::PLACEHOLDER);
-					new_game_event.context = Some(GameEventContext{ subject: player, object: planq.jack_cnxn });
-				}
+				// FIXME: disabled pending repairs to jack_cnxn field
+				//if planq.jack_cnxn == Entity::PLACEHOLDER {
+				//	// report "no connection" and abort the action
+				//	let mut msglog = eng.bevy.world.get_resource_mut::<MessageLog>().unwrap();
+				//	msglog.tell_player("There's nothing connected to your PLANQ.");
+				//} else {
+				//	// disconnect the PLANQ
+				//	new_game_event.etype = PlanqConnect(Entity::PLACEHOLDER);
+				//	new_game_event.context = Some(GameEventContext{ subject: player, object: planq.jack_cnxn });
+				//}
 			}
 			//   #: PLANQ 'sidebar'/ambient controls
 			KeyCode::Char('P') | KeyCode::Char(':') => {

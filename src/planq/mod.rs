@@ -16,6 +16,7 @@ use ratatui::style::Color;
 use ratatui::text::Line;
 use ratatui::widgets::*;
 use strum_macros::EnumIter;
+use moonshine_save::prelude::*;
 
 //  ###: INTERNAL LIBRARIES
 use crate::{
@@ -185,11 +186,11 @@ pub fn planq_update_system(mut commands: Commands,
 						//debug!("¶ running boot stage {}", planq.boot_stage); // DEBUG: announce the current PLANQ boot stage
 						msglog.boot_message(planq.boot_stage);
 						// kick off boot stage 1
-						planq.proc_table.push(commands.spawn(
-								PlanqProcess::new()
-								.time(3)
-								.event(PlanqEvent::new(PlanqEventType::BootStage(1))))
-							.id()
+						planq.proc_table.push(commands.spawn((
+								PlanqProcess::new().time(3).event(PlanqEvent::new(PlanqEventType::BootStage(1))),
+								Save,
+								Unload,
+							)).id()
 						);
 					}
 				}
@@ -312,7 +313,7 @@ pub struct PlanqData {
 	pub show_cli_input: bool,
 	pub stdout: Vec<Message>, // Local copy of the PLANQ's message backlog, as copied from the MessageLog "planq" channel
 	pub proc_table: Vec<Entity>, // The list of PlanqProcesses running in the Planq
-	pub jack_cnxn: Entity, // ID of the object that the PLANQ's access jack is connected to
+	//pub jack_cnxn: Entity, // ID of the object that the PLANQ's access jack is connected to
 }
 impl Default for PlanqData {
 	fn default() -> PlanqData {
@@ -329,7 +330,7 @@ impl Default for PlanqData {
 			show_cli_input: false,
 			stdout: Vec::new(), // Contains the PLANQ's message backlog
 			proc_table: Vec::new(), // The list of PlanqProcesses running in the Planq
-			jack_cnxn: Entity::PLACEHOLDER, // ID of the object that the PLANQ's access jack is connected to
+			//jack_cnxn: Entity::PLACEHOLDER, // ID of the object that the PLANQ's access jack is connected to
 		}
 	}
 }
@@ -395,7 +396,7 @@ impl PlanqProcess {
 	pub fn new() -> PlanqProcess {
 		PlanqProcess {
 			timer: Timer::default(),
-			outcome: PlanqEvent::default()
+			outcome: PlanqEvent::default(),
 		}
 	}
 	pub fn time(mut self, duration: u64) -> PlanqProcess {

@@ -12,6 +12,7 @@ use bevy::prelude::{
 	ReflectResource,
 	Resource,
 };
+use bevy::utils::HashMap;
 use simplelog::*;
 use bevy_turborand::*;
 
@@ -40,15 +41,17 @@ pub fn xy_to_index(x: usize, y: usize, w: usize) -> usize {
 pub struct WorldModel {
 	pub levels: Vec<WorldMap>,
 	pub layout: ShipGraph,
-	// WARN: DO NOT CONVERT THIS TO A HASHMAP OR BTREEMAP
-	// Bevy's implementation of hashing and reflection makes this specific kind of Hashmap usage
-	// *ineligible* for correct save/load via bevy_save; in short, the HashMap *itself* cannot be hashed,
-	// so bevy_save shits itself and reports an "ineligible for hashing" error without any other useful info
-	// All of these declarations are the bones of those who came before:
-	//pub portals: BTreeMap<Position, Position>,
-	//pub portals: HashMap<Position, Position>,
-	//pub portals: HashMap<(i32, i32, i32), (i32, i32, i32)> // Cross-level linkages
-	//portals: Vec<(Position, Position)>,
+	/* WARN: DO NOT CONVERT THIS TO A HASHMAP OR BTREEMAP
+	 * Bevy's implementation of hashing and reflection makes this specific kind of Hashmap usage
+	 * *ineligible* for correct save/load via bevy_save; in short, the HashMap *itself* cannot be hashed,
+	 * so bevy_save shits itself and reports an "ineligible for hashing" error without any other useful info
+	 * All of these declarations are the bones of those who came before:
+	 *pub portals: BTreeMap<Position, Position>,
+	 *pub portals: HashMap<Position, Position>,
+	 *pub portals: HashMap<(i32, i32, i32), (i32, i32, i32)> // Cross-level linkages
+	 *portals: Vec<(Position, Position)>,
+	 */
+	// NOTE: The above may not be true with the conversion to moonshine_save from bevy_save; testing is needed
 	portals: Vec<Portal>,
 }
 impl WorldModel {
@@ -95,6 +98,24 @@ impl WorldModel {
 	/// Retrieves a list of all the occupants at the given Position
 	pub fn get_contents_at(&self, target: Position) -> Vec<Entity> {
 		self.levels[target.z as usize].get_contents_at(target)
+	}
+	/// Iterates on the contents list of every Tile in the WorldModel and validates it with the given Entity map
+	pub fn reload_tile_contents(&mut self, _ref_map: HashMap<Entity, Entity>, old_enty_bodies: Vec<(Entity, Vec<Glyph>)>) {
+		//eprintln!("* supplied ref_map: {:#?}", ref_map);
+		eprintln!("* old_enty_bodies: {:#?}", old_enty_bodies);
+		self.drop_all_tile_contents();
+		for (enty, body) in old_enty_bodies.iter() {
+			for glyph in body.iter() {
+				self.add_contents(&vec![glyph.posn], 0, *enty);
+			}
+		}
+	}
+	pub fn drop_all_tile_contents(&mut self) {
+		for deck in self.levels.iter_mut() {
+			for tile in deck.tiles.iter_mut() {
+				tile.contents = Vec::new();
+			}
+		}
 	}
 	/// Returns True if the Position contains an Entity with Obstructive, or if the Tiletype is a blocking type
 	pub fn is_blocked_at(&self, target: Position) -> bool {
@@ -264,8 +285,9 @@ impl BaseMap for WorldMap {
 #[reflect(Resource)]
 pub struct Tile {
 	pub ttype: TileType,
-	contents: Vec<(i32, Entity)>, // Implemented as a stack with sorting on the first value of the tuple
 	pub cell: ScreenCell,
+	#[reflect(ignore)]
+	contents: Vec<(i32, Entity)>, // Implemented as a stack with sorting on the first value of the tuple
 }
 impl Tile {
 	pub fn tiletype(mut self, new_type: TileType) -> Self {

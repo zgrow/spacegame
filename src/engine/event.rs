@@ -4,6 +4,7 @@
 //  ###: EXTERNAL LIBS
 use bevy::prelude::*;
 use bevy::ecs::entity::*;
+use bevy::ecs::reflect::ReflectMapEntities;
 use strum_macros::AsRefStr;
 use std::fmt::{Display, Formatter, Result};
 use std::borrow::Cow;
@@ -75,6 +76,8 @@ impl GameEvent {
 				}
 			}
 			GameEventType::PlanqConnect(target) => { target != Entity::PLACEHOLDER && if let Some(context) = self.context { !context.is_blank() } else { false } }
+			GameEventType::LoadRequest => { true }
+			GameEventType::SaveRequest => { true }
 		}
 	}
 }
@@ -95,6 +98,8 @@ pub enum GameEventType {
 	PlayerAction(ActionType),
 	ActorAction(ActionType),
 	PlanqConnect(Entity),
+	SaveRequest,
+	LoadRequest,
 }
 impl Display for GameEventType {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
@@ -105,6 +110,8 @@ impl Display for GameEventType {
 			GameEventType::PlayerAction(action)  => { format!("{}", action) }
 			GameEventType::ActorAction(action)   => { format!("{}", action) }
 			GameEventType::PlanqConnect(target)  => { format!("{:?}", target) } // NOTE: just for debugging right now
+			GameEventType::LoadRequest           => { "LoadRequest".to_string() }
+			GameEventType::SaveRequest           => { "SaveRequest".to_string() }
 		};
 		let prim = output.as_str();
 		write!(f, "{}", prim)
@@ -168,8 +175,8 @@ impl From<ActionType> for Cow<'_, str> {
 /// Friendly bucket for holding contextual information about game actions
 /// Note that this expresses a 1:1 relation: this preserves the atomic nature of the event
 /// If an event occurs with multiple objects, then that event should be broken into multiple
-#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
-#[reflect(Resource)]
+#[derive(Component, Resource, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[reflect(Component, Resource, MapEntities)]
 pub struct GameEventContext {
 	pub subject: Entity, // the entity performing the action; by defn, only one
 	pub object: Entity, // the entity upon which the subject will perform the action

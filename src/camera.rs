@@ -261,6 +261,7 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 	// Bail out of the method if we're missing any of the structure we need
 	if p_query.get_single_mut().is_err() { return; }
 	let (p_enty, p_body, p_viewshed, p_memory) = p_query.get_single_mut().unwrap(); // There's probably a better way to do this but the line above guards this one so it's okay for now b(> u * )
+	eprintln!("* camera_u_sys: p_enty: {:?}", p_enty);
 	let world_map = &model.levels[p_posn.z as usize];
 	assert!(!camera.output.is_empty(), "camera_update_system: camera.output has length 0!");
 	assert!(!world_map.tiles.is_empty(), "camera_update_system: world_map.tiles has length 0!");
@@ -274,7 +275,7 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 	for (scr_y, map_y) in (map_frame_ul.y..map_frame_dr.y).enumerate() {
 		// For every x-position in the map frame and its associated screen position, ...
 		for (scr_x, map_x) in (map_frame_ul.x..map_frame_dr.x).enumerate() {
-			trace!("- scr: {}, {}; map: {}, {}", scr_x, scr_y, map_x, map_y); // DEBUG: print the loop iteration values
+			//trace!("- scr: {}, {}; map: {}, {}", scr_x, scr_y, map_x, map_y); // DEBUG: print the loop iteration values
 			// Get some indices for the various arrays we're going to use
 			let scr_index = xy_to_index(scr_x, scr_y, camera_width); // Indexes into the camera's map of the screen
 			let map_index = world_map.to_index(map_x, map_y); // Indexes into the worldmap's tilemap
@@ -305,25 +306,26 @@ pub fn camera_update_system(mut camera:      ResMut<CameraView>,
 					else if is_visible {
 						// There's no System access over in the WorldMap stuff, so we have to pull the Entity ourselves
 						if let Some(enty) = world_map.get_visible_entity_at(map_posn) {
+							eprintln!("* observed visible entity {:?} at posn {:?}", enty, map_posn);
 							if enty == p_enty { // If it's the player after all, draw the player
 								if let Some(p_glyph) = p_body.glyph_at(&map_posn) {
 									p_glyph.into()
 								} else {
 									// As below, there was a failure to retrieve the visible entity, draw a fallback
 									//world_map.get_display_tile(map_posn).into() // DEBUG: disabled so i can catch this error case
-									warn!("? Error retrieving player entity {:?} from the p_query during camera_update_system at posn {}", enty, map_posn);
+									warn!("? Player entity {:?} Body component did not contain a glyph for posn {}, idx {}", enty, map_posn, world_map.to_index(map_posn.x, map_posn.y));
 									ScreenCell::placeholder()
 								}
 							} else if let Ok((_enty, e_body)) = e_query.get(enty) { // It's a non-player entity
 								if let Some(e_glyph) = e_body.glyph_at(&map_posn) {
 									e_glyph.into()
 								} else {
-									warn!("? Error retrieving actor entity {:?} from the e_query during camera_update_system at posn {}", enty, map_posn);
+									warn!("? Actor entity {:?} Body component did not contain a glyph for posn {}, idx {}", enty, map_posn, world_map.to_index(map_posn.x, map_posn.y));
 									ScreenCell::placeholder()
 								}
 							} else { // ...there was somehow a failure to retrieve the visible entity; fallback to the map tile
 								//world_map.get_display_tile(map_posn).into() // DEBUG: disabled so i can catch this error case
-								warn!("? Error retrieving visible entity {:?} from the e_query during camera_update_system at posn {}", enty, map_posn);
+								warn!("? Error retrieving visible entity {:?} during camera_update_system at posn {}", enty, map_posn);
 								ScreenCell::placeholder()
 							}
 						} else { // There were no visible entities at the specified position, use a map tile instead

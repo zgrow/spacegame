@@ -355,8 +355,10 @@ impl From<Glyph> for ScreenCell {
 //   ##: Viewshed
 /// Provides an object abstraction for the sensory range of a given entity
 //  INFO: This Viewshed type is NOT eligible for bevy_save because bracket_lib::Point doesn't impl Reflect/FromReflect
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Clone, Debug, Default, Reflect)]
+#[reflect(Component)]
 pub struct Viewshed {
+	#[reflect(ignore)]
 	pub visible_points: Vec<Point>, // for bracket_lib::pathfinding::field_of_view
 	pub range: i32,
 	pub dirty: bool, // indicates whether this viewshed needs to be updated from world data
@@ -408,11 +410,21 @@ impl Portable {
 	pub fn new(target: Entity) -> Portable { Portable { carrier: target } }
 	pub fn empty() -> Portable { Portable { carrier: Entity::PLACEHOLDER } }
 }
+//impl Default for Portable {
+//	fn default() -> Portable {
+//		Portable {
+//			carrier: Entity::PLACEHOLDER
+//		}
+//	}
+//}
 impl MapEntities for Portable {
 	fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
 		self.carrier = entity_mapper.get_or_reserve(self.carrier);
 	}
 }
+// START HERE: This trait impl doesn't seem to do anything, the saved Portable still hangs on
+// to the old (pre-save) Entity value when it should be remapping to the new one
+// This implies that the MapEntities trait above isn't working for save/load either?
 impl FromWorld for Portable {
 	// This is intentional (lmao) to prevent issues when loading from save game
 	fn from_world(_world: &mut World) -> Self {
@@ -560,17 +572,17 @@ pub enum DeviceState {
 /// Identifies the Entity that represents the player character
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
-pub struct Player { }
+pub struct Player;
 //   ##: LMR
 /// Identifies the LMR in the ECS
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
-pub struct LMR { }
+pub struct LMR;
 //   ##: IsCarried
 /// Describes an Entity that is currently located within a Container
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
-pub struct IsCarried { }
+pub struct IsCarried;
 //   ##: Container
 /// Describes an entity which may contain entities tagged with the Portable Component
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
@@ -590,12 +602,12 @@ pub struct Networkable { }
 /// Describes an Entity that can move around under its own power
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
-pub struct Mobile { }
+pub struct Mobile;
 //   ##: Obstructive
 /// Describes an entity that obstructs movement by other entities
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
-pub struct Obstructive { }
+pub struct Obstructive;
 
 //  ###: PRIMITIVES AND COMPUTED VALUES (ie no save/load)
 //   ##: Color
@@ -768,6 +780,12 @@ impl From<(usize, usize, usize)> for Position {
 impl PartialEq<(i32, i32, i32)> for Position {
 	fn eq(&self, rhs: &(i32, i32, i32)) -> bool {
 		if self.x == rhs.0 && self.y == rhs.1 && self.z == rhs.2 { return true; }
+		false
+	}
+}
+impl PartialEq<(usize, usize, usize)> for Position {
+	fn eq(&self, rhs: &(usize, usize, usize)) -> bool {
+		if self.x == rhs.0 as i32 && self.y == rhs.1 as i32 && self.z == rhs.2 as i32 { return true; }
 		false
 	}
 }

@@ -12,7 +12,7 @@ crossterm = "0.26"
 ratatui = "=0.23.0"
 #tui-textarea = { git = "https://github.com/delehef/tui-textarea", version = "*", features = ["ratatui-crossterm"], default-features = false }
 tui-textarea = { version = "=0.4.0", features = ["ratatui"], default-features = false }
-bevy_save = "0.11.1"
+#bevy_save = "0.11.1"
 bevy_turborand = "0.7.0"
 bracket-algorithm-traits = { version = "0.8.7", default-features = false } # required for other bracket-lib crates
 bracket-embedding = { version = "0.8.7", default-features = false } # resource embedding tools for WebGL apps
@@ -27,5 +27,6 @@ simplelog = { version = "0.12.1", features = ["paris"] }
 serde_json = "1.0.107"
 serde = "1.0.188"
 lazy_static = "1.4.0"
+moonshine-save = "0.3.4"
 
 # EOF
