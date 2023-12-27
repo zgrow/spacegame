@@ -77,14 +77,15 @@
 // ###: EXTERNAL LIBS
 use std::fmt;
 use std::hash::Hash;
+use moonshine_save::prelude::*;
 use bevy::prelude::{
 	Component,
-	FromWorld,
+	//FromWorld,
 	Reflect,
 	ReflectComponent,
 	ReflectResource,
 	Resource,
-	World,
+	//World,
 };
 use bevy::ecs::entity::*;
 use bevy::utils::hashbrown::{HashMap, HashSet};
@@ -402,7 +403,7 @@ impl Memory {
 /// Describes an entity that can be picked up and carried around
 //#[derive(Component, Clone, Copy, Debug, Default)]
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
-#[reflect(Component)]
+#[reflect(Component, MapEntities)]
 pub struct Portable {
 	pub carrier: Entity
 }
@@ -410,13 +411,13 @@ impl Portable {
 	pub fn new(target: Entity) -> Portable { Portable { carrier: target } }
 	pub fn empty() -> Portable { Portable { carrier: Entity::PLACEHOLDER } }
 }
-//impl Default for Portable {
-//	fn default() -> Portable {
-//		Portable {
-//			carrier: Entity::PLACEHOLDER
-//		}
-//	}
-//}
+impl Default for Portable {
+	fn default() -> Portable {
+		Portable {
+			carrier: Entity::PLACEHOLDER
+		}
+	}
+}
 impl MapEntities for Portable {
 	fn map_entities(&mut self, entity_mapper: &mut EntityMapper) {
 		self.carrier = entity_mapper.get_or_reserve(self.carrier);
@@ -425,14 +426,14 @@ impl MapEntities for Portable {
 // START HERE: This trait impl doesn't seem to do anything, the saved Portable still hangs on
 // to the old (pre-save) Entity value when it should be remapping to the new one
 // This implies that the MapEntities trait above isn't working for save/load either?
-impl FromWorld for Portable {
-	// This is intentional (lmao) to prevent issues when loading from save game
-	fn from_world(_world: &mut World) -> Self {
-		Self {
-			carrier: Entity::PLACEHOLDER,
-		}
-	}
-}
+//impl FromWorld for Portable {
+//	// This is intentional (lmao) to prevent issues when loading from save game
+//	fn from_world(_world: &mut World) -> Self {
+//		Self {
+//			carrier: Entity::PLACEHOLDER,
+//		}
+//	}
+//}
 //   ##: Opaque
 /// Describes an entity that blocks line of sight; comes with an internal state for temp use
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]

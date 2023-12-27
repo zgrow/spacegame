@@ -444,6 +444,7 @@ impl GameEngine<'_> {
 		//.add_plugins(RngPlugin::new().with_rng_seed(69420)) // Forces the RNG to be deterministic
 		.add_systems(PreUpdate, (raise_quit_event_after_saving_game.in_set(SaveSet::PostSave),
 			                       raise_start_event_after_loading_game.in_set(LoadSet::PostLoad),
+														 load_saved_game_system.in_set(LoadSet::PostLoad).after(load_from_file_on_event::<LoadRequest>),
 			                       load_from_file_on_event::<LoadRequest>(),
 			                       save_default()
 			                         .include_resource::<CameraView>()
@@ -494,6 +495,7 @@ impl GameEngine<'_> {
 		.register_type::<GraphCell>()
 		.register_type::<GraphDoor>()
 		.register_type::<GraphRoom>()
+		.register_type::<IsCarried>()
 		.register_type::<ItemBuilder>()
 		.register_type::<ItemRequest>()
 		.register_type::<Key>()
@@ -704,15 +706,15 @@ fn raise_quit_event_after_saving_game(mut quit_events: EventWriter<QuitRequest>,
 /// Watches for a new Resource of type Loaded, and when found, emits a StartRequest Event; set to run after moonshine's load system
 fn raise_start_event_after_loading_game(mut start_events: EventWriter<StartRequest>,
 																				loaded_data: Option<Res<Loaded>>,
-																				mut model: ResMut<WorldModel>,
-																				b_query: Query<(Entity, &Body)>
+																				mut _model: ResMut<WorldModel>,
+																				_b_query: Query<(Entity, &Body)>
 ) {
 	debug!("* raise_start_event_after... running");
 	if let Some(data) = loaded_data {
 		if data.is_added() {
 			eprintln!("* A loaded game was detected, now starting");
-			let enty_body_map = b_query.iter().map(|pair| (pair.0, pair.1.extent.clone())).collect();
-			model.reload_tile_contents(data.entity_map.clone(), enty_body_map);
+			//let enty_body_map = b_query.iter().map(|pair| (pair.0, pair.1.extent.clone())).collect();
+			//model.reload_tile_contents(data.entity_map.clone(), enty_body_map); // DEBUG: moved this to a startup system
 			start_events.send(StartRequest);
 		}
 	} else {

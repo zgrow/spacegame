@@ -634,7 +634,6 @@ pub fn new_player_spawn(mut commands: Commands,
 		return;
 	}
 	// DEBUG: testing multitile entities
-	// - remove the 'extend()' call from the Body component
 	//let extra_posns = vec![
 	//	*spawnpoint + (1, 0, 0),
 	//	*spawnpoint + (0, 1, 0),
@@ -665,12 +664,13 @@ pub fn new_player_spawn(mut commands: Commands,
 		//Body::small(Position::INVALID, ScreenCell::new().glyph("¶").fg(Color::Pink).bg(Color::Black)),
 		ActionSet::new(),
 		Portable::new(player),
+		IsCarried,
 		Device::new(-1),
 		RngComponent::from(&mut global_rng),
 		Save,
 		Unload,
 	)).id();
-	debug!("* new planq spawned into player inventory: {:?}", planq); // DEBUG: announce creation of player's planq
+	debug!("* new planq {:?} spawned into player inventory", planq); // DEBUG: announce creation of player's planq
 	commands.spawn((DataSampleTimer::new().source("player_location"), Save, Unload));
 	commands.spawn((DataSampleTimer::new().source("current_time"), Save, Unload));
 	commands.spawn((DataSampleTimer::new().source("planq_battery"), Save, Unload));
@@ -724,6 +724,30 @@ pub fn test_npc_spawn(mut commands: Commands,
 		Unload,
 	));
 	//debug!("* Spawned new npc at {}", spawnpoint); // DEBUG: announce npc creation
+}
+/// Runs after loading a saved game to ensure that things will be nice and tidy before starting
+pub fn load_saved_game_system(mut _commands: Commands,
+															mut model: ResMut<WorldModel>,
+															o_query: Query<(Entity, &Body, Option<&IsCarried>)>, // all possibly-visible items
+															_s_query: Query<(Entity, &Body, &Container)>, // all actors with inventories
+) {
+	// Clear the contents of all tiles in the worldmodel to clean any stale references out
+	for deck in model.levels.iter_mut() {
+		for tile in deck.tiles.iter_mut() {
+			tile.clear_contents();
+		}
+	}
+	// Iterate on all possibly-visible entities; if it's carried, add it to an inventory; else add to tile.contents
+	for (o_enty, o_body, o_is_carried) in o_query.iter() {
+		trace!("* Now checking enty {:?}: is_carried? {}", o_enty, o_is_carried.is_some());
+		for glyph in o_body.extent.iter() {
+			if o_is_carried.is_none() {
+				// Either the item's not being carried, or it's not portable; either way, put it in a tile
+				trace!("* Putting enty {:?} at posn {:?}", o_enty, glyph.posn);
+				model.add_contents(&vec![glyph.posn], 0, o_enty);
+			}
+		}
+	}
 }
 
 // ###: UTILITIES

@@ -12,7 +12,6 @@ use bevy::prelude::{
 	ReflectResource,
 	Resource,
 };
-use bevy::utils::HashMap;
 use simplelog::*;
 use bevy_turborand::*;
 
@@ -100,11 +99,11 @@ impl WorldModel {
 		self.levels[target.z as usize].get_contents_at(target)
 	}
 	/// Iterates on the contents list of every Tile in the WorldModel and validates it with the given Entity map
-	pub fn reload_tile_contents(&mut self, _ref_map: HashMap<Entity, Entity>, old_enty_bodies: Vec<(Entity, Vec<Glyph>)>) {
+	pub fn reload_tile_contents(&mut self, enty_bodies: Vec<(Entity, Vec<Glyph>)>) {
 		//eprintln!("* supplied ref_map: {:#?}", ref_map);
-		eprintln!("* old_enty_bodies: {:#?}", old_enty_bodies);
+		eprintln!("* old_enty_bodies: {:#?}", enty_bodies);
 		self.drop_all_tile_contents();
-		for (enty, body) in old_enty_bodies.iter() {
+		for (enty, body) in enty_bodies.iter() {
 			for glyph in body.iter() {
 				self.add_contents(&vec![glyph.posn], 0, *enty);
 			}
@@ -383,6 +382,10 @@ impl Tile {
 			contents: Vec::new(),
 			cell: ScreenCell::new_from_str("∑ white black none"),
 		}
+	}
+	/// Removes everything from the contents of this Tile
+	pub fn clear_contents(&mut self) {
+		self.contents = Vec::new();
 	}
 }
 impl Default for Tile {
